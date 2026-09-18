@@ -1,16 +1,35 @@
 import { EnvironmentGate } from './EnvironmentGate'
+import { getEnvironment } from '@/config/environment'
+import { AppShell } from '@/components/product/AppShell'
+import { PageHeader } from '@/components/product/PageHeader'
+
+const accountItems = [
+  { id: 'account', label: 'Account', href: '/account' },
+  { id: 'all-courses', label: 'All Courses', href: '/InstructorHome.html' },
+]
+
+const courseItems = [
+  { id: 'prompt-designer', label: 'Prompt Designer', href: '/PromptDesigner.html' },
+  { id: 'feedback-analyzer', label: 'Feedback Analyzer', href: '/FeedbackAnalyzer.html' },
+  { id: 'feedback-chat', label: 'Feedback Chat', href: '/FeedbackChat.html' },
+  { id: 'course-banner', label: 'Course Banner', href: '/CourseBanner.html' },
+  { id: 'customizations', label: 'Customizations', href: '/Customizations.html' },
+]
 
 export function App() {
+  const environment = getEnvironment()
+
   return (
-    <EnvironmentGate>
-      <main className="min-h-screen bg-background px-6 py-10 text-foreground sm:px-10">
-        <section className="mx-auto max-w-3xl">
-          <h1 className="text-3xl font-semibold tracking-tight">LEAI</h1>
-          <p className="mt-2 max-w-xl text-muted-foreground">
-            Learning experience workspace
-          </p>
-        </section>
-      </main>
+    <EnvironmentGate environment={environment}>
+      <AppShell
+        accountItems={accountItems}
+        activeItem="prompt-designer"
+        courseItems={courseItems}
+        courseName="Instructor workspace"
+        environment={environment}
+      >
+        <PageHeader description="Learning experience workspace" title="LEAI" />
+      </AppShell>
     </EnvironmentGate>
   )
 }

@@ -429,25 +429,25 @@ git commit -m "feat: enforce environment identity"
 **Interfaces:**
 - Produces: `AppShellProps { environment; accountItems; courseItems; activeItem; children }`; account navigation owns only Account and All Courses; course navigation owns active-course tools.
 
-- [ ] **Step 1: Write failing shell tests**
+- [x] **Step 1: Write failing shell tests**
 
 Test that All Courses renders in the account rail, Prompt Designer renders in course navigation, duplicate labels do not exist, and the mobile menu uses a Sheet with focus return.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Run: `npm run test -- --run src/components/product/AppShell.test.tsx`
 
 Expected: FAIL because AppShell does not exist.
 
-- [ ] **Step 3: Implement the shell**
+- [x] **Step 3: Implement the shell**
 
 Use semantic tokens and the source-owned primitives. Keep the environment bar visible in QA. Reflow based on content pressure and use the Sheet below the approved shell breakpoint. Do not copy Canvas visuals.
 
-- [ ] **Step 4: Extend browser coverage**
+- [x] **Step 4: Extend browser coverage**
 
 At 390, 820, 1022, and 1440 pixels, assert there is no page-level horizontal overflow, the active destination remains visible, and the mobile Sheet can be opened and closed with real clicks and Escape.
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 Run:
 
