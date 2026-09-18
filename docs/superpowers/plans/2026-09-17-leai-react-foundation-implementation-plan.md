@@ -181,7 +181,7 @@ git commit -m "chore: scaffold React application"
 - Consumes: `App` from Task 2.
 - Produces: `npm run test`, `npm run test:coverage`, and `npm run test:e2e`.
 
-- [ ] **Step 1: Write the failing component test**
+- [x] **Step 1: Write the failing component test**
 
 ```tsx
 import { render, screen } from '@testing-library/react'
@@ -193,13 +193,13 @@ it('identifies the LEAI application', () => {
 })
 ```
 
-- [ ] **Step 2: Run the test before installing the harness**
+- [x] **Step 2: Run the test before installing the harness**
 
 Run: `npm test -- --run`
 
 Expected: FAIL because the test runner and Testing Library are not configured.
 
-- [ ] **Step 3: Install and configure the harness**
+- [x] **Step 3: Install and configure the harness**
 
 Run:
 
@@ -210,7 +210,7 @@ npx playwright install chromium firefox webkit
 
 Configure Vitest with `environment: "jsdom"` and `setupFiles: ["./src/test/setup.ts"]`. Add `test`, `test:coverage`, and `test:e2e` scripts.
 
-- [ ] **Step 4: Add the browser smoke test**
+- [x] **Step 4: Add the browser smoke test**
 
 ```ts
 import { expect, test } from '@playwright/test'
@@ -223,7 +223,7 @@ test('loads the LEAI shell', async ({ page }) => {
 
 Configure Playwright projects for Chromium, Firefox, and WebKit and start `npm run dev -- --host 127.0.0.1` through `webServer`.
 
-- [ ] **Step 5: Verify all harnesses**
+- [x] **Step 5: Verify all harnesses**
 
 Run:
 
@@ -235,7 +235,7 @@ npm run test:e2e
 
 Expected: The component test and three browser projects pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add package.json package-lock.json vite.config.ts playwright.config.ts src/test src/app/App.test.tsx e2e
@@ -291,7 +291,7 @@ npm run build
 
 Expected: All commands pass and the built CSS contains the semantic variables.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add package.json package-lock.json vite.config.ts src/styles src/app/App.tsx
@@ -343,7 +343,7 @@ npm run build
 
 Expected: All primitive tests pass and source files are committed locally rather than imported from a remote runtime.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add components.json package.json package-lock.json src/components src/lib src/styles/globals.css
@@ -406,7 +406,7 @@ npm run build
 
 Expected: All tests pass; no manifest contains a credential.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add .env.local.example .env.qa .env.production package.json package-lock.json src/config src/api src/app/EnvironmentGate.tsx
@@ -460,7 +460,7 @@ npm run build
 
 Expected: Unit and all three browser projects pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/components/product src/app/App.tsx e2e/app-shell.spec.ts
@@ -512,7 +512,7 @@ for f in InstructorHome.html PromptDesigner.html FeedbackAnalyzer.html FeedbackC
 
 Expected: All seven files exist and reference emitted assets under the configured base.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add *.html src/entries vite.config.ts
@@ -534,25 +534,25 @@ git commit -m "feat: add GitHub Pages entry documents"
 - Produces: `npm run build:qa` → `dist/qa`; `npm run build:production` → `dist/production`; `npm run build:pages` → `dist/pages`; and `npm run verify:pages`.
 - `deployment/production-release.json` begins with `{ "enabled": false, "sourceSha": null }`. Enabling it requires an approved exact 40-character commit SHA.
 
-- [ ] **Step 1: Write the failing artifact-verification tests**
+- [x] **Step 1: Write the failing artifact-verification tests**
 
 Test that QA HTML uses `/LEAI/qa/`, Production HTML uses `/LEAI/`, QA assets contain no Production API hostname, Production assets contain no QA API hostname, and no service-worker file or registration exists.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Run: `node --test scripts/verify-pages-artifact.test.mjs`
 
 Expected: FAIL because the build scripts do not exist.
 
-- [ ] **Step 3: Implement environment builds**
+- [x] **Step 3: Implement environment builds**
 
 `build-environment.mjs` invokes Vite with an explicit environment manifest and output directory. It rejects unknown environments, missing build SHA, malformed bases, and forbidden API hosts.
 
-- [ ] **Step 4: Implement composition**
+- [x] **Step 4: Implement composition**
 
 Before Production is enabled, `build:pages` creates `dist/pages/qa/` only. After approval enables Production, composition requires the exact pinned SHA's Production build at the Pages root and the active QA build under `qa/`. It replaces the artifact atomically and never copies from another repository.
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 Run:
 
@@ -565,7 +565,7 @@ npm run verify:pages
 
 Expected: QA entries resolve below `/LEAI/qa/`; the root does not claim Production is enabled; no environment host crosses boundaries.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add package.json package-lock.json scripts deployment
@@ -585,19 +585,19 @@ git commit -m "build: isolate QA and Production artifacts"
 **Interfaces:**
 - Produces: CI checks on pull requests and `main`; a manually gated Pages workflow that cannot deploy until the `github-pages` environment is explicitly approved and Pages is enabled.
 
-- [ ] **Step 1: Write the failing secret-scan tests**
+- [x] **Step 1: Write the failing secret-scan tests**
 
 Cover provider-key patterns, forbidden `.env` keys, source maps containing credential-like values, and allowed public API/base/build variables.
 
-- [ ] **Step 2: Implement the scanner and CI workflow**
+- [x] **Step 2: Implement the scanner and CI workflow**
 
 CI uses Node `22.22.0`, `npm ci`, `npm run typecheck`, unit/component tests, `npm run build:pages`, artifact verification, and Playwright in Chromium, Firefox, and WebKit. Upload only the clean `dist/pages` artifact and test/report artifacts without student data.
 
-- [ ] **Step 3: Configure but do not run deployment**
+- [x] **Step 3: Configure but do not run deployment**
 
 `pages.yml` uses `workflow_dispatch`, GitHub Pages permissions, concurrency, artifact upload, and deployment actions. It has an explicit `github-pages` environment gate. Do not enable Pages or dispatch this workflow in this task.
 
-- [ ] **Step 4: Verify locally**
+- [x] **Step 4: Verify locally**
 
 Run:
 
@@ -613,7 +613,7 @@ git diff --check
 
 Expected: Every command passes and no deployment occurs.
 
-- [ ] **Step 5: Commit and push**
+- [x] **Step 5: Commit and push**
 
 ```bash
 git add .github scripts package.json package-lock.json
@@ -635,19 +635,19 @@ Expected: GitHub CI passes on the exact pushed SHA. Pages remains unpublished un
 - Consumes: Accepted Tasks 1–10 and a reachable QA environment endpoint.
 - Produces: A reviewable report and an exact manifest for the separate first-publication approval.
 
-- [ ] **Step 1: Run the real local browser matrix**
+- [x] **Step 1: Run the real local browser matrix**
 
 Use real clicks and keyboard actions in Chromium, Firefox, and WebKit at 390, 820, 1022, and 1440 pixels. Verify entry loads, account/course hierarchy, mobile Sheet focus behavior, environment label, mismatch fail-closed state, and zero page-level horizontal overflow.
 
-- [ ] **Step 2: Verify the artifact manifest**
+- [x] **Step 2: Verify the artifact manifest**
 
 Record the source SHA, lockfile hash, Node/npm versions, QA API host, app base, build digest, file manifest, test results, and screenshots. Confirm the artifact contains no secret, student data, private export, or legacy repository content.
 
-- [ ] **Step 3: Generate the self-contained report**
+- [x] **Step 3: Generate the self-contained report**
 
 The report must distinguish local browser evidence, CI evidence, and anything not yet verified against a deployed page. Keep it gitignored.
 
-- [ ] **Step 4: Update roadmap status**
+- [x] **Step 4: Update roadmap status**
 
 Mark only independently verified M0 checkboxes complete. Leave backend contract audit and deployed-page acceptance open until they have direct evidence.
 
