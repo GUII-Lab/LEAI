@@ -15,8 +15,10 @@
     "build:production": "node scripts/build-environment.mjs production",
     "build:pages": "node scripts/compose-pages-artifact.mjs",
     "verify:pages": "node scripts/verify-pages-artifact.mjs",
+    "check:client-secrets": "node scripts/check-client-secrets.mjs --tracked dist/pages",
     "lint": "oxlint",
     "test": "vitest",
+    "test:scripts": "node --test scripts/*.test.mjs",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "preview": "vite preview"
