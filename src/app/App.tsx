@@ -1,19 +1,19 @@
 import { EnvironmentGate } from './EnvironmentGate'
-import { getEnvironment } from '@/config/environment'
+import { getEnvironment, toAppHref } from '@/config/environment'
 import { AppShell } from '@/components/product/AppShell'
 import { PageHeader } from '@/components/product/PageHeader'
 
-const accountItems = [
-  { id: 'account', label: 'Account', href: '/account' },
-  { id: 'all-courses', label: 'All Courses', href: '/InstructorHome.html' },
+const accountDestinations = [
+  { id: 'account', label: 'Account', path: 'account' },
+  { id: 'all-courses', label: 'All Courses', path: 'InstructorHome.html' },
 ]
 
-const courseItems = [
-  { id: 'prompt-designer', label: 'Prompt Designer', href: '/PromptDesigner.html' },
-  { id: 'feedback-analyzer', label: 'Feedback Analyzer', href: '/FeedbackAnalyzer.html' },
-  { id: 'feedback-chat', label: 'Feedback Chat', href: '/FeedbackChat.html' },
-  { id: 'course-banner', label: 'Course Banner', href: '/CourseBanner.html' },
-  { id: 'customizations', label: 'Customizations', href: '/Customizations.html' },
+const courseDestinations = [
+  { id: 'prompt-designer', label: 'Prompt Designer', path: 'PromptDesigner.html' },
+  { id: 'feedback-analyzer', label: 'Feedback Analyzer', path: 'FeedbackAnalyzer.html' },
+  { id: 'feedback-chat', label: 'Feedback Chat', path: 'FeedbackChat.html' },
+  { id: 'course-banner', label: 'Course Banner', path: 'CourseBanner.html' },
+  { id: 'customizations', label: 'Customizations', path: 'Customizations.html' },
 ]
 
 export function App({
@@ -26,6 +26,14 @@ export function App({
   pageTitle?: string
 }) {
   const environment = getEnvironment()
+  const accountItems = accountDestinations.map(({ path, ...item }) => ({
+    ...item,
+    href: toAppHref(environment, path),
+  }))
+  const courseItems = courseDestinations.map(({ path, ...item }) => ({
+    ...item,
+    href: toAppHref(environment, path),
+  }))
 
   return (
     <EnvironmentGate environment={environment}>

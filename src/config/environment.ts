@@ -144,6 +144,10 @@ export function qualifyBrowserKey(environment: EnvironmentName, key: string) {
   return `${prefix}:${key}`
 }
 
+export function toAppHref(environment: PublicEnvironment, path: string) {
+  return `${environment.appBasePath}${path.replace(/^\/+/, '')}`
+}
+
 export function verifyEnvironment(
   expected: EnvironmentManifest,
   observed: ObservedEnvironment,
