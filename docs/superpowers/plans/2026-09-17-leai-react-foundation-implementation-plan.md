@@ -303,7 +303,7 @@ git commit -m "feat: define LEAI design tokens"
 
 **Files:**
 - Create: `components.json`
-- Create: `src/lib/cn.ts`
+- Create: `src/lib/utils.ts`
 - Create: `src/components/ui/button.tsx`
 - Create: `src/components/ui/card.tsx`
 - Create: `src/components/ui/badge.tsx`
@@ -313,10 +313,10 @@ git commit -m "feat: define LEAI design tokens"
 - Create: `src/components/ui/tooltip.test.tsx`
 
 **Interfaces:**
-- Consumes: semantic tokens and the `cn(...inputs: ClassValue[]): string` helper.
+- Consumes: semantic tokens and the `cn(...inputs: ClassValue[]): string` helper exported from `src/lib/utils.ts`.
 - Produces: accessible source-owned primitives for the first AppShell slice.
 
-- [ ] **Step 1: Initialize shadcn for Vite**
+- [x] **Step 1: Initialize shadcn for Vite**
 
 Run:
 
@@ -327,11 +327,11 @@ npx shadcn@latest add button card badge tooltip sheet
 
 Choose CSS variables, the committed aliases in `components.json`, and the existing `src/styles/globals.css`. Do not add unrelated catalog components.
 
-- [ ] **Step 2: Write primitive behavior tests**
+- [x] **Step 2: Write primitive behavior tests**
 
 Test that Button preserves its accessible name and disabled state. Test Tooltip appears after keyboard focus and disappears on Escape without changing the outer layout container's dimensions.
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
 
 Run:
 
