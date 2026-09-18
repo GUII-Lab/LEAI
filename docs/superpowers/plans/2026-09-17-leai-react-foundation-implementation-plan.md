@@ -255,17 +255,17 @@ git commit -m "test: add React verification harness"
 - Consumes: Vite CSS pipeline.
 - Produces: semantic utility names including `bg-background`, `text-foreground`, `bg-primary`, `text-muted-foreground`, `border-border`, and mode/state tokens.
 
-- [ ] **Step 1: Write the failing token-source test**
+- [x] **Step 1: Write the failing token-source test**
 
 Read `src/styles/globals.css` and assert that it contains `--color-background`, `--color-primary`, `--color-team`, `--color-guided`, `prefers-reduced-motion`, and no raw Tailwind palette class contract.
 
-- [ ] **Step 2: Verify the test fails**
+- [x] **Step 2: Verify the test fails**
 
 Run: `npm run test -- --run src/styles/tokens.test.ts`
 
 Expected: FAIL because semantic tokens are absent.
 
-- [ ] **Step 3: Install Tailwind v4 and define tokens**
+- [x] **Step 3: Install Tailwind v4 and define tokens**
 
 Run:
 
@@ -275,11 +275,11 @@ npm install tailwindcss @tailwindcss/vite
 
 Add the Vite plugin. In `globals.css`, import Tailwind and define the approved Pacific, Ink, Slate, Canvas, Paper, Course rail, Team, and Guided values through `@theme` plus light semantic variables. Add reduced-motion rules and visible focus-ring defaults.
 
-- [ ] **Step 4: Apply semantic styles to the shell**
+- [x] **Step 4: Apply semantic styles to the shell**
 
 Use semantic utilities in `App.tsx`; do not use raw hex values or one-off arbitrary color classes.
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 Run:
 
