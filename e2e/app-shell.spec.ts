@@ -25,3 +25,18 @@ test('opens and closes the mobile navigation with real keyboard focus return', a
   await expect(page.getByRole('dialog', { name: 'Navigation' })).toBeHidden()
   await expect(trigger).toBeFocused()
 })
+
+for (const [path, title] of [
+  ['/InstructorHome.html', 'LEAI'],
+  ['/PromptDesigner.html', 'Prompt Designer'],
+  ['/FeedbackAnalyzer.html', 'Feedback Analyzer'],
+  ['/FeedbackChat.html', 'Feedback Chat'],
+  ['/CourseBanner.html', 'Course Banner'],
+  ['/Customizations.html', 'Customizations'],
+  ['/feedback.html', 'Feedback'],
+]) {
+  test(`mounts ${path} without a rewrite`, async ({ page }) => {
+    await page.goto(path)
+    await expect(page.getByRole('heading', { name: title })).toBeVisible()
+  })
+}

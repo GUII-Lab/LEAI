@@ -16,19 +16,27 @@ const courseItems = [
   { id: 'customizations', label: 'Customizations', href: '/Customizations.html' },
 ]
 
-export function App() {
+export function App({
+  activeItem = 'prompt-designer',
+  description = 'Learning experience workspace',
+  pageTitle = 'LEAI',
+}: {
+  activeItem?: string
+  description?: string
+  pageTitle?: string
+}) {
   const environment = getEnvironment()
 
   return (
     <EnvironmentGate environment={environment}>
       <AppShell
         accountItems={accountItems}
-        activeItem="prompt-designer"
+        activeItem={activeItem}
         courseItems={courseItems}
         courseName="Instructor workspace"
         environment={environment}
       >
-        <PageHeader description="Learning experience workspace" title="LEAI" />
+        <PageHeader description={description} title={pageTitle} />
       </AppShell>
     </EnvironmentGate>
   )

@@ -486,21 +486,21 @@ git commit -m "feat: add responsive application shell"
 **Interfaces:**
 - Produces: `mountEntry(entry: EntryName, element: HTMLElement): Root`; `EntryName` is the seven exact entry names. Vite receives all seven HTML files as Rollup inputs.
 
-- [ ] **Step 1: Write the failing registry test**
+- [x] **Step 1: Write the failing registry test**
 
 Assert every `EntryName` returns a page module and an unknown value fails with a visible configuration error rather than silently mounting the wrong page.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Run: `npm run test -- --run src/entries/entry-registry.test.tsx`
 
 Expected: FAIL because the registry does not exist.
 
-- [ ] **Step 3: Implement entries and Vite inputs**
+- [x] **Step 3: Implement entries and Vite inputs**
 
 Each HTML document contains its own `#root`, an exact `data-leai-entry`, and the shared mount module. Configure all entries in `build.rollupOptions.input`. Internal navigation uses document URLs and query parameters; refresh never depends on a rewrite to `index.html`.
 
-- [ ] **Step 4: Verify every built entry**
+- [x] **Step 4: Verify every built entry**
 
 Run:
 
