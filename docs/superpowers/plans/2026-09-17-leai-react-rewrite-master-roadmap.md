@@ -37,10 +37,10 @@
 
 Detailed plan: `docs/superpowers/plans/2026-09-17-leai-react-foundation-implementation-plan.md`
 
-- [ ] **M0.1 Create the sole repository.** Create public `GUII-Lab/LEAI`, clone it to `/Users/harveyli/Documents/GitHub/LEAI`, use `main`, and add no legacy repo dependency.
-- [ ] **M0.2 Establish canonical documentation.** Move the three approved specs and both implementation plans into the new repo; add README, contribution rules, architecture index, and decision log.
-- [ ] **M0.3 Scaffold the application.** Create React + TypeScript + Vite with strict compiler settings, Node `22.22.0`, npm lockfile, and deterministic scripts.
-- [ ] **M0.4 Install quality gates.** Configure ESLint, Vitest, Testing Library, Playwright, typecheck, build checks, accessibility smoke checks, and `git diff --check` CI.
+- [x] **M0.1 Create the sole repository.** Create public `GUII-Lab/LEAI`, clone it to `/Users/harveyli/Documents/GitHub/LEAI`, use `main`, and add no legacy repo dependency.
+- [x] **M0.2 Establish canonical documentation.** Move the three approved specs and both implementation plans into the new repo; add README, contribution rules, architecture index, and decision log.
+- [x] **M0.3 Scaffold the application.** Create React + TypeScript + Vite with strict compiler settings, Node `22.22.0`, npm lockfile, and deterministic scripts.
+- [ ] **M0.4 Install quality gates.** Configure the official Vite Oxlint baseline, Vitest, Testing Library, Playwright, typecheck, build checks, accessibility smoke checks, and `git diff --check` CI.
 - [ ] **M0.5 Define the UI system.** Add Tailwind v4 semantic tokens, typography, spacing, responsive breakpoints, reduced-motion behavior, and only the first approved shadcn primitives.
 - [ ] **M0.6 Build the shared shell.** Implement environment bar, account rail, course navigation, page header, responsive Sheet navigation, loading/error boundaries, and stable content geometry.
 - [ ] **M0.7 Implement environment safety.** Add typed local/QA/Production manifests, Zod validation, backend handshake, fail-closed write guard, and environment-qualified browser state.

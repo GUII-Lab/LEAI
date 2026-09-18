@@ -39,7 +39,7 @@
 - Consumes: Owner-approved repository name `GUII-Lab/LEAI` and the five canonical planning documents in the current design workspace.
 - Produces: Public GitHub repository `GUII-Lab/LEAI`, local checkout `/Users/harveyli/Documents/GitHub/LEAI`, and canonical in-repo specifications used by every later task.
 
-- [ ] **Step 1: Confirm targets are absent**
+- [x] **Step 1: Confirm targets are absent**
 
 Run:
 
@@ -50,7 +50,7 @@ test ! -e /Users/harveyli/Documents/GitHub/LEAI
 
 Expected: GitHub reports that the repository cannot be resolved and the local path check exits successfully.
 
-- [ ] **Step 2: Create and clone the public repository**
+- [x] **Step 2: Create and clone the public repository**
 
 Run from `/Users/harveyli/Documents/GitHub`:
 
@@ -60,11 +60,11 @@ gh repo create GUII-Lab/LEAI --public --description "Learning Experience AI inst
 
 Expected: GitHub creates `https://github.com/GUII-Lab/LEAI` and clones an empty checkout at `/Users/harveyli/Documents/GitHub/LEAI`.
 
-- [ ] **Step 3: Add canonical documentation**
+- [x] **Step 3: Add canonical documentation**
 
 Copy the exact approved contents of the five planning documents into the paths listed above. Write `README.md` with the product purpose, QA and Production URLs, local prerequisites, and a warning that Pages is not enabled yet. Write `AGENTS.md` with the no-branch, verification, public-artifact, and environment-isolation rules that apply to this repository.
 
-- [ ] **Step 4: Verify documentation does not retain the rejected topology**
+- [x] **Step 4: Verify documentation does not retain the rejected topology**
 
 Run:
 
@@ -74,7 +74,7 @@ rg -n "GUII-Lab/LEAI-QA|/LEAI-QA/|legacy fallback|old repo" docs README.md AGENT
 
 Expected: No deployment dependency on an old repository. Historical rationale may mention that legacy repositories are explicitly excluded.
 
-- [ ] **Step 5: Commit the repository foundation**
+- [x] **Step 5: Commit the repository foundation**
 
 Run:
 
@@ -107,7 +107,7 @@ Expected: One documentation-only commit on `main`; no Pages deployment exists.
 - Consumes: Node `22.22.0` and npm.
 - Produces: `npm run dev`, `npm run typecheck`, and `npm run build` plus a minimal React mount at `#root`.
 
-- [ ] **Step 1: Scaffold the Vite React TypeScript template**
+- [x] **Step 1: Scaffold the Vite React TypeScript template**
 
 Run in the new repository:
 
@@ -118,11 +118,11 @@ npm install
 
 Expected: Vite creates a React TypeScript project and commits no generated dependency directory.
 
-- [ ] **Step 2: Pin Node and strict compiler behavior**
+- [x] **Step 2: Pin Node and strict compiler behavior**
 
-Set `.nvmrc` to `22.22.0`. Set `package.json` `engines.node` to `22.22.x`. Keep `strict`, `noUnusedLocals`, `noUnusedParameters`, `noFallthroughCasesInSwitch`, and `noUncheckedSideEffectImports` enabled in the TypeScript configuration.
+Set `.nvmrc` to `22.22.0` and use that exact version in CI. Set `package.json` `engines.node` to `>=22.12.0 <26` and `engines.npm` to `>=10.9.4 <12` so supported local runtimes do not produce false warnings. Keep `strict`, `noUnusedLocals`, `noUnusedParameters`, `noFallthroughCasesInSwitch`, and `noUncheckedSideEffectImports` enabled in the TypeScript configuration.
 
-- [ ] **Step 3: Replace the demo with the minimal LEAI mount**
+- [x] **Step 3: Replace the demo with the minimal LEAI mount**
 
 `src/app/App.tsx` exports:
 
@@ -134,7 +134,7 @@ export function App() {
 
 `src/main.tsx` creates the root and renders `<App />` inside `StrictMode`. Remove Vite logos and demo counters.
 
-- [ ] **Step 4: Add deterministic scripts**
+- [x] **Step 4: Add deterministic scripts**
 
 Set scripts to include:
 
@@ -147,7 +147,7 @@ Set scripts to include:
 }
 ```
 
-- [ ] **Step 5: Verify the scaffold**
+- [x] **Step 5: Verify the scaffold**
 
 Run:
 
@@ -159,10 +159,10 @@ git diff --check
 
 Expected: All commands exit zero and `dist/index.html` exists.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
-git add .gitignore .nvmrc index.html package.json package-lock.json src tsconfig*.json vite.config.ts eslint.config.js
+git add .gitignore .nvmrc .oxlintrc.json index.html package.json package-lock.json src tsconfig*.json vite.config.ts
 git diff --cached --check
 git commit -m "chore: scaffold React application"
 ```
