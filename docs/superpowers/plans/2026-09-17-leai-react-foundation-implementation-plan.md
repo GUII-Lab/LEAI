@@ -369,7 +369,7 @@ git commit -m "feat: add initial UI primitives"
 - `PublicEnvironment` contains `name`, `apiBaseUrl`, `appBasePath`, `storagePrefix`, `buildSha`, and `environmentLabel`.
 - `EnvironmentVerification` is `{ ok: true } | { ok: false; reason: string }`.
 
-- [ ] **Step 1: Write failing environment tests**
+- [x] **Step 1: Write failing environment tests**
 
 Cover these exact cases:
 
@@ -380,21 +380,21 @@ expect(qualifyBrowserKey('qa', 'session')).toBe('leai:qa:session')
 expect(qualifyBrowserKey('production', 'session')).toBe('leai:prod:session')
 ```
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Run: `npm run test -- --run src/config/environment.test.ts src/api/environment.test.ts`
 
 Expected: FAIL because the modules do not exist.
 
-- [ ] **Step 3: Implement typed manifests and Zod response validation**
+- [x] **Step 3: Implement typed manifests and Zod response validation**
 
 Install `zod` and implement the exact interfaces above. The QA manifest uses app base `/LEAI/qa/` and rejects the Production API hostname. The Production manifest uses `/LEAI/` and rejects the QA API hostname. No secret-like `VITE_` variable is accepted.
 
-- [ ] **Step 4: Implement the fail-closed gate**
+- [x] **Step 4: Implement the fail-closed gate**
 
 Fetch `api/environment/`, validate environment name, backend SHA, schema/database identity, contract version, allowed application origin/base, and server time. Render a read-only mismatch alert and never mount mutating providers when verification fails.
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 Run:
 
