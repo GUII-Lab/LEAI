@@ -29,6 +29,7 @@ const safeCodes = new Set(['request_failed'])
 const safeRequestIdPattern = /^req_[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/
 const credentialTermPattern = /authorization|bearer|basic|token|secret|password|credential|aws|jwt/i
 const apiFailureMessage = 'API request failed'
+const apiFailureInstances = new WeakSet<object>()
 
 function sanitizeCode(value: string | undefined): string | undefined {
   return value !== undefined && safeCodes.has(value) ? value : undefined
@@ -66,6 +67,15 @@ export class ApiFailure extends Error {
     this.code = sanitizeCode(options.code)
     this.requestId = sanitizeRequestId(options.requestId)
     this.retryable = options.retryable
+    const safeStack = this.stack ?? `ApiFailure: ${apiFailureMessage}`
+    Object.defineProperty(this, 'stack', {
+      value: safeStack,
+      writable: false,
+      enumerable: false,
+      configurable: false,
+    })
+    apiFailureInstances.add(this)
+    Object.freeze(this)
   }
 }
 
@@ -125,16 +135,28 @@ export function isApiFailure(value: unknown): value is ApiFailure {
     const ownKeys = Reflect.ownKeys(value)
     const descriptors = Object.getOwnPropertyDescriptors(value)
 
-    if (value instanceof ApiFailure) {
+    if (apiFailureInstances.has(value)) {
       if (
+        Object.getPrototypeOf(value) !== ApiFailure.prototype ||
+        !Object.isFrozen(value) ||
         ownKeys.some((key) => typeof key !== 'string' || !apiFailureInstanceKeys.has(key)) ||
-        descriptors.message?.value !== apiFailureMessage ||
+        !isDataProperty(descriptors.message) ||
+        descriptors.message.enumerable ||
+        descriptors.message.value !== apiFailureMessage ||
+        (descriptors.stack !== undefined &&
+          (!isDataProperty(descriptors.stack) ||
+            descriptors.stack.enumerable ||
+            typeof descriptors.stack.value !== 'string')) ||
         descriptors.cause !== undefined
       ) {
         return false
       }
 
       return hasValidFailureFields(descriptors)
+    }
+
+    if (value instanceof ApiFailure) {
+      return false
     }
 
     const prototype = Object.getPrototypeOf(value)

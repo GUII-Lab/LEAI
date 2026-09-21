@@ -179,4 +179,37 @@ describe('ApiFailure', () => {
     expect(isApiFailure(accessorShape)).toBe(false)
     expect(isApiFailure(throwingProxy)).toBe(false)
   })
+
+  it('freezes constructed failures so their diagnostic stack cannot be replaced', () => {
+    const failure = new ApiFailure({
+      kind: 'network',
+      status: null,
+      retryable: true,
+    })
+
+    expect(Object.isFrozen(failure)).toBe(true)
+    expect(() => Object.defineProperty(failure, 'stack', {
+      value: 'private transcript',
+    })).toThrow()
+    expect(isApiFailure(failure)).toBe(true)
+  })
+
+  it('rejects subclasses, forged prototypes, and transparent proxies', () => {
+    class ForeignFailure extends ApiFailure {}
+    const subclass = new ForeignFailure({
+      kind: 'network', status: null, retryable: true,
+    })
+    const genuine = new ApiFailure({
+      kind: 'network', status: null, retryable: true,
+    })
+    const forged = Object.create(ApiFailure.prototype)
+    Object.assign(forged, {
+      kind: 'network', status: null, retryable: true,
+      message: 'API request failed', stack: genuine.stack,
+    })
+
+    expect(isApiFailure(subclass)).toBe(false)
+    expect(isApiFailure(forged)).toBe(false)
+    expect(isApiFailure(new Proxy(genuine, {}))).toBe(false)
+  })
 })
