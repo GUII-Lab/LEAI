@@ -82,6 +82,26 @@ describe('authoring contracts', () => {
     expect(activeDraftSchema.safeParse({ ...draftFixture, updated_at: 'tomorrow' }).success).toBe(false)
   })
 
+  it('requires the serialized canonical body and source revision consistency', () => {
+    const { body: _body, ...missingBody } = draftFixture
+    expect(activeDraftSchema.safeParse(missingBody).success).toBe(false)
+    expect(activeDraftSchema.safeParse({
+      ...draftFixture,
+      source_kind: 'template',
+      source_template_revision_id: null,
+    }).success).toBe(false)
+    expect(activeDraftSchema.safeParse({
+      ...draftFixture,
+      source_kind: 'blank',
+      source_template_revision_id: ids.revision,
+    }).success).toBe(false)
+    expect(activeDraftSchema.safeParse({
+      ...draftFixture,
+      source_kind: 'template',
+      source_template_revision_id: ids.revision,
+    }).success).toBe(true)
+  })
+
   it('strictly validates idempotent draft save and restore requests', () => {
     const save = draftSaveRequestSchema.parse({
       expected_version: 2,

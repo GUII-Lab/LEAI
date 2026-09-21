@@ -39,7 +39,18 @@ const teamDraftSchema = z.object({
 export const activeDraftSchema = z.discriminatedUnion('audience', [
   individualDraftSchema,
   teamDraftSchema,
-])
+]).superRefine((value, context) => {
+  const templateSourceMatches = value.source_kind === 'template'
+    ? value.source_template_revision_id !== null
+    : value.source_template_revision_id === null
+  if (!templateSourceMatches) {
+    context.addIssue({
+      code: 'custom',
+      path: ['source_template_revision_id'],
+      message: 'Template revision identity must match source kind',
+    })
+  }
+})
 
 export const activeDraftListSchema = z.object({
   drafts: z.array(activeDraftSchema),
