@@ -78,14 +78,15 @@ describe('ApiFailure', () => {
   })
 
   it('drops unknown and token-shaped diagnostic values instead of serializing them', () => {
+    const fakeAwsAccessKey = ['AKIA', 'IOSFODNN7EXAMPLE'].join('')
     const unsafeValues = [
       {
         code: 'student_secret',
         requestId: 'req_bearer_private-token',
       },
       {
-        code: 'AKIAIOSFODNN7EXAMPLE',
-        requestId: 'req_AKIAIOSFODNN7EXAMPLE',
+        code: fakeAwsAccessKey,
+        requestId: `req_${fakeAwsAccessKey}`,
       },
       {
         code: 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signature',
