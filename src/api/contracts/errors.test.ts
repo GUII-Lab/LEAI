@@ -194,6 +194,23 @@ describe('ApiFailure', () => {
     expect(isApiFailure(failure)).toBe(true)
   })
 
+  it('does not trust a global Error stack formatter during construction', () => {
+    const previous = Error.prepareStackTrace
+    Error.prepareStackTrace = () => 'private transcript'
+
+    try {
+      const failure = new ApiFailure({
+        kind: 'network', status: null, retryable: true,
+      })
+
+      expect(failure.stack).toBe('ApiFailure: API request failed')
+      expect(JSON.stringify(failure)).not.toContain('private transcript')
+      expect(isApiFailure(failure)).toBe(true)
+    } finally {
+      Error.prepareStackTrace = previous
+    }
+  })
+
   it('rejects subclasses, forged prototypes, and transparent proxies', () => {
     class ForeignFailure extends ApiFailure {}
     const subclass = new ForeignFailure({

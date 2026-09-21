@@ -67,7 +67,7 @@ export class ApiFailure extends Error {
     this.code = sanitizeCode(options.code)
     this.requestId = sanitizeRequestId(options.requestId)
     this.retryable = options.retryable
-    const safeStack = this.stack ?? `ApiFailure: ${apiFailureMessage}`
+    const safeStack = `ApiFailure: ${apiFailureMessage}`
     Object.defineProperty(this, 'stack', {
       value: safeStack,
       writable: false,
