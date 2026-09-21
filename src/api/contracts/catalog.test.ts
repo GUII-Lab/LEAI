@@ -18,7 +18,7 @@ const expectedAuditRows = [
   ['response-session', 'student', 'message, bulk, resume, completion', ['GET', 'POST'], 'blocked', ['HAR-32'], 'Identity and role are caller-controlled and writes lack authoritative idempotent completion.'],
   ['public-privacy', 'student', 'public transcript and assignment-list reads', ['GET'], 'excluded', ['HAR-32'], 'Unauthenticated routes disclose transcript or session metadata.'],
   ['completion-outputs', 'student', 'completion certificate and completed-response document', ['POST'], 'blocked', ['HAR-32', 'HAR-31'], 'Eligibility is not tied to authoritative completion and the response document is absent.'],
-  ['analysis', 'analysis', 'survey/course analysis reads and Quick Take', ['GET', 'POST'], 'blocked', ['HAR-31'], 'Session grouping and denominators disagree, and occurrence identity can be merged.'],
+  ['analysis', 'analysis', 'survey/course analysis reads and Quick Take', ['GET', 'POST', 'DELETE'], 'blocked', ['HAR-31'], 'Session grouping and denominators disagree, and occurrence identity can be merged.'],
   ['feedback-chat', 'analysis', 'Feedback Chat sessions, turns, and polling', ['GET', 'POST', 'PATCH', 'DELETE'], 'blocked', ['HAR-31'], 'Mutations lack request idempotency and a unified asynchronous contract.'],
   ['voice-ai-proxies', 'student', 'speech-to-text, text-to-speech, and chat proxies', ['POST'], 'blocked', ['HAR-31'], 'Provider proxies lack reviewed capabilities and media/rate policy.'],
   ['pdf-ingest', 'analysis', 'PDF ingest jobs, commit, batches, and revert', ['GET', 'POST', 'DELETE'], 'blocked', ['HAR-31'], 'Commit retry and private-text boundaries lack an accepted contract.'],

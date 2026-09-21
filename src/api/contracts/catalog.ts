@@ -120,7 +120,7 @@ const sources = [
   },
   {
     id: 'analysis', domain: 'analysis',
-    routeFamily: 'survey/course analysis reads and Quick Take', methods: ['GET', 'POST'],
+    routeFamily: 'survey/course analysis reads and Quick Take', methods: ['GET', 'POST', 'DELETE'],
     status: 'blocked', gapIssues: ['HAR-31'],
     reason: 'Session grouping and denominators disagree, and occurrence identity can be merged.',
   },
