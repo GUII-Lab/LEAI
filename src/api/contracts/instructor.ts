@@ -2,6 +2,9 @@ import { z } from 'zod'
 
 const nonEmptyString = z.string().min(1)
 const emailSchema = z.string().trim().toLowerCase().email()
+const ucscEmailSchema = emailSchema.refine((email) => email.endsWith('@ucsc.edu'), {
+  message: 'Profile email must use the ucsc.edu domain',
+})
 const timestampSchema = z.string().datetime({ offset: true })
 const institutionRoleSchema = z.enum(['member', 'admin'])
 const courseRoleSchema = z.enum(['owner', 'instructor', 'ta'])
@@ -20,7 +23,7 @@ export const loginResponseSchema = z.object({
 
 export const profilePatchRequestSchema = z.object({
   display_name: z.string().trim().min(1).max(100).optional(),
-  email: emailSchema.optional(),
+  email: ucscEmailSchema.optional(),
 }).strict().refine((value) => Object.keys(value).length > 0, {
   message: 'Profile patch requires at least one field',
 })

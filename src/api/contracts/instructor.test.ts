@@ -114,6 +114,12 @@ describe('instructor contracts', () => {
     }).success).toBe(false)
     expect(profilePatchRequestSchema.safeParse({}).success).toBe(false)
     expect(profilePatchRequestSchema.safeParse({
+      email: 'teacher@example.edu',
+    }).success).toBe(false)
+    expect(profilePatchRequestSchema.parse({
+      email: '  New.Address@UCSC.EDU  ',
+    })).toEqual({ email: 'new.address@ucsc.edu' })
+    expect(profilePatchRequestSchema.safeParse({
       display_name: 'Prof. Updated', role: 'admin',
     }).success).toBe(false)
     expect(passwordChangeRequestSchema.safeParse({
