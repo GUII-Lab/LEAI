@@ -1,7 +1,7 @@
 # LEAI Backend Contract Audit
 
 **Date:** 2026-09-21
-**Status:** HAR-17 implementation authority
+**Status:** Implemented and independently reviewed; QA remains unbound
 **Frontend baseline:** `0f22f69dc7059988bffa031e394cb77beb0218e9`
 **Backend audit baseline:** `c252f7c517cfae8e8015e910e660602642c2f657`
 
@@ -17,6 +17,8 @@ Every product-facing endpoint family has exactly one status:
 
 - `accepted`: current backend behavior is evidenced and may receive a runtime
   parser and typed client wrapper;
+- `accepted_with_limits`: the evidenced subset may receive a runtime parser,
+  while cataloged limitations remain owned by a backend gap issue;
 - `blocked`: the React product requires a backend contract change before any
   live client binding;
 - `excluded`: a legacy or unsafe surface receives no React client wrapper.
@@ -72,12 +74,12 @@ presence of a field in an old page.
 
 HAR-17 creates runtime schemas only for:
 
-- instructor login, logout status, current-account/profile, password change,
+- instructor login, current-account/profile, password change,
   institution membership, course membership, course list, and course create;
 - active Question Set draft summary/detail/save/restore, immutable revision,
   preview capability/status/settings, and Individual publication;
-- common identifiers, timestamps, paged/empty/unavailable states, and normalized
-  error envelopes.
+- normalized privacy-safe error envelopes and the identifiers/timestamps used
+  by those accepted domain schemas.
 
 Accepted-with-limits schemas carry those limits in the endpoint catalog. No
 feature may call an accepted endpoint until its owning UI task adds a typed
@@ -97,6 +99,12 @@ wrapper and the environment handshake is verified.
   and Customizations.
 
 ## Acceptance
+
+Implementation lives in `src/api/contracts/`. All four implementation tasks
+completed RED-to-GREEN cycles and independent review/fix loops. The final
+catalog covers all 21 audited capability families, keeps blocked/excluded rows
+non-bindable, and records complete HAR-29 through HAR-33 ownership. QA and
+Production manifests remain on non-routable `.invalid` hosts.
 
 - A machine-readable catalog covers every product capability in the approved
   API baseline and links each blocked capability to a Linear issue.

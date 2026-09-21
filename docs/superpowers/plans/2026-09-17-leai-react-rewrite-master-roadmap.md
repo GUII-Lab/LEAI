@@ -47,7 +47,7 @@ Detailed plan: `docs/superpowers/plans/2026-09-17-leai-react-foundation-implemen
 - [x] **M0.8 Create real entry documents.** Add `InstructorHome.html`, `PromptDesigner.html`, `FeedbackAnalyzer.html`, `FeedbackChat.html`, `CourseBanner.html`, `Customizations.html`, and `feedback.html` without relying on SPA rewrite behavior.
 - [x] **M0.9 Build dual-environment artifacts.** QA uses base `/LEAI/qa/`; Production uses `/LEAI/`. Compose one Pages artifact while keeping Production pinned to the approved release SHA.
 - [x] **M0.10 Configure GitHub Actions.** Run install, typecheck, unit/component tests, both builds, artifact manifest checks, and Playwright smoke tests. Do not publish Pages until the separate QA publication gate.
-- [ ] **M0.11 Audit the backend contract.** Capture exact QA methods, request/response DTOs, status codes, roles, idempotency, and missing contracts in a generated or checked schema.
+- [x] **M0.11 Audit the backend contract.** HAR-17 records all 21 capability families in a fail-closed catalog, adds independently reviewed runtime schemas for the accepted subset, and assigns blocked work to HAR-29 through HAR-33. QA remains unbound/read-only.
 - [x] **M0.12 Foundation acceptance.** Verify Chromium, Firefox, and WebKit at 390, 820, 1022, and 1440 widths; generate a self-contained HTML report.
 
 ## Milestone 1 — Instructor Account and Course Shell

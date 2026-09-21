@@ -1,8 +1,8 @@
 # LEAI React API Contract Baseline
 
-**Status:** Phase 0 contract-audit specification. The QA backend is the working
-baseline; Production is not assumed to contain these contracts until coordinated
-promotion is approved and verified.
+**Status:** HAR-17 audited baseline. QA remains deliberately unbound and
+read-only; Production is not assumed to contain these contracts until
+coordinated promotion is approved and verified.
 
 ## 1. Purpose
 
@@ -18,6 +18,25 @@ The backend remains the authority for authentication, authorization, course
 membership, immutable revisions, occurrence state, Team context, response
 sessions, messages, and audit records. Zod validates backend responses; it does
 not redefine backend truth in the browser.
+
+### HAR-17 audit result
+
+The evidence and disposition for every product capability live in the
+[detailed backend audit](./2026-09-21-leai-backend-contract-audit.md). The React
+boundary now contains:
+
+- a privacy-safe response/error parser in `src/api/contracts/response.ts` and
+  `src/api/contracts/errors.ts`;
+- a fail-closed, machine-readable endpoint catalog in
+  `src/api/contracts/catalog.ts`;
+- current instructor/session/course schemas in
+  `src/api/contracts/instructor.ts`; and
+- accepted active-draft, immutable-revision, preview, and Individual
+  publication schemas in `src/api/contracts/authoring.ts`.
+
+Catalog entries marked blocked or excluded are metadata, not callable clients.
+HAR-29 through HAR-33 own the remaining backend work. No QA API host is bound,
+and no QA or Production data or deployment is changed by HAR-17.
 
 ## 2. Observed QA baseline
 
