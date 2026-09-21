@@ -4,9 +4,10 @@ const uuidSchema = z.string().uuid()
 const timestampSchema = z.string().datetime({ offset: true })
 const nonEmptyString = z.string().min(1)
 const positiveVersionSchema = z.number().int().positive()
-const idempotencyKeySchema = z.string().min(8).max(100)
+const idempotencyKeySchema = z.string().trim().min(8).max(100)
+const restoreIdempotencyKeySchema = z.string().trim().min(1).max(100)
 const checkpointReasonSchema = z.enum(['ai', 'preview', 'publish', 'leave', 'restore'])
-const sourceKindSchema = z.enum(['template', 'blank', 'copied_revision', 'legacy'])
+const sourceKindSchema = z.enum(['template', 'blank', 'legacy'])
 
 const activeDraftShape = {
   id: uuidSchema,
@@ -68,7 +69,7 @@ export const draftSaveRequestSchema = z.object({
 export const draftRestoreRequestSchema = z.object({
   expected_version: positiveVersionSchema,
   version_id: uuidSchema,
-  idempotency_key: idempotencyKeySchema,
+  idempotency_key: restoreIdempotencyKeySchema,
 }).strict()
 
 export const freezeDraftRequestSchema = z.object({
@@ -120,6 +121,9 @@ export const previewCapabilitySchema = z.object({
 }).strict().refine((value) => Date.parse(value.ready_at) < Date.parse(value.expires_at), {
   path: ['ready_at'],
   message: 'Preview ready time must be before expiry',
+}).refine((value) => value.preview_url === `feedback.html?preview=${value.token}`, {
+  path: ['preview_url'],
+  message: 'Preview URL must match token',
 })
 
 export const previewCompleteResponseSchema = z.object({
@@ -163,7 +167,10 @@ export const individualPublicationResponseSchema = z.object({
   completion_certificate_enabled: z.boolean(),
   parsed_document_download_enabled: z.boolean(),
   team_configuration_id: z.null(),
-}).strict()
+}).strict().refine(
+  (value) => value.direct_url === `feedback.html?id=${value.public_id}`,
+  { path: ['direct_url'], message: 'Direct URL must match public ID' },
+)
 
 export type ActiveDraft = z.infer<typeof activeDraftSchema>
 export type ActiveDraftList = z.infer<typeof activeDraftListSchema>

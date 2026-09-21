@@ -100,6 +100,11 @@ describe('authoring contracts', () => {
       source_kind: 'template',
       source_template_revision_id: ids.revision,
     }).success).toBe(true)
+    expect(activeDraftSchema.safeParse({
+      ...draftFixture,
+      source_kind: 'copied_revision',
+      source_template_revision_id: null,
+    }).success).toBe(false)
   })
 
   it('strictly validates idempotent draft save and restore requests', () => {
@@ -125,6 +130,15 @@ describe('authoring contracts', () => {
     }).success).toBe(false)
     expect(draftRestoreRequestSchema.safeParse({
       ...restore, team_configuration_id: 5,
+    }).success).toBe(false)
+    expect(draftSaveRequestSchema.safeParse({
+      expected_version: 2, body: {}, idempotency_key: '        ',
+    }).success).toBe(false)
+    expect(draftRestoreRequestSchema.safeParse({
+      expected_version: 2, version_id: ids.checkpoint, idempotency_key: 'short',
+    }).success).toBe(true)
+    expect(draftRestoreRequestSchema.safeParse({
+      expected_version: 2, version_id: ids.checkpoint, idempotency_key: '   ',
     }).success).toBe(false)
   })
 
@@ -155,6 +169,10 @@ describe('authoring contracts', () => {
     })
 
     expect(capability.preview_completed).toBe(false)
+    expect(previewCapabilitySchema.safeParse({
+      ...capability,
+      preview_url: 'feedback.html?preview=different-token',
+    }).success).toBe(false)
     expect(previewSettingsSchema.parse({
       completion_certificate_enabled: true,
       parsed_document_download_enabled: false,
@@ -218,6 +236,9 @@ describe('authoring contracts', () => {
       ...request, team_configuration_id: 9,
     }).success).toBe(false)
     expect(individualPublicationRequestSchema.safeParse({
+      ...request, idempotency_key: '        ',
+    }).success).toBe(false)
+    expect(individualPublicationRequestSchema.safeParse({
       ...request,
       opens_at: '2026-10-02T12:00:00+00:00',
       expires_at: '2026-10-01T12:00:00+00:00',
@@ -247,6 +268,9 @@ describe('authoring contracts', () => {
 
     expectTypeOf(result).toEqualTypeOf<IndividualPublicationResponse>()
     expect(result.team_configuration_id).toBeNull()
+    expect(individualPublicationResponseSchema.safeParse({
+      ...result, direct_url: 'feedback.html?id=different',
+    }).success).toBe(false)
     expect(individualPublicationResponseSchema.safeParse({
       ...result, mode: 'group', team_configuration_id: 9,
     }).success).toBe(false)
