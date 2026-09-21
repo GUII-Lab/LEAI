@@ -65,7 +65,7 @@ export async function parseJsonResponse<T>(
     throw new ApiFailure({
       ...normalized,
       status: response.status,
-      code: envelope.code ?? envelope.error,
+      code: response.status === 404 ? undefined : (envelope.code ?? envelope.error),
       requestId: envelope.request_id,
     })
   }

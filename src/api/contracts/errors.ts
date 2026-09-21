@@ -24,29 +24,21 @@ const apiFailureKinds = new Set<ApiFailureKind>([
 ])
 
 const apiFailureKeys = new Set(['kind', 'status', 'code', 'requestId', 'retryable'])
-const safeCodePattern = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/i
-const safeRequestIdPattern = /^(?:(?:req(?:uest)?|trace|correlation)[_-][a-z0-9_-]{1,96}|[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12})$/i
-const credentialLikePrefix = /^(?:authorization|bearer|basic|token|secret|password|credential|sk|pk)(?:$|[ :_-])/i
+const apiFailureInstanceKeys = new Set([...apiFailureKeys, 'message', 'stack'])
+const safeCodes = new Set(['request_failed'])
+const safeRequestIdPattern = /^req_[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/
+const credentialTermPattern = /authorization|bearer|basic|token|secret|password|credential|aws|jwt/i
+const apiFailureMessage = 'API request failed'
 
 function sanitizeCode(value: string | undefined): string | undefined {
-  if (
-    value === undefined ||
-    value.length > 64 ||
-    !safeCodePattern.test(value) ||
-    credentialLikePrefix.test(value)
-  ) {
-    return undefined
-  }
-
-  return value
+  return value !== undefined && safeCodes.has(value) ? value : undefined
 }
 
 function sanitizeRequestId(value: string | undefined): string | undefined {
   if (
     value === undefined ||
-    value.length > 128 ||
     !safeRequestIdPattern.test(value) ||
-    credentialLikePrefix.test(value)
+    credentialTermPattern.test(value)
   ) {
     return undefined
   }
@@ -68,7 +60,7 @@ export class ApiFailure extends Error {
     requestId?: string
     retryable: boolean
   }) {
-    super('API request failed')
+    super(apiFailureMessage)
     this.kind = options.kind
     this.status = options.status
     this.code = sanitizeCode(options.code)
@@ -77,31 +69,83 @@ export class ApiFailure extends Error {
   }
 }
 
+function isDataProperty(descriptor: PropertyDescriptor | undefined): descriptor is PropertyDescriptor & {
+  value: unknown
+} {
+  return descriptor !== undefined && 'value' in descriptor
+}
+
+function hasValidFailureFields(descriptors: PropertyDescriptorMap): boolean {
+  const kind = descriptors.kind
+  const status = descriptors.status
+  const retryable = descriptors.retryable
+  const code = descriptors.code
+  const requestId = descriptors.requestId
+
+  if (
+    !isDataProperty(kind) ||
+    !kind.enumerable ||
+    !isDataProperty(status) ||
+    !status.enumerable ||
+    !isDataProperty(retryable) ||
+    !retryable.enumerable
+  ) {
+    return false
+  }
+  if (code !== undefined && (!isDataProperty(code) || !code.enumerable)) {
+    return false
+  }
+  if (requestId !== undefined && (!isDataProperty(requestId) || !requestId.enumerable)) {
+    return false
+  }
+
+  return (
+    typeof kind.value === 'string' &&
+    apiFailureKinds.has(kind.value as ApiFailureKind) &&
+    (status.value === null ||
+      (typeof status.value === 'number' &&
+        Number.isInteger(status.value) &&
+        status.value >= 0 &&
+        status.value <= 599)) &&
+    (code?.value === undefined ||
+      (typeof code.value === 'string' && sanitizeCode(code.value) === code.value)) &&
+    (requestId?.value === undefined ||
+      (typeof requestId.value === 'string' &&
+        sanitizeRequestId(requestId.value) === requestId.value)) &&
+    typeof retryable.value === 'boolean'
+  )
+}
+
 export function isApiFailure(value: unknown): value is ApiFailure {
   if (typeof value !== 'object' || value === null) {
     return false
   }
 
   try {
-    const candidate = value as Record<string, unknown>
-    if (Object.keys(candidate).some((key) => !apiFailureKeys.has(key))) {
+    const ownKeys = Reflect.ownKeys(value)
+    const descriptors = Object.getOwnPropertyDescriptors(value)
+
+    if (value instanceof ApiFailure) {
+      if (
+        ownKeys.some((key) => typeof key !== 'string' || !apiFailureInstanceKeys.has(key)) ||
+        descriptors.message?.value !== apiFailureMessage ||
+        descriptors.cause !== undefined
+      ) {
+        return false
+      }
+
+      return hasValidFailureFields(descriptors)
+    }
+
+    const prototype = Object.getPrototypeOf(value)
+    if (prototype !== Object.prototype && prototype !== null) {
+      return false
+    }
+    if (ownKeys.some((key) => typeof key !== 'string' || !apiFailureKeys.has(key))) {
       return false
     }
 
-    const status = candidate.status
-    const code = candidate.code
-    const requestId = candidate.requestId
-
-    return (
-      typeof candidate.kind === 'string' &&
-      apiFailureKinds.has(candidate.kind as ApiFailureKind) &&
-      (status === null ||
-        (typeof status === 'number' && Number.isInteger(status) && status >= 0 && status <= 599)) &&
-      (code === undefined || (typeof code === 'string' && sanitizeCode(code) === code)) &&
-      (requestId === undefined ||
-        (typeof requestId === 'string' && sanitizeRequestId(requestId) === requestId)) &&
-      typeof candidate.retryable === 'boolean'
-    )
+    return hasValidFailureFields(descriptors)
   } catch {
     return false
   }

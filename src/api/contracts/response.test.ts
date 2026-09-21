@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
 import { isApiFailure, type ApiFailure, type ApiFailureKind } from './errors'
 import { parseJsonResponse } from './response'
@@ -26,22 +26,24 @@ describe('parseJsonResponse', () => {
     )
 
     expect(result).toEqual({ count: 7 })
+    expectTypeOf(result).toEqualTypeOf<{ count: number }>()
   })
 
   it.each([
-    { status: 401, kind: 'authentication', retryable: false },
-    { status: 403, kind: 'authorization', retryable: false },
-    { status: 404, kind: 'not_found', retryable: false },
-    { status: 409, kind: 'conflict', retryable: false },
-    { status: 422, kind: 'validation', retryable: false },
-    { status: 429, kind: 'unavailable', retryable: true },
-    { status: 500, kind: 'retryable_server', retryable: true },
-    { status: 599, kind: 'retryable_server', retryable: true },
+    { status: 401, kind: 'authentication', retryable: false, code: 'request_failed' },
+    { status: 403, kind: 'authorization', retryable: false, code: 'request_failed' },
+    { status: 404, kind: 'not_found', retryable: false, code: undefined },
+    { status: 409, kind: 'conflict', retryable: false, code: 'request_failed' },
+    { status: 422, kind: 'validation', retryable: false, code: 'request_failed' },
+    { status: 429, kind: 'unavailable', retryable: true, code: 'request_failed' },
+    { status: 500, kind: 'retryable_server', retryable: true, code: 'request_failed' },
+    { status: 599, kind: 'retryable_server', retryable: true, code: 'request_failed' },
   ] satisfies ReadonlyArray<{
     status: number
     kind: ApiFailureKind
     retryable: boolean
-  }>)('normalizes HTTP $status as $kind', async ({ status, kind, retryable }) => {
+    code: string | undefined
+  }>)('normalizes HTTP $status as $kind', async ({ status, kind, retryable, code }) => {
     const failure = await captureFailure(
       parseJsonResponse(
         new Response(
@@ -49,7 +51,7 @@ describe('parseJsonResponse', () => {
             error: 'authorization',
             code: 'request_failed',
             message: 'student transcript text must remain private',
-            request_id: 'req_contract_123',
+            request_id: 'req_550e8400-e29b-41d4-a716-446655440000',
             retryable: !retryable,
           }),
           { status },
@@ -61,11 +63,37 @@ describe('parseJsonResponse', () => {
     expect(failure).toMatchObject({
       kind,
       status,
-      code: 'request_failed',
-      requestId: 'req_contract_123',
+      code,
+      requestId: 'req_550e8400-e29b-41d4-a716-446655440000',
       retryable,
     })
     expect(failure.message).toBe('API request failed')
+  })
+
+  it('does not disclose a 404 body classification through code or error', async () => {
+    const failure = await captureFailure(
+      parseJsonResponse(
+        new Response(
+          JSON.stringify({
+            error: 'authorization',
+            code: 'request_failed',
+            message: 'the resource exists but is forbidden',
+            request_id: 'req_550e8400-e29b-41d4-a716-446655440000',
+          }),
+          { status: 404 },
+        ),
+        z.object({ ok: z.literal(true) }),
+      ),
+    )
+
+    expect(failure).toMatchObject({
+      kind: 'not_found',
+      status: 404,
+      code: undefined,
+      requestId: 'req_550e8400-e29b-41d4-a716-446655440000',
+      retryable: false,
+    })
+    expect(JSON.stringify(failure)).not.toContain('authorization')
   })
 
   it('normalizes malformed JSON in a successful response as a contract failure', async () => {
