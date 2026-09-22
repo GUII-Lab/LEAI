@@ -31,3 +31,22 @@ it('rejects malformed environment responses', async () => {
     'Invalid environment response',
   )
 })
+
+it('does not send browser credentials with the public cross-origin handshake', async () => {
+  const fetcher = async (_url: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.credentials !== 'omit') {
+      throw new Error('Public handshake would send browser credentials')
+    }
+    return new Response(JSON.stringify({
+      environment: 'local',
+      backend_build_sha: 'local-backend',
+      schema_identity: 'public',
+      contract_version: '2026-09-21',
+      allowed_app_bases: ['/'],
+      server_time: '2026-09-22T21:48:42+00:00',
+    }), { status: 200 })
+  }
+
+  await expect(fetchEnvironmentIdentity('http://127.0.0.1:8000/datapipeline/api/v1/', fetcher))
+    .resolves.toMatchObject({ environment: 'local', schemaIdentity: 'public' })
+})

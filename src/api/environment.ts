@@ -18,7 +18,7 @@ export async function fetchEnvironmentIdentity(
 ): Promise<ObservedEnvironment> {
   const endpoint = new URL('environment/', apiBaseUrl)
   const response = await fetcher(endpoint, {
-    credentials: 'include',
+    credentials: 'omit',
     headers: { Accept: 'application/json' },
   })
 
