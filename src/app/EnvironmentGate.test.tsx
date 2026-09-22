@@ -10,7 +10,7 @@ vi.mock('@/api/environment', () => ({
 
 const qaEnvironment = getEnvironment({
   VITE_LEAI_ENVIRONMENT: 'qa',
-  VITE_LEAI_API_BASE_URL: 'https://leai-qa.invalid/api/',
+  VITE_LEAI_API_BASE_URL: 'https://leai-qa.invalid/datapipeline/api/v1/',
   VITE_LEAI_APP_BASE_PATH: '/LEAI/qa/',
   VITE_LEAI_BUILD_SHA: 'unbound-qa-build',
   VITE_LEAI_BACKEND_BUILD_SHA: 'qa-backend-placeholder',

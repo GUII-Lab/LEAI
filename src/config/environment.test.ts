@@ -8,7 +8,7 @@ import {
 
 const qaEnvironment = getEnvironment({
   VITE_LEAI_ENVIRONMENT: 'qa',
-  VITE_LEAI_API_BASE_URL: 'https://leai-qa.invalid/api/',
+  VITE_LEAI_API_BASE_URL: 'https://leai-qa.invalid/datapipeline/api/v1/',
   VITE_LEAI_APP_BASE_PATH: '/LEAI/qa/',
   VITE_LEAI_BUILD_SHA: 'unbound-qa-build',
   VITE_LEAI_BACKEND_BUILD_SHA: 'qa-backend-placeholder',
@@ -18,7 +18,7 @@ const qaEnvironment = getEnvironment({
 
 const productionEnvironment = getEnvironment({
   VITE_LEAI_ENVIRONMENT: 'production',
-  VITE_LEAI_API_BASE_URL: 'https://leai-production.invalid/api/',
+  VITE_LEAI_API_BASE_URL: 'https://leai-production.invalid/datapipeline/api/v1/',
   VITE_LEAI_APP_BASE_PATH: '/LEAI/',
   VITE_LEAI_BUILD_SHA: 'unbound-production-build',
   VITE_LEAI_BACKEND_BUILD_SHA: 'production-backend-placeholder',
@@ -51,11 +51,18 @@ it('qualifies browser state by environment', () => {
   expect(qualifyBrowserKey('production', 'session')).toBe('leai:prod:session')
 })
 
+it('uses the canonical local API namespace and handshake contract', () => {
+  const local = getEnvironment({})
+  expect(local.apiBaseUrl).toBe('http://127.0.0.1:8000/datapipeline/api/v1/')
+  expect(local.expectedBackend.schemaIdentity).toBe('public')
+  expect(local.expectedBackend.contractVersion).toBe('2026-09-21')
+})
+
 it('rejects cross-environment and secret-like public variables', () => {
   expect(() =>
     getEnvironment({
       VITE_LEAI_ENVIRONMENT: 'qa',
-      VITE_LEAI_API_BASE_URL: 'https://leai-production.invalid/api/',
+      VITE_LEAI_API_BASE_URL: 'https://leai-production.invalid/datapipeline/api/v1/',
       VITE_LEAI_APP_BASE_PATH: '/LEAI/qa/',
       VITE_LEAI_BUILD_SHA: 'unbound-qa-build',
       VITE_LEAI_BACKEND_BUILD_SHA: 'qa-backend-placeholder',
@@ -67,4 +74,18 @@ it('rejects cross-environment and secret-like public variables', () => {
   expect(() => getEnvironment({ VITE_LEAI_TOKEN: 'not-allowed' })).toThrow(
     'appears to contain a secret',
   )
+})
+
+it('rejects a QA build pointed at the legacy API namespace', () => {
+  expect(() =>
+    getEnvironment({
+      VITE_LEAI_ENVIRONMENT: 'qa',
+      VITE_LEAI_API_BASE_URL: 'https://leai-qa.invalid/api/',
+      VITE_LEAI_APP_BASE_PATH: '/LEAI/qa/',
+      VITE_LEAI_BUILD_SHA: 'unbound-qa-build',
+      VITE_LEAI_BACKEND_BUILD_SHA: 'qa-backend-placeholder',
+      VITE_LEAI_SCHEMA_IDENTITY: 'leai_qa',
+      VITE_LEAI_CONTRACT_VERSION: '2026-09-21',
+    }),
+  ).toThrow('LEAI API URL must use the canonical v1 namespace')
 })

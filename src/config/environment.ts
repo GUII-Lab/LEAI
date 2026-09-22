@@ -47,15 +47,15 @@ const allowedPublicVariables = new Set([
 
 const localEnvironment: EnvironmentManifest = {
   name: 'local',
-  apiBaseUrl: 'http://127.0.0.1:8000/api/',
+  apiBaseUrl: 'http://127.0.0.1:8000/datapipeline/api/v1/',
   appBasePath: '/',
   storagePrefix: 'leai:local',
   buildSha: 'local-development',
   environmentLabel: 'Local development',
   expectedBackend: {
     buildSha: 'local-backend',
-    schemaIdentity: 'local-schema',
-    contractVersion: '2026-09-17',
+    schemaIdentity: 'public',
+    contractVersion: '2026-09-21',
   },
 }
 
@@ -88,6 +88,10 @@ function assertPublicVariablesAreSafe(source: EnvironmentSource) {
 
 function assertManifestIsSafe(manifest: EnvironmentManifest) {
   const apiUrl = new URL(manifest.apiBaseUrl)
+
+  if (apiUrl.pathname !== '/datapipeline/api/v1/' || apiUrl.search || apiUrl.hash) {
+    throw new Error('LEAI API URL must use the canonical v1 namespace')
+  }
 
   if (!manifest.appBasePath.startsWith('/') || !manifest.appBasePath.endsWith('/')) {
     throw new Error(`Invalid app base path for ${manifest.name}`)
