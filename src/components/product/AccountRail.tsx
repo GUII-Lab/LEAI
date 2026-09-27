@@ -36,7 +36,7 @@ export function AccountRail({
             className={cn(
               'flex min-h-10 items-center gap-2 rounded-md px-2 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent focus-visible:bg-sidebar-accent',
               mobile && 'text-[16pt]',
-              !mobile && 'min-h-[3.5rem] flex-col justify-center gap-1 px-1 py-1 text-[10px] leading-3',
+              !mobile && 'min-h-[3.5rem] flex-col justify-center gap-1 px-1 py-1 leading-5',
             )}
             href={item.href}
             key={item.id}
@@ -67,7 +67,7 @@ export function AccountSignOut({
         mobile
           ? 'text-[16pt] text-sidebar-foreground hover:bg-sidebar-accent focus-visible:bg-sidebar-accent'
           : 'text-sidebar-foreground hover:bg-sidebar-accent focus-visible:bg-sidebar-accent',
-        !mobile && 'min-h-[3.5rem] flex-col justify-center gap-1 px-1 py-1 text-[10px] leading-3',
+        !mobile && 'min-h-[3.5rem] flex-col justify-center gap-1 px-1 py-1 leading-5',
       )}
       disabled={signingOut}
       onClick={onSignOut}

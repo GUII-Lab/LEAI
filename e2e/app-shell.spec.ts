@@ -51,6 +51,14 @@ for (const width of [390, 820, 1022, 1440]) {
       await expect(page.getByRole('link', { name: 'Account' }).locator('span')).toBeVisible()
       await expect(page.getByRole('link', { name: 'All Courses' }).locator('span')).toBeVisible()
       await expect(page.getByRole('button', { name: 'Sign out' }).locator('span')).toBeVisible()
+      for (const label of [
+        page.getByRole('link', { name: 'Account' }).locator('span'),
+        page.getByRole('link', { name: 'All Courses' }).locator('span'),
+        page.getByRole('button', { name: 'Sign out' }).locator('span'),
+      ]) {
+        await expect.poll(() => label.evaluate(element => getComputedStyle(element).fontSize))
+          .toBe('16px')
+      }
       await expect.poll(() => page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight))
         .toBe(true)
     }
