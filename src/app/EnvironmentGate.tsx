@@ -13,9 +13,14 @@ type GateState =
   | { status: 'read-only'; reason: string }
 
 const EnvironmentWriteContext = createContext(false)
+const EnvironmentStatusContext = createContext<GateState['status']>('checking')
 
 export function useEnvironmentWriteAccess() {
   return useContext(EnvironmentWriteContext)
+}
+
+export function useEnvironmentStatus() {
+  return useContext(EnvironmentStatusContext)
 }
 
 export function EnvironmentGate({
@@ -56,20 +61,22 @@ export function EnvironmentGate({
   const isVerified = state.status === 'verified'
 
   return (
-    <EnvironmentWriteContext value={isVerified}>
-      <div data-environment={environment.name} data-write-state={state.status}>
-        {state.status === 'checking' && (
-          <p className="sr-only" role="status">
-            Checking {environment.environmentLabel} environment identity.
-          </p>
-        )}
-        {state.status === 'read-only' && (
-          <div className="border-b border-warning/30 bg-warning/10 px-4 py-2 text-sm text-foreground" role="alert">
-            <strong>Read-only mode.</strong> {state.reason}
-          </div>
-        )}
-        {children}
-      </div>
-    </EnvironmentWriteContext>
+    <EnvironmentStatusContext value={state.status}>
+      <EnvironmentWriteContext value={isVerified}>
+        <div data-environment={environment.name} data-write-state={state.status}>
+          {state.status === 'checking' && (
+            <p className="sr-only" role="status">
+              Checking {environment.environmentLabel} environment identity.
+            </p>
+          )}
+          {state.status === 'read-only' && (
+            <div className="border-b border-warning/30 bg-warning/10 px-4 py-2 text-sm text-foreground" role="alert">
+              <strong>Read-only mode.</strong> {state.reason}
+            </div>
+          )}
+          {children}
+        </div>
+      </EnvironmentWriteContext>
+    </EnvironmentStatusContext>
   )
 }

@@ -16,7 +16,6 @@ export const loginRequestSchema = z.object({
 }).strict()
 
 export const loginResponseSchema = z.object({
-  token: nonEmptyString,
   expires_at: timestampSchema,
   must_change_password: z.boolean(),
 }).strict()
@@ -33,8 +32,8 @@ export const passwordChangeRequestSchema = z.object({
   new_password: nonEmptyString,
 }).strict()
 
-export const passwordChangeResponseSchema = z.object({
-  status: z.literal('password_changed'),
+export const passwordChangeResponseSchema = loginResponseSchema.extend({
+  must_change_password: z.literal(false),
 }).strict()
 
 export const institutionMembershipSchema = z.object({
@@ -87,6 +86,73 @@ export const courseCreateResponseSchema = z.object({
   role: z.literal('owner'),
 }).strict()
 
+// Canonical v1 DTOs are separate until legacy instructor routes are removed.
+export const canonicalCourseActionSchema = z.enum([
+  'course.manage',
+  'feedback.author',
+  'feedback.publish',
+  'responses.view',
+  'responses.export',
+  'analysis.use',
+])
+
+export const canonicalInstructorMeSchema = z.object({
+  id: z.string().uuid(),
+  email: emailSchema,
+  display_name: nonEmptyString,
+  must_change_password: z.boolean(),
+  platform_role: z.enum(['member', 'platform_admin']),
+  institutions: z.array(z.object({
+    slug: nonEmptyString,
+    name: nonEmptyString,
+    can_create_courses: z.boolean(),
+  }).strict()),
+}).strict()
+
+export const canonicalProfilePatchRequestSchema = z.object({
+  display_name: z.string().trim().min(1).max(100),
+}).strict()
+
+export const canonicalCourseCreateRequestSchema = z.object({
+  institution_slug: z.string().regex(/^[a-z0-9-]{1,64}$/),
+  course_code: z.string().regex(/^[a-z0-9-]{1,100}$/),
+  course_name: z.string().trim().min(1).max(200),
+}).strict()
+
+export const canonicalCourseSchema = z.object({
+  course_id: z.string().uuid(),
+  course_code: nonEmptyString,
+  course_name: nonEmptyString,
+  institution_slug: nonEmptyString,
+  lifecycle_state: z.literal('active'),
+  role: z.enum(['owner', 'instructor', 'ta', 'researcher', 'platform_admin']),
+  allowed_actions: z.array(canonicalCourseActionSchema).max(6).refine(
+    (actions) => new Set(actions).size === actions.length,
+    'Course actions must not repeat',
+  ),
+}).strict()
+
+export const canonicalCourseListResponseSchema = z.object({
+  courses: z.array(canonicalCourseSchema),
+}).strict()
+
+export const responseSearchResponseSchema = z.object({
+  query: z.string().min(2).max(100),
+  results: z.array(z.object({
+    message_id: z.number().int().positive(),
+    response_id: z.string().uuid(),
+    occurrence_label: nonEmptyString,
+    excerpt: z.string().max(240),
+    created_at: timestampSchema,
+  }).strict()).max(20),
+  has_more: z.boolean(),
+}).strict()
+
+export const courseDebugSettingsSchema = z.object({
+  debug_enabled: z.boolean(),
+  settings_version: z.number().int().positive(),
+}).strict()
+
 export type LoginRequest = z.infer<typeof loginRequestSchema>
 export type LoginResponse = z.infer<typeof loginResponseSchema>
 export type ProfilePatchRequest = z.infer<typeof profilePatchRequestSchema>
@@ -97,5 +163,8 @@ export type CourseMembership = z.infer<typeof courseMembershipSchema>
 export type InstructorAccount = z.infer<typeof instructorAccountSchema>
 export type CourseListItem = z.infer<typeof courseListItemSchema>
 export type CourseListResponse = z.infer<typeof courseListResponseSchema>
+export type CourseDebugSettings = z.infer<typeof courseDebugSettingsSchema>
 export type CourseCreateRequest = z.infer<typeof courseCreateRequestSchema>
 export type CourseCreateResponse = z.infer<typeof courseCreateResponseSchema>
+export type CanonicalInstructorMe = z.infer<typeof canonicalInstructorMeSchema>
+export type CanonicalCourse = z.infer<typeof canonicalCourseSchema>

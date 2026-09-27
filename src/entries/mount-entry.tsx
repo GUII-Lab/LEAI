@@ -1,14 +1,26 @@
 import { StrictMode } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { App } from '@/app/App'
+import { InstructorLoginPage } from '@/app/InstructorLoginPage'
+import { InstructorPasswordPage } from '@/app/InstructorPasswordPage'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { getEntry, type EntryName } from './entry-registry'
+import '@/styles/globals.css'
 
 export function mountEntry(entryName: EntryName, element: HTMLElement): Root {
   const entry = getEntry(entryName)
   const root = createRoot(element)
+  const queryClient = new QueryClient()
   root.render(
     <StrictMode>
-      <App activeItem={entry.activeItem} description={entry.description} pageTitle={entry.pageTitle} />
+      <TooltipProvider>
+        <QueryClientProvider client={queryClient}>
+          {entryName === 'InstructorLogin' ? <InstructorLoginPage /> : entryName === 'InstructorPassword'
+            ? <InstructorPasswordPage />
+            : <App activeItem={entry.activeItem} description={entry.description} pageTitle={entry.pageTitle} />}
+        </QueryClientProvider>
+      </TooltipProvider>
     </StrictMode>,
   )
   return root

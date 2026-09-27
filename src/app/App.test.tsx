@@ -1,6 +1,10 @@
-import { render, screen } from '@testing-library/react'
-import { expect, it, vi } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { beforeEach, expect, it, vi } from 'vitest'
+import userEvent from '@testing-library/user-event'
 import { App } from './App'
+
+const logoutSpy = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 
 vi.mock('@/config/environment', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/config/environment')>()
@@ -22,19 +26,101 @@ vi.mock('@/config/environment', async (importOriginal) => {
   }
 })
 
-it('identifies the LEAI application', () => {
-  render(<App />)
-  expect(screen.getByRole('heading', { name: 'LEAI' })).toBeInTheDocument()
+vi.mock('./EnvironmentGate', () => ({
+  EnvironmentGate: ({ children }: { children: React.ReactNode }) => children,
+  useEnvironmentWriteAccess: () => true,
+  useEnvironmentStatus: () => 'verified',
+}))
+
+vi.mock('@/api/instructor-v1', () => ({
+  createInstructorApi: () => ({
+    me: async () => ({ id: '22222222-2222-4222-8222-222222222222',
+      email: 'teacher@ucsc.edu', display_name: 'Teacher', must_change_password: false,
+      platform_role: 'member', institutions: [{ slug: 'ucsc', name: 'UC Santa Cruz', can_create_courses: true }] }),
+    courses: async () => ({ courses: [{ course_id: '11111111-1111-4111-8111-111111111111', course_code: 'CMPM-80H',
+      course_name: 'CMPM 80H', institution_slug: 'ucsc', lifecycle_state: 'active', role: 'researcher', allowed_actions: [] }] }),
+    debugSettings: async () => ({ debug_enabled: false, settings_version: 1 }),
+    updateDebugSettings: async (_id: string, enabled: boolean) => ({ debug_enabled: enabled, settings_version: 2 }),
+    logout: logoutSpy,
+  }),
+  AuthenticationRequiredError: class AuthenticationRequiredError extends Error {},
+  InstructorApiError: class InstructorApiError extends Error {
+    status: number
+    code: string
+    constructor(status: number, code: string) { super(code); this.status = status; this.code = code }
+  },
+}))
+
+beforeEach(() => {
+  logoutSpy.mockClear()
+  sessionStorage.setItem('leai:qa:instructor-token', 'test-session-token')
+  window.history.replaceState({}, '', '/LEAI/qa/InstructorHome.html')
 })
 
-it('keeps account and course navigation inside the QA application base', () => {
-  render(<App />)
+it('signs out through the server before clearing the selected course', async () => {
+  const user = userEvent.setup()
+  sessionStorage.setItem('leai:qa:selected-course', '11111111-1111-4111-8111-111111111111')
+  renderApp()
+  await screen.findByRole('heading', { name: 'Your courses' })
+  await user.click(screen.getByRole('button', { name: 'Sign out' }))
+  await waitFor(() => expect(logoutSpy).toHaveBeenCalledOnce())
+  await waitFor(() => expect(sessionStorage.getItem('leai:qa:selected-course')).toBeNull())
+})
 
-  expect(screen.getByRole('link', { name: 'All Courses' })).toHaveAttribute(
+it('keeps course context and offers retry if server sign-out fails', async () => {
+  logoutSpy.mockRejectedValueOnce(new Error('network unavailable'))
+  sessionStorage.setItem('leai:qa:selected-course', '11111111-1111-4111-8111-111111111111')
+  const user = userEvent.setup()
+  renderApp()
+  await screen.findByRole('heading', { name: 'Your courses' })
+
+  await user.click(screen.getByRole('button', { name: 'Sign out' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('Could not sign out')
+  expect(sessionStorage.getItem('leai:qa:selected-course')).toBe('11111111-1111-4111-8111-111111111111')
+  expect(screen.getByRole('button', { name: 'Sign out' })).toBeEnabled()
+})
+
+function renderApp() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(<QueryClientProvider client={client}><App activeItem="all-courses" /></QueryClientProvider>)
+}
+
+it('renders the actual course workspace instead of an empty Instructor Home shell', async () => {
+  renderApp()
+  expect(await screen.findByRole('heading', { name: 'Your courses' })).toBeInTheDocument()
+  expect(await screen.findByRole('article', { name: 'CMPM 80H' })).toBeInTheDocument()
+})
+
+it('keeps account and course navigation inside the QA application base', async () => {
+  renderApp()
+
+  expect(await screen.findByRole('link', { name: 'All Courses' })).toHaveAttribute(
     'href',
     '/LEAI/qa/InstructorHome.html',
+  )
+  expect(screen.getByRole('link', { name: 'Account' })).toHaveAttribute(
+    'href', '/LEAI/qa/InstructorHome.html?view=account',
   )
   for (const link of screen.getAllByRole('link', { name: 'Prompt Designer' })) {
     expect(link).toHaveAttribute('href', '/LEAI/qa/PromptDesigner.html')
   }
+})
+
+it('shows the Researcher course debug switch in Customizations and persists its change', async () => {
+  const user = userEvent.setup()
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  render(<QueryClientProvider client={client}><App activeItem="customizations" pageTitle="Customizations" description="Adjust course feedback settings." /></QueryClientProvider>)
+
+  expect(await screen.findByRole('heading', { name: 'AI debug visibility' })).toBeInTheDocument()
+  const toggle = await screen.findByRole('switch', { name: 'Enable AI debug panel' })
+  expect(toggle).toHaveAttribute('aria-checked', 'false')
+  await user.click(toggle)
+  await waitFor(() => expect(screen.getByRole('switch', { name: 'Enable AI debug panel' })).toHaveAttribute('aria-checked', 'true'))
+})
+
+it('opens the public student survey without instructor navigation or sign-in', () => {
+  render(<QueryClientProvider client={new QueryClient()}><App activeItem="feedback" pageTitle="Feedback" /></QueryClientProvider>)
+  expect(screen.getByRole('heading', { name: 'Reflection' })).toBeInTheDocument()
+  expect(screen.queryByRole('navigation', { name: 'Course navigation' })).not.toBeInTheDocument()
+  expect(screen.getByRole('alert')).toHaveTextContent('invalid')
 })

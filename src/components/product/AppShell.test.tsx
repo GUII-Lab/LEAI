@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import type { EnvironmentManifest } from '@/config/environment'
 import { AppShell } from './AppShell'
 
@@ -28,18 +28,27 @@ const courseItems = [
   { id: 'feedback-analyzer', label: 'Feedback Analyzer', href: '/FeedbackAnalyzer.html' },
 ]
 
-function renderShell() {
+function renderShell(onSignOut?: () => void) {
   return render(
     <AppShell
       accountItems={accountItems}
       activeItem="prompt-designer"
       courseItems={courseItems}
       environment={qaEnvironment}
+      onSignOut={onSignOut}
     >
       <p>Page content</p>
     </AppShell>,
   )
 }
+
+it('exposes sign-out from the shared instructor navigation', async () => {
+  const user = userEvent.setup()
+  const signOut = vi.fn()
+  renderShell(signOut)
+  await user.click(screen.getByRole('button', { name: 'Sign out' }))
+  expect(signOut).toHaveBeenCalledOnce()
+})
 
 it('keeps All Courses in account navigation and course tools in course navigation', () => {
   renderShell()

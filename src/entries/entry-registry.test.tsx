@@ -9,6 +9,8 @@ it('maps every real HTML entry to an application page', () => {
     'FeedbackChat',
     'CourseBanner',
     'Customizations',
+    'InstructorLogin',
+    'InstructorPassword',
     'feedback',
   ])
 

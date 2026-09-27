@@ -1,10 +1,35 @@
-import { EnvironmentGate } from './EnvironmentGate'
-import { getEnvironment, toAppHref } from '@/config/environment'
+import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { EnvironmentGate, useEnvironmentWriteAccess } from './EnvironmentGate'
+import { getEnvironment, qualifyBrowserKey, toAppHref } from '@/config/environment'
+import type { PublicEnvironment } from '@/config/environment'
 import { AppShell } from '@/components/product/AppShell'
 import { PageHeader } from '@/components/product/PageHeader'
+import { FeedbackSearchPage } from './FeedbackSearchPage'
+import { CustomizationsPage } from './CustomizationsPage'
+import { StudentSurveyPage } from './StudentSurveyPage'
+import { InstructorAuthGate } from '@/auth/InstructorAuthGate'
+import { AuthenticationRequiredError, createInstructorApi } from '@/api/instructor-v1'
+import { loginHref } from '@/auth/navigation'
+import { InstructorHomePage } from './InstructorHomePage'
+
+function Analyzer({ environment }: { environment: PublicEnvironment }) {
+  const verified = useEnvironmentWriteAccess()
+  return <FeedbackSearchPage environment={environment} verified={verified} />
+}
+
+function StudentSurvey({ environment }: { environment: PublicEnvironment }) {
+  const verified = useEnvironmentWriteAccess()
+  return <StudentSurveyPage environment={environment} verified={verified} />
+}
+
+function Customizations({ environment }: { environment: PublicEnvironment }) {
+  const verified = useEnvironmentWriteAccess()
+  return <CustomizationsPage environment={environment} verified={verified} />
+}
 
 const accountDestinations = [
-  { id: 'account', label: 'Account', path: 'account' },
+  { id: 'account', label: 'Account', path: 'InstructorHome.html?view=account' },
   { id: 'all-courses', label: 'All Courses', path: 'InstructorHome.html' },
 ]
 
@@ -17,7 +42,7 @@ const courseDestinations = [
 ]
 
 export function App({
-  activeItem = 'prompt-designer',
+  activeItem = 'all-courses',
   description = 'Learning experience workspace',
   pageTitle = 'LEAI',
 }: {
@@ -26,6 +51,9 @@ export function App({
   pageTitle?: string
 }) {
   const environment = getEnvironment()
+  const queryClient = useQueryClient()
+  const [signingOut, setSigningOut] = useState(false)
+  const [signOutError, setSignOutError] = useState('')
   const accountItems = accountDestinations.map(({ path, ...item }) => ({
     ...item,
     href: toAppHref(environment, path),
@@ -35,17 +63,49 @@ export function App({
     href: toAppHref(environment, path),
   }))
 
+  async function signOut() {
+    setSigningOut(true)
+    setSignOutError('')
+    try {
+      await createInstructorApi(environment, () => true).logout()
+    } catch (error) {
+      if (!(error instanceof AuthenticationRequiredError)) {
+        setSignOutError('Could not sign out. Please try again.')
+        setSigningOut(false)
+        return
+      }
+    }
+    await queryClient.cancelQueries()
+    queryClient.clear()
+    sessionStorage.removeItem(qualifyBrowserKey(environment.name, 'selected-course'))
+    sessionStorage.removeItem(qualifyBrowserKey(environment.name, 'instructor-token'))
+    window.location.replace(loginHref(environment, window.location.pathname))
+  }
+
   return (
     <EnvironmentGate environment={environment}>
-      <AppShell
-        accountItems={accountItems}
-        activeItem={activeItem}
-        courseItems={courseItems}
-        courseName="Instructor workspace"
-        environment={environment}
-      >
-        <PageHeader description={description} title={pageTitle} />
-      </AppShell>
+      {activeItem === 'feedback' ? (
+        <StudentSurvey environment={environment} />
+      ) : (
+        <InstructorAuthGate environment={environment}>
+          <AppShell
+            accountItems={accountItems}
+            activeItem={activeItem}
+            courseItems={courseItems}
+            courseName="Instructor workspace"
+            environment={environment}
+            onSignOut={() => { void signOut() }}
+            signingOut={signingOut}
+            signOutError={signOutError}
+          >
+            {activeItem === 'all-courses'
+              ? <InstructorHomePage environment={environment} verified />
+              : <PageHeader description={description} title={pageTitle} />}
+            {activeItem === 'feedback-analyzer' && <Analyzer environment={environment} />}
+            {activeItem === 'customizations' && <Customizations environment={environment} />}
+          </AppShell>
+        </InstructorAuthGate>
+      )}
     </EnvironmentGate>
   )
 }

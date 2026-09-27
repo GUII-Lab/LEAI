@@ -12,6 +12,7 @@ export function createHttpClient(
   environment: PublicEnvironment,
   canMutate: () => boolean,
   fetcher: typeof fetch = globalThis.fetch.bind(globalThis),
+  getToken: () => string | null = () => null,
 ) {
   return async function request(path: string, init: RequestInit = {}) {
     const method = (init.method ?? 'GET').toUpperCase()
@@ -19,15 +20,16 @@ export function createHttpClient(
       throw new ReadOnlyEnvironmentError()
     }
 
-    const url = new URL(path.replace(/^\/+/, ''), environment.apiBaseUrl)
+    const url = new URL(path.replace(/^\/+/, ''), new URL(environment.apiBaseUrl, window.location.origin))
+    const headers = new Headers(init.headers)
+    headers.set('Accept', 'application/json')
+    const token = getToken()
+    if (token) headers.set('Authorization', `Bearer ${token}`)
     return fetcher(url, {
       ...init,
       method,
-      credentials: 'include',
-      headers: {
-        Accept: 'application/json',
-        ...init.headers,
-      },
+      credentials: 'omit',
+      headers,
     })
   }
 }

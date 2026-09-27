@@ -21,6 +21,9 @@ export type AppShellProps = {
   courseItems: NavigationItem[]
   courseName?: string
   environment: EnvironmentManifest
+  onSignOut?: () => void
+  signingOut?: boolean
+  signOutError?: string
 }
 
 export function AppShell({
@@ -30,6 +33,9 @@ export function AppShell({
   courseItems,
   courseName,
   environment,
+  onSignOut,
+  signingOut,
+  signOutError,
 }: AppShellProps) {
   const activeCourseItem = courseItems.find((item) => item.id === activeItem)
 
@@ -51,7 +57,7 @@ export function AppShell({
               </SheetDescription>
             </SheetHeader>
             <div className="border-y border-border bg-sidebar">
-              <AccountRail items={accountItems} mobile />
+              <AccountRail items={accountItems} mobile onSignOut={onSignOut} signingOut={signingOut} />
             </div>
             <CourseNavigation activeItem={activeItem} courseName={courseName} items={courseItems} />
           </SheetContent>
@@ -68,12 +74,15 @@ export function AppShell({
       </div>
       <div className="lg:grid lg:min-h-[calc(100vh-2rem)] lg:grid-cols-[4.5rem_15rem_minmax(0,1fr)]">
         <aside className="hidden bg-sidebar lg:block">
-          <AccountRail items={accountItems} />
+          <AccountRail items={accountItems} onSignOut={onSignOut} signingOut={signingOut} />
         </aside>
         <aside className="hidden border-r border-border bg-card lg:block">
           <CourseNavigation activeItem={activeItem} courseName={courseName} items={courseItems} />
         </aside>
-        <main className="min-w-0 px-5 py-8 sm:px-8 lg:px-10">{children}</main>
+        <main className="min-w-0 px-5 py-8 sm:px-8 lg:px-10">
+          {signOutError && <p className="mb-4 text-sm text-destructive" role="alert">{signOutError}</p>}
+          {children}
+        </main>
       </div>
     </div>
   )

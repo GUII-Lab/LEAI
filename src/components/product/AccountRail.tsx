@@ -1,4 +1,4 @@
-import { CircleUserRoundIcon, Layers3Icon } from 'lucide-react'
+import { CircleUserRoundIcon, Layers3Icon, LogOutIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export type NavigationItem = {
@@ -15,9 +15,13 @@ const accountIcons = {
 export function AccountRail({
   items,
   mobile = false,
+  onSignOut,
+  signingOut = false,
 }: {
   items: NavigationItem[]
   mobile?: boolean
+  onSignOut?: () => void
+  signingOut?: boolean
 }) {
   return (
     <nav aria-label="Account navigation" className={cn('flex flex-col gap-1', mobile ? 'p-3' : 'p-2')}>
@@ -41,6 +45,13 @@ export function AccountRail({
           </a>
         )
       })}
+      {onSignOut && <button aria-label="Sign out" className={cn(
+        'flex min-h-10 items-center gap-2 rounded-md px-2 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent focus-visible:bg-sidebar-accent disabled:opacity-50',
+        !mobile && 'justify-center',
+      )} disabled={signingOut} onClick={onSignOut} type="button">
+        <LogOutIcon aria-hidden="true" className="size-5 shrink-0" />
+        <span className={cn(!mobile && 'sr-only')}>{signingOut ? 'Signing out…' : 'Sign out'}</span>
+      </button>}
     </nav>
   )
 }

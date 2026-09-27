@@ -20,3 +20,14 @@ it('does not issue mutations before environment verification', async () => {
   )
   expect(fetcher).not.toHaveBeenCalled()
 })
+
+it('uses a bearer capability without ambient browser credentials', async () => {
+  const environment = getEnvironment({})
+  const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 204 }))
+  const request = createHttpClient(environment, () => true, fetcher, () => 'opaque-token')
+
+  await request('instructor_me/')
+  const [, init] = fetcher.mock.calls[0]
+  expect(init?.credentials).toBe('omit')
+  expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer opaque-token')
+})

@@ -53,9 +53,21 @@ it('qualifies browser state by environment', () => {
 
 it('uses the canonical local API namespace and handshake contract', () => {
   const local = getEnvironment({})
-  expect(local.apiBaseUrl).toBe('http://127.0.0.1:8000/datapipeline/api/v1/')
+  expect(local.apiBaseUrl).toBe('/datapipeline/api/v1/')
   expect(local.expectedBackend.schemaIdentity).toBe('public')
   expect(local.expectedBackend.contractVersion).toBe('2026-09-21')
+})
+
+it('accepts an isolated same-origin Heroku deployment at the site root', () => {
+  const values = {
+    VITE_LEAI_ENVIRONMENT: 'qa', VITE_LEAI_API_BASE_URL: '/datapipeline/api/v1/',
+    VITE_LEAI_APP_BASE_PATH: '/', VITE_LEAI_BUILD_SHA: 'a'.repeat(40),
+    VITE_LEAI_BACKEND_BUILD_SHA: 'b'.repeat(40), VITE_LEAI_SCHEMA_IDENTITY: 'leai_qa',
+    VITE_LEAI_CONTRACT_VERSION: '2026-09-21',
+  }
+  expect(getEnvironment(values).apiBaseUrl).toBe('/datapipeline/api/v1/')
+  expect(() => getEnvironment({ ...values, VITE_LEAI_API_BASE_URL: '//evil.example/datapipeline/api/v1/' })).toThrow()
+  expect(() => getEnvironment({ ...values, VITE_LEAI_APP_BASE_PATH: '/LEAI/' })).toThrow()
 })
 
 it('rejects cross-environment and secret-like public variables', () => {

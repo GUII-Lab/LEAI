@@ -11,6 +11,9 @@ import {
   profilePatchRequestSchema,
   type InstructorAccount,
   type LoginResponse,
+  canonicalInstructorMeSchema,
+  canonicalCourseListResponseSchema,
+  responseSearchResponseSchema,
 } from './instructor'
 
 const accountFixture = {
@@ -32,15 +35,49 @@ const accountFixture = {
 } as const
 
 describe('instructor contracts', () => {
+  it('parses the canonical course list and bounded search results without legacy flags', () => {
+    const course = {
+      course_id: '11111111-1111-4111-8111-111111111111',
+      course_code: 'winter',
+      course_name: 'Winter Game Design',
+      institution_slug: 'ucsc',
+      lifecycle_state: 'active',
+      role: 'instructor',
+      allowed_actions: ['course.manage', 'feedback.author', 'feedback.publish', 'responses.view', 'responses.export', 'analysis.use'],
+    }
+    expect(canonicalCourseListResponseSchema.parse({ courses: [course] }).courses[0].allowed_actions)
+      .toContain('responses.view')
+    expect(canonicalCourseListResponseSchema.safeParse({ courses: [{ ...course, can_export: true }] }).success)
+      .toBe(false)
+    expect(canonicalCourseListResponseSchema.safeParse({ courses: [{ ...course, allowed_actions: ['unknown'] }] }).success)
+      .toBe(false)
+    expect(canonicalInstructorMeSchema.parse({
+      id: '22222222-2222-4222-8222-222222222222',
+      email: 'teacher@ucsc.edu',
+      display_name: 'Teacher',
+      must_change_password: false,
+      platform_role: 'member',
+      institutions: [],
+    }).email).toBe('teacher@ucsc.edu')
+    expect(responseSearchResponseSchema.parse({
+      query: 'capstone',
+      has_more: false,
+      results: [{
+        message_id: 1,
+        response_id: '33333333-3333-4333-8333-333333333333',
+        occurrence_label: 'Midterm reflection',
+        excerpt: 'My capstone prototype improved.',
+        created_at: '2026-09-22T12:30:45+00:00',
+      }],
+    }).results).toHaveLength(1)
+  })
   it('preserves the evidenced login response and inferred output type', () => {
     const result = loginResponseSchema.parse({
-      token: 'raw-session-token',
       expires_at: '2026-09-22T12:30:45.123456+00:00',
       must_change_password: true,
     })
 
     expect(result).toEqual({
-      token: 'raw-session-token',
       expires_at: '2026-09-22T12:30:45.123456+00:00',
       must_change_password: true,
     })
@@ -92,7 +129,7 @@ describe('instructor contracts', () => {
     '2026-13-22T12:30:45+00:00',
   ])('rejects invalid login expiry %s', (expires_at) => {
     expect(loginResponseSchema.safeParse({
-      token: 'raw-session-token', expires_at, must_change_password: false,
+      expires_at, must_change_password: false,
     }).success).toBe(false)
   })
 
@@ -155,12 +192,14 @@ describe('instructor contracts', () => {
     }).success).toBe(false)
   })
 
-  it('validates the current password-change acknowledgement', () => {
-    expect(passwordChangeResponseSchema.parse({ status: 'password_changed' })).toEqual({
-      status: 'password_changed',
-    })
-    expect(passwordChangeResponseSchema.safeParse({
-      status: 'password_changed', token: 'invented-token',
-    }).success).toBe(false)
+  it('requires a rotated session after password change', () => {
+    const rotated = {
+      expires_at: '2026-09-24T13:00:00Z',
+      must_change_password: false,
+    }
+    expect(passwordChangeResponseSchema.parse(rotated)).toEqual(rotated)
+    expect(passwordChangeResponseSchema.safeParse({ ...rotated, token: 'must-not-be-exposed' }).success).toBe(false)
+    expect(passwordChangeResponseSchema.safeParse({ status: 'password_changed' }).success).toBe(false)
+    expect(passwordChangeResponseSchema.safeParse({ ...rotated, must_change_password: true }).success).toBe(false)
   })
 })

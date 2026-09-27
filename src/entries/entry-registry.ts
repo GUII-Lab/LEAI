@@ -5,6 +5,8 @@ export const entryNames = [
   'FeedbackChat',
   'CourseBanner',
   'Customizations',
+  'InstructorLogin',
+  'InstructorPassword',
   'feedback',
 ] as const
 
@@ -18,7 +20,7 @@ export type EntryDefinition = {
 
 const entries: Record<EntryName, EntryDefinition> = {
   InstructorHome: {
-    activeItem: 'prompt-designer',
+    activeItem: 'all-courses',
     description: 'Learning experience workspace',
     pageTitle: 'LEAI',
   },
@@ -46,6 +48,16 @@ const entries: Record<EntryName, EntryDefinition> = {
     activeItem: 'customizations',
     description: 'Adjust course feedback settings.',
     pageTitle: 'Customizations',
+  },
+  InstructorLogin: {
+    activeItem: 'instructor-login',
+    description: 'Instructor account sign in',
+    pageTitle: 'Instructor sign in',
+  },
+  InstructorPassword: {
+    activeItem: 'instructor-password',
+    description: 'Change your instructor password',
+    pageTitle: 'Change password',
   },
   feedback: {
     activeItem: 'feedback',

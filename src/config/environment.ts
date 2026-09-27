@@ -47,7 +47,7 @@ const allowedPublicVariables = new Set([
 
 const localEnvironment: EnvironmentManifest = {
   name: 'local',
-  apiBaseUrl: 'http://127.0.0.1:8000/datapipeline/api/v1/',
+  apiBaseUrl: '/datapipeline/api/v1/',
   appBasePath: '/',
   storagePrefix: 'leai:local',
   buildSha: 'local-development',
@@ -87,6 +87,10 @@ function assertPublicVariablesAreSafe(source: EnvironmentSource) {
 }
 
 function assertManifestIsSafe(manifest: EnvironmentManifest) {
+  if (manifest.apiBaseUrl === '/datapipeline/api/v1/') {
+    if (manifest.appBasePath !== '/') throw new Error('Same-origin deployments must use the site root')
+    return
+  }
   const apiUrl = new URL(manifest.apiBaseUrl)
 
   if (apiUrl.pathname !== '/datapipeline/api/v1/' || apiUrl.search || apiUrl.hash) {
