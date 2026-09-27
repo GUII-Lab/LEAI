@@ -4,8 +4,8 @@
 
 - This repository is the sole LEAI frontend source and deployment repository.
 - Do not use a legacy frontend repository as a build input, artifact destination, redirect dependency, or recovery source.
-- QA is served from `/LEAI/qa/`; Production is served from `/LEAI/`.
-- Do not register a service worker. A Production worker scoped to `/LEAI/` would also control the nested QA path.
+- Approved hosting target: separate Heroku QA and Production apps, each serving React and Django on one HTTPS origin at `/`. See `docs/deployment/heroku-same-origin.md`. Older Pages paths are historical, not the release target.
+- Do not register a service worker.
 
 ## Git workflow
 
@@ -16,7 +16,7 @@
 
 ## Environment safety
 
-- QA and Production use separate API hosts, public bases, storage prefixes, cache keys, channel names, build identities, and release SHAs.
+- QA and Production use separate app origins, databases, credentials, storage prefixes, cache keys, build identities, and release SHAs. Their relative API path is `/datapipeline/api/v1/`.
 - Fail closed when runtime frontend, backend, schema, or allowed-origin identity does not match.
 - Never commit credentials, provider keys, private exports, student transcripts, or secret-bearing `.env` values.
 - Publishing QA and promoting Production are separate action-time approval gates.
@@ -42,6 +42,9 @@
 
 ## Canonical documents
 
+- `docs/product-strategy/2026-09-21-leai-target-system-architecture.md` — umbrella
+  authority for frontend, backend, database, authorization, deployment, imports,
+  jobs, and interaction contracts
 - `docs/product-strategy/2026-09-17-leai-react-rewrite-architecture.md`
 - `docs/product-strategy/2026-09-17-leai-react-ui-system.md`
 - `docs/product-strategy/2026-09-17-leai-react-api-contract.md`
