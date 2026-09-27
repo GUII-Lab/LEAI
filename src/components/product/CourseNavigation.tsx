@@ -1,6 +1,21 @@
-import { FilePenLineIcon } from 'lucide-react'
+import {
+  ChartNoAxesCombinedIcon,
+  CircleHelpIcon,
+  FilePenLineIcon,
+  MessagesSquareIcon,
+  PanelsTopLeftIcon,
+  SlidersHorizontalIcon,
+} from 'lucide-react'
 import type { NavigationItem } from './AccountRail'
 import { cn } from '@/lib/utils'
+
+const courseIcons = {
+  'prompt-designer': FilePenLineIcon,
+  'feedback-analyzer': ChartNoAxesCombinedIcon,
+  'feedback-chat': MessagesSquareIcon,
+  'course-banner': PanelsTopLeftIcon,
+  customizations: SlidersHorizontalIcon,
+}
 
 export function CourseNavigation({
   activeItem,
@@ -16,6 +31,7 @@ export function CourseNavigation({
       <p className="px-2 text-xs font-semibold text-muted-foreground">{courseName}</p>
       {items.map((item) => {
         const isActive = item.id === activeItem
+        const Icon = courseIcons[item.id as keyof typeof courseIcons] ?? CircleHelpIcon
         return (
           <a
             aria-current={isActive ? 'page' : undefined}
@@ -26,7 +42,7 @@ export function CourseNavigation({
             href={item.href}
             key={item.id}
           >
-            <FilePenLineIcon aria-hidden="true" className="size-4 shrink-0" />
+            <Icon aria-hidden="true" className="size-5 shrink-0" />
             <span>{item.label}</span>
           </a>
         )

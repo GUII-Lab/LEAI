@@ -1,4 +1,6 @@
 import { expect, test } from '@playwright/test'
+import { mkdir } from 'node:fs/promises'
+import { join } from 'node:path'
 
 test.beforeEach(async ({ page }) => {
   const api = '**/datapipeline/api/v1/'
@@ -30,15 +32,81 @@ for (const width of [390, 820, 1022, 1440]) {
     await expect(page.getByRole('heading', { name: 'Your courses' })).toBeVisible()
     if (width < 1024) {
       await page.getByRole('button', { name: 'Open navigation' }).click()
-      await expect(page.getByRole('dialog', { name: 'Navigation' }).getByRole('link', { name: 'Prompt Designer' })).toBeVisible()
+      const navigation = page.getByRole('dialog', { name: 'Navigation' })
+      await expect(navigation.getByRole('navigation', { name: 'Account navigation' })).toBeVisible()
+      await expect(navigation.getByRole('navigation', { name: 'Course navigation' })).toHaveCount(0)
+      await expect(navigation.getByRole('button', { name: 'Sign out' })).toBeVisible()
     } else {
-      await expect(page.getByRole('link', { name: 'Prompt Designer' })).toBeVisible()
+      await expect(page.getByRole('navigation', { name: 'Account navigation' })).toBeVisible()
+      await expect(page.getByRole('navigation', { name: 'Course navigation' })).toHaveCount(0)
     }
     await expect
       .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
       .toBe(true)
   })
 }
+
+test('entering a course opens its workspace navigation', async ({ page }, testInfo) => {
+  await page.route('**/datapipeline/api/v1/instructor_courses/', (route) => route.fulfill({
+    headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },
+    json: { courses: [{
+      course_id: '11111111-1111-4111-8111-111111111111',
+      course_code: 'cmpm-80h', course_name: 'Game Design', institution_slug: 'ucsc',
+      lifecycle_state: 'active', role: 'owner', allowed_actions: ['course.manage', 'feedback.author'],
+    }] },
+  }))
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const screenshotDirectory = join(process.cwd(), '.web-verify', 'screenshots')
+  await mkdir(screenshotDirectory, { recursive: true })
+  await page.goto('/InstructorHome.html')
+
+  const card = page.getByRole('article', { name: 'Game Design' })
+  await expect(card).toBeVisible()
+  await expect(page.getByRole('navigation', { name: 'Course navigation' })).toHaveCount(0)
+  const desktopSignOut = page.getByRole('button', { name: 'Sign out' })
+  const desktopSignOutBox = await desktopSignOut.boundingBox()
+  expect(desktopSignOutBox).not.toBeNull()
+  expect(desktopSignOutBox!.y + desktopSignOutBox!.height).toBeGreaterThan(850)
+  const desktopHomeScreenshot = join(screenshotDirectory, `course-nav-${testInfo.project.name}-home-desktop.png`)
+  await page.screenshot({ path: desktopHomeScreenshot, fullPage: true })
+  await testInfo.attach('home-desktop', { path: desktopHomeScreenshot, contentType: 'image/png' })
+  await card.getByRole('link', { name: 'Open feedback' }).click()
+
+  await expect(page).toHaveURL(/FeedbackAnalyzer\.html$/)
+  await expect(page.getByRole('navigation', { name: 'Course navigation' })).toBeVisible()
+  await expect(page.getByRole('navigation', { name: 'Course navigation' })).toContainText('Feedback Analyzer')
+  await expect(page.getByRole('navigation', { name: 'Course navigation' })).toContainText('Instructor workspace')
+  const courseDesktopSignOutBox = await page.locator('aside').first()
+    .getByRole('button', { name: 'Sign out' }).boundingBox()
+  expect(courseDesktopSignOutBox).not.toBeNull()
+  expect(courseDesktopSignOutBox!.y + courseDesktopSignOutBox!.height).toBeGreaterThan(850)
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem('leai:local:selected-course')))
+    .toBe('11111111-1111-4111-8111-111111111111')
+  const desktopCourseScreenshot = join(screenshotDirectory, `course-nav-${testInfo.project.name}-course-desktop.png`)
+  await page.screenshot({ path: desktopCourseScreenshot, fullPage: true })
+  await testInfo.attach('course-desktop', { path: desktopCourseScreenshot, contentType: 'image/png' })
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/InstructorHome.html')
+  await expect(page.getByRole('navigation', { name: 'Course navigation' })).toHaveCount(0)
+  const mobileHomeScreenshot = join(screenshotDirectory, `course-nav-${testInfo.project.name}-home-mobile.png`)
+  await page.screenshot({ path: mobileHomeScreenshot, fullPage: true })
+  await testInfo.attach('home-mobile', { path: mobileHomeScreenshot, contentType: 'image/png' })
+  await page.getByRole('article', { name: 'Game Design' }).getByRole('link', { name: 'Open feedback' }).click()
+  await page.getByRole('button', { name: 'Open navigation' }).click()
+  const mobileCourseNavigation = page.getByRole('dialog', { name: 'Navigation' })
+    .getByRole('navigation', { name: 'Course navigation' })
+  await expect(mobileCourseNavigation).toBeVisible()
+  await expect(mobileCourseNavigation).toContainText('Feedback Analyzer')
+  await page.waitForTimeout(300)
+  const mobileSignOut = page.getByRole('dialog', { name: 'Navigation' }).getByRole('button', { name: 'Sign out' })
+  const mobileSignOutBox = await mobileSignOut.boundingBox()
+  expect(mobileSignOutBox).not.toBeNull()
+  expect(mobileSignOutBox!.y + mobileSignOutBox!.height).toBeGreaterThan(790)
+  const mobileCourseScreenshot = join(screenshotDirectory, `course-nav-${testInfo.project.name}-course-mobile.png`)
+  await page.screenshot({ path: mobileCourseScreenshot, fullPage: true })
+  await testInfo.attach('course-mobile', { path: mobileCourseScreenshot, contentType: 'image/png' })
+})
 
 test('opens and closes the mobile navigation with real keyboard focus return', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 900 })

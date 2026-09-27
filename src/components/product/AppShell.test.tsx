@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
 import type { EnvironmentManifest } from '@/config/environment'
@@ -19,20 +19,23 @@ const qaEnvironment: EnvironmentManifest = {
 }
 
 const accountItems = [
-  { id: 'account', label: 'Account', href: '/account' },
-  { id: 'all-courses', label: 'All Courses', href: '/InstructorHome.html' },
+  { id: 'account', label: 'Account', href: '/LEAI/qa/InstructorHome.html?view=account' },
+  { id: 'all-courses', label: 'All Courses', href: '/LEAI/qa/InstructorHome.html' },
 ]
 
 const courseItems = [
-  { id: 'prompt-designer', label: 'Prompt Designer', href: '/PromptDesigner.html' },
-  { id: 'feedback-analyzer', label: 'Feedback Analyzer', href: '/FeedbackAnalyzer.html' },
+  { id: 'prompt-designer', label: 'Prompt Designer', href: '/LEAI/qa/PromptDesigner.html' },
+  { id: 'feedback-analyzer', label: 'Feedback Analyzer', href: '/LEAI/qa/FeedbackAnalyzer.html' },
+  { id: 'feedback-chat', label: 'Feedback Chat', href: '/LEAI/qa/FeedbackChat.html' },
+  { id: 'course-banner', label: 'Course Banner', href: '/LEAI/qa/CourseBanner.html' },
+  { id: 'customizations', label: 'Customizations', href: '/LEAI/qa/Customizations.html' },
 ]
 
-function renderShell(onSignOut?: () => void) {
+function renderShell(onSignOut?: () => void, activeItem = 'prompt-designer') {
   return render(
     <AppShell
       accountItems={accountItems}
-      activeItem="prompt-designer"
+      activeItem={activeItem}
       courseItems={courseItems}
       environment={qaEnvironment}
       onSignOut={onSignOut}
@@ -42,12 +45,52 @@ function renderShell(onSignOut?: () => void) {
   )
 }
 
+it('shows only account navigation on the all-courses page', async () => {
+  const user = userEvent.setup()
+  renderShell(undefined, 'all-courses')
+
+  expect(screen.getByRole('navigation', { name: 'Account navigation' })).toBeInTheDocument()
+  expect(screen.queryByRole('navigation', { name: 'Course navigation' })).not.toBeInTheDocument()
+
+  await user.click(screen.getByRole('button', { name: 'Open navigation' }))
+  const dialog = screen.getByRole('dialog', { name: 'Navigation' })
+  expect(dialog).toBeInTheDocument()
+  expect(within(dialog).getByRole('navigation', { name: 'Account navigation' })).toBeInTheDocument()
+  expect(screen.queryByRole('navigation', { name: 'Course navigation' })).not.toBeInTheDocument()
+})
+
 it('exposes sign-out from the shared instructor navigation', async () => {
   const user = userEvent.setup()
   const signOut = vi.fn()
   renderShell(signOut)
-  await user.click(screen.getByRole('button', { name: 'Sign out' }))
+  const button = screen.getByRole('button', { name: 'Sign out' })
+  expect(button.parentElement).toHaveClass('mt-auto')
+  expect(button.querySelector('svg')).toHaveClass('lucide-log-out')
+  await user.click(button)
   expect(signOut).toHaveBeenCalledOnce()
+})
+
+it('uses the approved Lucide icon for every account and course menu item', () => {
+  renderShell()
+
+  const accountNavigation = screen.getByRole('navigation', { name: 'Account navigation' })
+  expect(within(accountNavigation).getByRole('link', { name: 'Account' }).querySelector('svg'))
+    .toHaveClass('lucide-circle-user-round')
+  expect(within(accountNavigation).getByRole('link', { name: 'All Courses' }).querySelector('svg'))
+    .toHaveClass('lucide-library-big')
+
+  const courseNavigation = screen.getByRole('navigation', { name: 'Course navigation' })
+  const icons = [
+    ['Prompt Designer', 'lucide-file-pen-line'],
+    ['Feedback Analyzer', 'lucide-chart-no-axes-combined'],
+    ['Feedback Chat', 'lucide-messages-square'],
+    ['Course Banner', 'lucide-panels-top-left'],
+    ['Customizations', 'lucide-sliders-horizontal'],
+  ] as const
+  for (const [label, iconClass] of icons) {
+    expect(within(courseNavigation).getByRole('link', { name: label }).querySelector('svg'))
+      .toHaveClass(iconClass)
+  }
 })
 
 it('keeps All Courses in account navigation and course tools in course navigation', () => {
@@ -57,10 +100,15 @@ it('keeps All Courses in account navigation and course tools in course navigatio
   expect(screen.getByRole('navigation', { name: 'Account navigation' })).toHaveTextContent(
     'All Courses',
   )
-  expect(screen.getByRole('navigation', { name: 'Course navigation' })).toHaveTextContent(
+  const courseNavigation = screen.getByRole('navigation', { name: 'Course navigation' })
+  expect(courseNavigation).toHaveTextContent(
     'Prompt Designer',
   )
-  expect(screen.getByRole('navigation', { name: 'Course navigation' })).not.toHaveTextContent(
+  expect(courseNavigation).toHaveAttribute('aria-label', 'Course navigation')
+  expect(within(courseNavigation).getByRole('link', { name: 'Prompt Designer' })).toHaveAttribute(
+    'href', '/LEAI/qa/PromptDesigner.html',
+  )
+  expect(courseNavigation).not.toHaveTextContent(
     'All Courses',
   )
   expect(screen.getByText('QA environment')).toBeInTheDocument()
@@ -68,11 +116,15 @@ it('keeps All Courses in account navigation and course tools in course navigatio
 
 it('opens the mobile navigation in a Sheet and returns focus on Escape', async () => {
   const user = userEvent.setup()
-  renderShell()
+  renderShell(vi.fn())
 
   const trigger = screen.getByRole('button', { name: 'Open navigation' })
   await user.click(trigger)
-  expect(screen.getByRole('dialog', { name: 'Navigation' })).toBeInTheDocument()
+  const dialog = screen.getByRole('dialog', { name: 'Navigation' })
+  expect(dialog).toBeInTheDocument()
+  const signOut = within(dialog).getByRole('button', { name: 'Sign out' })
+  expect(signOut.parentElement).toHaveClass('mt-auto')
+  expect(signOut).toHaveClass('text-foreground')
 
   await user.keyboard('{Escape}')
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())

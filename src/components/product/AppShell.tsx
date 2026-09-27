@@ -6,11 +6,12 @@ import {
   Sheet,
   SheetContent,
   SheetDescription,
+  SheetFooter,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
-import { AccountRail, type NavigationItem } from './AccountRail'
+import { AccountRail, AccountSignOut, type NavigationItem } from './AccountRail'
 import { CourseNavigation } from './CourseNavigation'
 import { EnvironmentBar } from './EnvironmentBar'
 
@@ -38,6 +39,7 @@ export function AppShell({
   signOutError,
 }: AppShellProps) {
   const activeCourseItem = courseItems.find((item) => item.id === activeItem)
+  const showCourseNavigation = activeItem !== 'all-courses' && activeItem !== 'account'
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -57,9 +59,16 @@ export function AppShell({
               </SheetDescription>
             </SheetHeader>
             <div className="border-y border-border bg-sidebar">
-              <AccountRail items={accountItems} mobile onSignOut={onSignOut} signingOut={signingOut} />
+              <AccountRail items={accountItems} mobile />
             </div>
-            <CourseNavigation activeItem={activeItem} courseName={courseName} items={courseItems} />
+            {showCourseNavigation && (
+              <CourseNavigation activeItem={activeItem} courseName={courseName} items={courseItems} />
+            )}
+            {onSignOut && (
+              <SheetFooter className="border-t border-border p-3">
+                <AccountSignOut mobile onSignOut={onSignOut} signingOut={signingOut} />
+              </SheetFooter>
+            )}
           </SheetContent>
         </Sheet>
         {activeCourseItem && (
@@ -72,13 +81,20 @@ export function AppShell({
           </a>
         )}
       </div>
-      <div className="lg:grid lg:min-h-[calc(100vh-2rem)] lg:grid-cols-[4.5rem_15rem_minmax(0,1fr)]">
-        <aside className="hidden bg-sidebar lg:block">
-          <AccountRail items={accountItems} onSignOut={onSignOut} signingOut={signingOut} />
+      <div className={showCourseNavigation
+        ? 'lg:grid lg:min-h-[calc(100vh-2rem)] lg:grid-cols-[4.5rem_15rem_minmax(0,1fr)]'
+        : 'lg:grid lg:min-h-[calc(100vh-2rem)] lg:grid-cols-[4.5rem_minmax(0,1fr)]'}>
+        <aside className="hidden bg-sidebar lg:sticky lg:top-8 lg:flex lg:h-[calc(100vh-2rem)] lg:flex-col">
+          <AccountRail items={accountItems} />
+          {onSignOut && (
+            <div className="mt-auto border-t border-border p-2">
+              <AccountSignOut onSignOut={onSignOut} signingOut={signingOut} />
+            </div>
+          )}
         </aside>
-        <aside className="hidden border-r border-border bg-card lg:block">
+        {showCourseNavigation && <aside className="hidden border-r border-border bg-card lg:block">
           <CourseNavigation activeItem={activeItem} courseName={courseName} items={courseItems} />
-        </aside>
+        </aside>}
         <main className="min-w-0 px-5 py-8 sm:px-8 lg:px-10">
           {signOutError && <p className="mb-4 text-sm text-destructive" role="alert">{signOutError}</p>}
           {children}

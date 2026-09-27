@@ -101,9 +101,6 @@ it('keeps account and course navigation inside the QA application base', async (
   expect(screen.getByRole('link', { name: 'Account' })).toHaveAttribute(
     'href', '/LEAI/qa/InstructorHome.html?view=account',
   )
-  for (const link of screen.getAllByRole('link', { name: 'Prompt Designer' })) {
-    expect(link).toHaveAttribute('href', '/LEAI/qa/PromptDesigner.html')
-  }
 })
 
 it('shows the Researcher course debug switch in Customizations and persists its change', async () => {
