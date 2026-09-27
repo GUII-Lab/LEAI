@@ -36,7 +36,7 @@ test('researcher enables QA debug and only their authenticated view reveals it i
     } else if (url.pathname.endsWith('/instructor_me/')) {
       expect(auth).toBeUndefined()
       await route.fulfill({ json: { id: '550e8400-e29b-41d4-a716-446655440012', email: 'researcher@ucsc.edu',
-        display_name: 'Researcher', must_change_password: false, platform_role: 'member' } })
+        display_name: 'Researcher', must_change_password: false, platform_role: 'member', institutions: [] } })
     } else if (url.pathname.endsWith('/instructor_courses/')) {
       expect(auth).toBeUndefined()
       await route.fulfill({ json: { courses: [{ course_id: courseId, course_code: 'CMPM-80H', course_name: 'CMPM 80H',

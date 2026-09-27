@@ -15,6 +15,7 @@ test.beforeEach(async ({ page }) => {
     json: {
       id: '550e8400-e29b-41d4-a716-446655440001', email: 'teacher@ucsc.edu',
       display_name: 'Teacher', platform_role: 'member', must_change_password: false,
+      institutions: [],
     },
   }))
   await page.route(`${api}instructor_courses/`, (route) => route.fulfill({ headers, json: { courses: [] } }))
@@ -26,8 +27,13 @@ for (const width of [390, 820, 1022, 1440]) {
     await page.setViewportSize({ width, height: 900 })
     await page.goto('/')
 
-    await expect(page.getByRole('heading', { name: 'LEAI' })).toBeVisible()
-    await expect(page.getByRole('link', { name: 'Prompt Designer' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Your courses' })).toBeVisible()
+    if (width < 1024) {
+      await page.getByRole('button', { name: 'Open navigation' }).click()
+      await expect(page.getByRole('dialog', { name: 'Navigation' }).getByRole('link', { name: 'Prompt Designer' })).toBeVisible()
+    } else {
+      await expect(page.getByRole('link', { name: 'Prompt Designer' })).toBeVisible()
+    }
     await expect
       .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
       .toBe(true)
@@ -55,7 +61,7 @@ test('loads the shared design system on multipage instructor entries', async ({ 
 })
 
 for (const [path, title] of [
-  ['/InstructorHome.html', 'LEAI'],
+  ['/InstructorHome.html', 'Your courses'],
   ['/PromptDesigner.html', 'Prompt Designer'],
   ['/FeedbackAnalyzer.html', 'Feedback Analyzer'],
   ['/FeedbackChat.html', 'Feedback Chat'],

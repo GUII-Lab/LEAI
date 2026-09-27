@@ -96,6 +96,7 @@ test('rejects an external sign-in return target and uses the instructor home pag
     ? route.fulfill({ headers, json: {
       id: '550e8400-e29b-41d4-a716-446655440001', email: 'teacher@ucsc.edu',
       display_name: 'Teacher', platform_role: 'member', must_change_password: false,
+      institutions: [],
     } })
     : route.fulfill({ status: 401, headers, json: { error: 'authentication_required' } }))
   await page.goto('/InstructorLogin.html?next=https%3A%2F%2Fevil.example')
@@ -141,7 +142,7 @@ test('opens the requested instructor page after login even when the legacy passw
     ? route.fulfill({ headers, json: {
       id: '550e8400-e29b-41d4-a716-446655440001', email: 'teacher@ucsc.edu',
       display_name: 'Teacher', platform_role: 'member',
-      must_change_password: true,
+      must_change_password: true, institutions: [],
     } })
     : route.fulfill({ status: 401, headers, json: { error: 'authentication_required' } }))
   await page.route(`${api}instructor_courses/`, (route) => route.fulfill({ headers, json: { courses: [] } }))
