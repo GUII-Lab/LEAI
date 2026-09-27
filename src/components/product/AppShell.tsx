@@ -42,7 +42,7 @@ export function AppShell({
   const showCourseNavigation = activeItem !== 'all-courses' && activeItem !== 'account'
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-background text-foreground lg:flex lg:h-svh lg:min-h-0 lg:flex-col lg:overflow-hidden">
       <EnvironmentBar environment={environment} />
       <div className="flex items-center gap-3 border-b border-border bg-card px-4 py-3 lg:hidden">
         <Sheet>
@@ -82,9 +82,9 @@ export function AppShell({
         )}
       </div>
       <div className={showCourseNavigation
-        ? 'lg:grid lg:min-h-[calc(100vh-2rem)] lg:grid-cols-[4.5rem_15rem_minmax(0,1fr)]'
-        : 'lg:grid lg:min-h-[calc(100vh-2rem)] lg:grid-cols-[4.5rem_minmax(0,1fr)]'}>
-        <aside className="hidden bg-sidebar lg:sticky lg:top-8 lg:flex lg:h-[calc(100vh-2rem)] lg:flex-col">
+        ? 'lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-[4.5rem_15rem_minmax(0,1fr)]'
+        : 'lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-[4.5rem_minmax(0,1fr)]'}>
+        <aside className="hidden min-h-0 bg-sidebar lg:flex lg:flex-col">
           <AccountRail items={accountItems} />
           {onSignOut && (
             <div className="mt-auto border-t border-border p-2">
@@ -92,10 +92,10 @@ export function AppShell({
             </div>
           )}
         </aside>
-        {showCourseNavigation && <aside className="hidden border-r border-border bg-card lg:block">
+        {showCourseNavigation && <aside className="hidden min-h-0 overflow-y-auto border-r border-border bg-card lg:block">
           <CourseNavigation activeItem={activeItem} courseName={courseName} items={courseItems} />
         </aside>}
-        <main className="min-w-0 px-5 py-8 sm:px-8 lg:px-10">
+        <main className="min-w-0 px-5 py-8 sm:px-8 lg:min-h-0 lg:overflow-y-auto lg:px-10">
           {signOutError && <p className="mb-4 text-sm text-destructive" role="alert">{signOutError}</p>}
           {children}
         </main>

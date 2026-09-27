@@ -31,13 +31,13 @@ export function AccountRail({
             aria-label={item.label}
             className={cn(
               'flex min-h-10 items-center gap-2 rounded-md px-2 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent focus-visible:bg-sidebar-accent',
-              !mobile && 'justify-center',
+              !mobile && 'min-h-[3.5rem] flex-col justify-center gap-1 px-1 py-1 text-[10px] leading-3',
             )}
             href={item.href}
             key={item.id}
           >
             <Icon aria-hidden="true" className="size-5 shrink-0" />
-            <span className={cn(!mobile && 'sr-only')}>{item.label}</span>
+            <span className={cn(!mobile && 'text-center')}>{item.label}</span>
           </a>
         )
       })}
@@ -62,14 +62,14 @@ export function AccountSignOut({
         mobile
           ? 'text-foreground hover:bg-muted focus-visible:bg-muted'
           : 'text-sidebar-foreground hover:bg-sidebar-accent focus-visible:bg-sidebar-accent',
-        !mobile && 'justify-center',
+        !mobile && 'min-h-[3.5rem] flex-col justify-center gap-1 px-1 py-1 text-[10px] leading-3',
       )}
       disabled={signingOut}
       onClick={onSignOut}
       type="button"
     >
       <LogOutIcon aria-hidden="true" className="size-5 shrink-0" />
-      <span className={cn(!mobile && 'sr-only')}>{signingOut ? 'Signing out…' : 'Sign out'}</span>
+      <span className={cn(!mobile && 'text-center')}>{signingOut ? 'Signing out…' : 'Sign out'}</span>
     </button>
   )
 }

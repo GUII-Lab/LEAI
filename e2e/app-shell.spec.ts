@@ -39,6 +39,11 @@ for (const width of [390, 820, 1022, 1440]) {
     } else {
       await expect(page.getByRole('navigation', { name: 'Account navigation' })).toBeVisible()
       await expect(page.getByRole('navigation', { name: 'Course navigation' })).toHaveCount(0)
+      await expect(page.getByRole('link', { name: 'Account' }).locator('span')).toBeVisible()
+      await expect(page.getByRole('link', { name: 'All Courses' }).locator('span')).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Sign out' }).locator('span')).toBeVisible()
+      await expect.poll(() => page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight))
+        .toBe(true)
     }
     await expect
       .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
@@ -76,6 +81,8 @@ test('entering a course opens its workspace navigation', async ({ page }, testIn
   await expect(page.getByRole('navigation', { name: 'Course navigation' })).toBeVisible()
   await expect(page.getByRole('navigation', { name: 'Course navigation' })).toContainText('Feedback Analyzer')
   await expect(page.getByRole('navigation', { name: 'Course navigation' })).toContainText('Instructor workspace')
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight))
+    .toBe(true)
   const courseDesktopSignOutBox = await page.locator('aside').first()
     .getByRole('button', { name: 'Sign out' }).boundingBox()
   expect(courseDesktopSignOutBox).not.toBeNull()

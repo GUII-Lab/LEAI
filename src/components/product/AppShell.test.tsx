@@ -70,6 +70,21 @@ it('exposes sign-out from the shared instructor navigation', async () => {
   expect(signOut).toHaveBeenCalledOnce()
 })
 
+it('shows desktop account labels below their icons and keeps sign-out readable', () => {
+  renderShell(vi.fn(), 'all-courses')
+
+  const accountNavigation = screen.getByRole('navigation', { name: 'Account navigation' })
+  for (const label of ['Account', 'All Courses']) {
+    const link = within(accountNavigation).getByRole('link', { name: label })
+    expect(link).toHaveClass('flex-col', 'items-center')
+    expect(link.querySelector('span')).not.toHaveClass('sr-only')
+  }
+
+  const signOut = screen.getByRole('button', { name: 'Sign out' })
+  expect(signOut).toHaveClass('flex-col', 'items-center')
+  expect(signOut.querySelector('span')).not.toHaveClass('sr-only')
+})
+
 it('uses the approved Lucide icon for every account and course menu item', () => {
   renderShell()
 
