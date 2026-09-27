@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { expect, it } from 'vitest'
+import { afterAll, beforeAll, expect, it } from 'vitest'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './alert-dialog'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './dialog'
 import { Popover, PopoverContent, PopoverTrigger } from './popover'
@@ -10,7 +10,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './tabs'
 import { Textarea } from './textarea'
 
 // jsdom does not implement scrolling; Radix Select calls this when its menu opens.
-HTMLElement.prototype.scrollIntoView = () => undefined
+const originalScrollIntoView = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView')
+beforeAll(() => { Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: () => undefined }) })
+afterAll(() => {
+  if (originalScrollIntoView) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', originalScrollIntoView)
+  else Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
+})
 
 it('switches bounded tab content with the keyboard', async () => {
   const user = userEvent.setup()
@@ -25,10 +30,17 @@ it('selects a course source using the accessible listbox', async () => {
   const user = userEvent.setup()
   render(<Select><SelectTrigger aria-label="Feedback source"><SelectValue placeholder="Choose source" /></SelectTrigger><SelectContent><SelectItem value="week-1">Week 1</SelectItem><SelectItem value="week-2">Week 2</SelectItem></SelectContent></Select>)
   await user.tab()
-  await user.keyboard('{Enter}')
-  await user.keyboard('w')
-  await user.keyboard('{Enter}')
+  expect(screen.getByRole('combobox', { name: 'Feedback source' })).toHaveFocus()
+  await user.keyboard('{Enter}{End}{Enter}')
   expect(screen.getByRole('combobox', { name: 'Feedback source' })).toHaveTextContent('Week 2')
+})
+
+it('uses semantic foreground color for modal backdrops', async () => {
+  const user = userEvent.setup()
+  render(<Dialog><DialogTrigger>Open dialog</DialogTrigger><DialogContent><DialogHeader><DialogTitle>Dialog</DialogTitle></DialogHeader></DialogContent></Dialog>)
+  await user.click(screen.getByRole('button', { name: 'Open dialog' }))
+  await screen.findByRole('dialog', { name: 'Dialog' })
+  expect(document.body.querySelector('[data-slot="dialog-overlay"]')).toHaveClass('bg-foreground/10')
 })
 
 it('opens secondary citation detail in a dismissible popover', async () => {
