@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest'
 import { getEnvironment } from '@/config/environment'
-import { createStudentApi } from './student'
+import { createStudentApi, studentSessionSchema } from './student'
 
 const surveyId = '550e8400-e29b-41d4-a716-446655440010'
 const sessionId = '550e8400-e29b-41d4-a716-446655440011'
@@ -11,6 +11,17 @@ const prompt = {
   wording: 'exact',
   choices: [{ value: 1, label: 'Strongly disagree' }, { value: 5, label: 'Strongly agree' }],
 }
+
+it('accepts honest unknown answers and exact mapped excerpts without inventing completion', () => {
+  const result = studentSessionSchema.parse({
+    session_id: sessionId, survey_id: surveyId, turn_version: 2, status: 'active', prompt,
+    progress_label: 'Area 1', messages: [], answer_map: { P1: [3] },
+    answer_excerpts: { P1: ['I do not know.'] },
+    results: { P1: { status: 'unknown', rating: null, probes: 0 } },
+  })
+  expect(result.results.P1?.status).toBe('unknown')
+  expect(result.answer_excerpts?.P1).toEqual(['I do not know.'])
+})
 
 it('starts an anonymous survey and sends the capability only to session endpoints', async () => {
   const fetcher = vi.fn()

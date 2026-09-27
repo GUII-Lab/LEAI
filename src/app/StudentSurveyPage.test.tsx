@@ -240,6 +240,9 @@ it('auto-hides the header and reflection strip after the first student reply and
 
 it('shows a collapsible debug disclosure beneath the current assistant message, never in a side panel', async () => {
   enableResearcherDebug()
+  vi.mocked(api.debug).mockResolvedValue({ session_id: sessionId, turn_version: 1,
+    schema_state: { item_index: 0, phase: 'rating', results: {}, answer_map: {}, evidence_seen: {}, coverage_seen: {},
+      orchestration: { last_turn_diagnostics: { calls: [{ total_tokens: 130 }], turn_processing_ms: 450 } } }, responses: [] })
   const user = userEvent.setup()
   renderPage()
   await acceptConsent(user)
@@ -252,6 +255,7 @@ it('shows a collapsible debug disclosure beneath the current assistant message, 
   expect(api.debug).not.toHaveBeenCalled()
   await user.click(disclosure)
   expect(await within(assistant).findByText('Recorded schema state')).toBeInTheDocument()
+  expect(within(assistant).getByLabelText('Orchestration diagnostics')).toHaveTextContent('total_tokens')
   expect(within(assistant).getByRole('region', { name: 'Recorded debug state' })).not.toHaveAttribute('hidden')
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   expect(api.debugAccess).toHaveBeenCalledWith(surveyId)

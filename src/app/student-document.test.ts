@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest'
 import type { StudentSession, StudentSurvey } from '@/api/student'
 import { createStudentDraft } from './student-document'
+import JSZip from 'jszip'
 
 it('generates a real Word archive from saved student messages', async () => {
   const survey: StudentSurvey = { survey_id: '550e8400-e29b-41d4-a716-446655440010', label: 'Planning Reflection',
@@ -15,4 +16,10 @@ it('generates a real Word archive from saved student messages', async () => {
   expect(blob.type).toContain('wordprocessingml.document')
   expect(blob.size).toBeGreaterThan(1000)
   expect(Array.from(new Uint8Array(await blob.slice(0, 4).arrayBuffer()))).toEqual([80, 75, 3, 4])
+  session.answer_excerpts = { P1: ['I share only the rubric.'] }
+  const revised = await createStudentDraft(survey, session)
+  const zip = await JSZip.loadAsync(await revised.arrayBuffer())
+  const xml = await zip.file('word/document.xml')!.async('string')
+  expect(xml).toContain('I share only the rubric.')
+  expect(xml).not.toContain('I omitted private data.')
 })

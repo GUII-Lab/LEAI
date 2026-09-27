@@ -18,10 +18,12 @@ export async function createStudentDraft(survey: StudentSurvey, session: Student
     new Paragraph({ text: session.progress_label }),
     ...mapped.flatMap(([itemId, sequences]) => [
       new Paragraph({ text: `${itemId} — ${questionFor(itemId)?.content ?? 'Reflection'}`, heading: HeadingLevel.HEADING_1 }),
-      ...sequences.map((sequence) => bySequence.get(sequence)).filter((message) => message?.role === 'student')
-        .map((message) => new Paragraph({
+      ...(session.answer_excerpts?.[itemId] ?? sequences.map((sequence) => bySequence.get(sequence))
+        .filter((message) => message?.role === 'student')
+        .map((message) => String(message?.attribution.answer_text ?? message?.content ?? '')))
+        .map((text) => new Paragraph({
           spacing: { before: 100, after: 100 },
-          children: [new TextRun({ text: String(message?.attribution.answer_text ?? message?.content ?? '') })],
+          children: [new TextRun({ text })],
         })),
     ]),
   ]

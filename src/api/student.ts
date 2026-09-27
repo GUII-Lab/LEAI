@@ -18,8 +18,9 @@ const completePromptSchema = z.object({ phase: z.literal('complete') }).strict()
 export const studentPromptSchema = z.union([activePromptSchema, completePromptSchema])
 const itemResultSchema = z.object({
   rating: z.number().int().positive().nullable(),
-  status: z.enum(['active', 'answered', 'partial', 'declined']),
+  status: z.enum(['active', 'answered', 'partial', 'declined', 'unknown', 'not_applicable']),
   probes: z.number().int().nonnegative(),
+  targets: z.record(z.string(), z.enum(['covered', 'missing', 'not_applicable'])).optional(),
 }).strict()
 const messageSchema = z.object({
   id: z.number().int().positive(),
@@ -38,6 +39,7 @@ export const studentSessionSchema = z.object({
   progress_label: z.string().min(1),
   results: z.record(z.string(), itemResultSchema),
   answer_map: z.record(z.string(), z.array(z.number().int().positive())).default({}),
+  answer_excerpts: z.record(z.string(), z.array(z.string())).optional(),
   messages: z.array(messageSchema),
 }).strict()
 const debugPhaseSchema = z.enum(['rating', 'answer', 'reflection', 'probe', 'complete', 'revision'])
@@ -51,10 +53,11 @@ export const studentDebugSchema = z.object({
     answer_map: z.record(z.string(), z.array(z.number().int().positive())).default({}),
     evidence_seen: z.record(z.string(), z.boolean()),
     coverage_seen: z.record(z.string(), z.array(z.string())),
+    orchestration: z.record(z.string(), z.unknown()).optional(),
   }).strict(),
   responses: z.array(z.object({
     sequence: z.number().int().positive(),
-    item_id: z.string().min(1),
+    item_id: z.string().min(1).nullable(),
     phase: debugPhaseSchema,
     kind: z.enum(['rating', 'text', 'skip', 'revision', 'clarification']),
     content: z.string(),

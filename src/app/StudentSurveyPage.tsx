@@ -82,6 +82,10 @@ function StudentDebugPanel({ snapshot }: { snapshot: StudentDebug }) {
             <p className="text-muted-foreground">Saved student messages: {sequences.join(', ') || 'none'}</p>
           </div>)}
       </section>
+      {state.orchestration && <section aria-label="Orchestration diagnostics" className="space-y-2">
+        <h3 className="font-semibold">Orchestration diagnostics</h3>
+        <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-background p-3 text-xs">{JSON.stringify(state.orchestration, null, 2)}</pre>
+      </section>}
     </CardContent>
   </Card>
 }
