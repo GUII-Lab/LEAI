@@ -85,6 +85,31 @@ it('shows desktop account labels below their icons and keeps sign-out readable',
   expect(signOut.querySelector('span')).not.toHaveClass('sr-only')
 })
 
+it('uses dark styling and 16pt type throughout the opened mobile sidebar', async () => {
+  const user = userEvent.setup()
+  renderShell(vi.fn())
+  await user.click(screen.getByRole('button', { name: 'Open navigation' }))
+
+  const dialog = screen.getByRole('dialog', { name: 'Navigation' })
+  expect(dialog).toHaveClass('bg-sidebar', 'text-sidebar-foreground')
+  expect(within(dialog).getByRole('heading', { name: 'Navigation' })).toHaveClass('text-[16pt]')
+  expect(within(dialog).getByRole('button', { name: 'Close' })).toHaveClass('text-sidebar-foreground')
+
+  const accountNavigation = within(dialog).getByRole('navigation', { name: 'Account navigation' })
+  expect(accountNavigation.querySelector('p')).toHaveClass('text-[16pt]', 'text-sidebar-foreground/70')
+  expect(within(accountNavigation).getByRole('link', { name: 'Account' })).toHaveClass('text-[16pt]')
+
+  const courseNavigation = within(dialog).getByRole('navigation', { name: 'Course navigation' })
+  expect(courseNavigation).toHaveClass('bg-sidebar')
+  expect(courseNavigation.querySelector('p')).toHaveClass('text-[16pt]', 'text-sidebar-foreground/70')
+  expect(within(courseNavigation).getByRole('link', { name: 'Prompt Designer' })).toHaveClass(
+    'text-[16pt]', 'text-sidebar-accent-foreground',
+  )
+  expect(within(dialog).getByRole('button', { name: 'Sign out' })).toHaveClass(
+    'text-[16pt]', 'text-sidebar-foreground',
+  )
+})
+
 it('uses the approved Lucide icon for every account and course menu item', () => {
   renderShell()
 
@@ -139,7 +164,7 @@ it('opens the mobile navigation in a Sheet and returns focus on Escape', async (
   expect(dialog).toBeInTheDocument()
   const signOut = within(dialog).getByRole('button', { name: 'Sign out' })
   expect(signOut.parentElement).toHaveClass('mt-auto')
-  expect(signOut).toHaveClass('text-foreground')
+  expect(signOut).toHaveClass('text-sidebar-foreground')
 
   await user.keyboard('{Escape}')
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())

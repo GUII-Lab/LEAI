@@ -21,14 +21,19 @@ export function CourseNavigation({
   activeItem,
   courseName = 'Active course',
   items,
+  mobile = false,
 }: {
   activeItem: string
   courseName?: string
   items: NavigationItem[]
+  mobile?: boolean
 }) {
   return (
-    <nav aria-label="Course navigation" className="flex flex-col gap-1 p-3">
-      <p className="px-2 text-xs font-semibold text-muted-foreground">{courseName}</p>
+    <nav aria-label="Course navigation" className={cn('flex flex-col gap-1 p-3', mobile && 'bg-sidebar')}>
+      <p className={cn(
+        'px-2 text-xs font-semibold text-muted-foreground',
+        mobile && 'text-[16pt] text-sidebar-foreground/70',
+      )}>{courseName}</p>
       {items.map((item) => {
         const isActive = item.id === activeItem
         const Icon = courseIcons[item.id as keyof typeof courseIcons] ?? CircleHelpIcon
@@ -36,8 +41,13 @@ export function CourseNavigation({
           <a
             aria-current={isActive ? 'page' : undefined}
             className={cn(
-              'flex min-h-10 items-center gap-2 rounded-md px-2 text-sm font-medium text-foreground transition-colors hover:bg-muted focus-visible:bg-muted',
-              isActive && 'bg-secondary text-secondary-foreground',
+              'flex min-h-10 items-center gap-2 rounded-md px-2 font-medium transition-colors',
+              mobile
+                ? 'text-[16pt] text-sidebar-foreground hover:bg-sidebar-accent focus-visible:bg-sidebar-accent'
+                : 'text-sm text-foreground hover:bg-muted focus-visible:bg-muted',
+              isActive && (mobile
+                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                : 'bg-secondary text-secondary-foreground'),
             )}
             href={item.href}
             key={item.id}

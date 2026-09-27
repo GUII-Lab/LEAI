@@ -25,7 +25,7 @@ test.beforeEach(async ({ page }) => {
 })
 
 for (const width of [390, 820, 1022, 1440]) {
-  test(`keeps the LEAI shell within the viewport at ${width}px`, async ({ page }) => {
+  test(`keeps the LEAI shell within the viewport at ${width}px`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 900 })
     await page.goto('/')
 
@@ -36,6 +36,15 @@ for (const width of [390, 820, 1022, 1440]) {
       await expect(navigation.getByRole('navigation', { name: 'Account navigation' })).toBeVisible()
       await expect(navigation.getByRole('navigation', { name: 'Course navigation' })).toHaveCount(0)
       await expect(navigation.getByRole('button', { name: 'Sign out' })).toBeVisible()
+      if (width === 390) {
+        await page.waitForTimeout(250)
+        const screenshotDirectory = join(process.cwd(), '.web-verify', 'screenshots')
+        await mkdir(screenshotDirectory, { recursive: true })
+        await page.screenshot({
+          path: join(screenshotDirectory, `mobile-sidebar-account-${testInfo.project.name}.png`),
+          fullPage: true,
+        })
+      }
     } else {
       await expect(page.getByRole('navigation', { name: 'Account navigation' })).toBeVisible()
       await expect(page.getByRole('navigation', { name: 'Course navigation' })).toHaveCount(0)
@@ -105,6 +114,24 @@ test('entering a course opens its workspace navigation', async ({ page }, testIn
     .getByRole('navigation', { name: 'Course navigation' })
   await expect(mobileCourseNavigation).toBeVisible()
   await expect(mobileCourseNavigation).toContainText('Feedback Analyzer')
+  const mobileDialog = page.getByRole('dialog', { name: 'Navigation' })
+  const panelBackground = await mobileDialog.evaluate(element => getComputedStyle(element).backgroundColor)
+  const mobileHeader = mobileDialog.locator('[data-slot="sheet-header"]')
+  const mobileAccount = mobileDialog.getByRole('navigation', { name: 'Account navigation' })
+  const mobileFooter = mobileDialog.locator('[data-slot="sheet-footer"]')
+  for (const region of [mobileHeader, mobileAccount.locator('..'), mobileCourseNavigation, mobileFooter]) {
+    await expect.poll(() => region.evaluate(element => getComputedStyle(element).backgroundColor))
+      .toBe(panelBackground)
+  }
+  const accountFontSize = await mobileDialog.getByRole('link', { name: 'Account' }).locator('span')
+    .evaluate(element => Number.parseFloat(getComputedStyle(element).fontSize))
+  const courseFontSize = await mobileCourseNavigation.getByRole('link', { name: 'Feedback Analyzer' }).locator('span')
+    .evaluate(element => Number.parseFloat(getComputedStyle(element).fontSize))
+  expect(accountFontSize).toBeCloseTo(16 * 96 / 72, 1)
+  expect(courseFontSize).toBeCloseTo(16 * 96 / 72, 1)
+  const signOutFontSize = await mobileDialog.getByRole('button', { name: 'Sign out' }).locator('span')
+    .evaluate(element => Number.parseFloat(getComputedStyle(element).fontSize))
+  expect(signOutFontSize).toBeCloseTo(16 * 96 / 72, 1)
   await page.waitForTimeout(300)
   const mobileSignOut = page.getByRole('dialog', { name: 'Navigation' }).getByRole('button', { name: 'Sign out' })
   const mobileSignOutBox = await mobileSignOut.boundingBox()

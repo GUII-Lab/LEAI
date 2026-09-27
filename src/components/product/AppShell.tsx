@@ -51,21 +51,21 @@ export function AppShell({
               <MenuIcon aria-hidden="true" />
             </Button>
           </SheetTrigger>
-          <SheetContent className="w-80 p-0" side="left">
-            <SheetHeader>
-              <SheetTitle>Navigation</SheetTitle>
+          <SheetContent className="w-80 gap-0 overflow-y-auto border-sidebar-border bg-sidebar p-0 text-sidebar-foreground" closeButtonClassName="text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground" side="left">
+            <SheetHeader className="border-b border-sidebar-border bg-sidebar">
+              <SheetTitle className="text-[16pt] text-sidebar-foreground">Navigation</SheetTitle>
               <SheetDescription className="sr-only">
                 Account and active course navigation
               </SheetDescription>
             </SheetHeader>
-            <div className="border-y border-border bg-sidebar">
+            <div className="border-b border-sidebar-border bg-sidebar">
               <AccountRail items={accountItems} mobile />
             </div>
             {showCourseNavigation && (
-              <CourseNavigation activeItem={activeItem} courseName={courseName} items={courseItems} />
+              <CourseNavigation activeItem={activeItem} courseName={courseName} items={courseItems} mobile />
             )}
             {onSignOut && (
-              <SheetFooter className="border-t border-border p-3">
+              <SheetFooter className="mt-auto border-t border-sidebar-border bg-sidebar p-3">
                 <AccountSignOut mobile onSignOut={onSignOut} signingOut={signingOut} />
               </SheetFooter>
             )}
