@@ -5,7 +5,7 @@ This supersedes Pages hosting and browser-stored instructor bearer credentials i
 
 ## Target
 
-Each environment has one Heroku app serving the built React frontend through WhiteNoise and Django APIs through Gunicorn. Use the actual default HTTPS domain reported by Heroku; no purchased domain is required. QA and Production must have separate apps, credentials, and databases. `/` and `/InstructorLogin.html` serve the frontend; `/datapipeline/api/v1/` is the API. There is no extra proxy/BFF service, no Vercel function, and no shared browser cookie across environments.
+Each environment has one Heroku app serving the built React frontend through WhiteNoise and Django APIs through Gunicorn. Use the actual default HTTPS domain reported by Heroku; no purchased domain is required. QA and Production use separate apps, credentials, and PostgreSQL schemas in their existing shared database: `leai_qa` for QA and `public` for Production. `/` and `/InstructorLogin.html` serve the frontend; `/datapipeline/api/v1/` is the API. There is no extra proxy/BFF service, no Vercel function, and no shared browser cookie across environments.
 
 GitHub remains source control and CI. `GUII-Lab/LEAI` is the sole frontend source; `guiidatapipelines` remains the backend source. Retired frontend repositories are not deployment inputs. Pages build utilities remain historical verification tooling, not the new app release route.
 
@@ -32,16 +32,15 @@ GitHub remains source control and CI. `GUII-Lab/LEAI` is the sole frontend sourc
 4. Assemble an isolated release directory from `git archive` of that exact backend commit. Copy only the matching public Vite output to `frontend_dist/`; never copy `.env`, working directories, private data, or node_modules. Preserve a separate release record containing both commit IDs and the final artifact digest. Do not use a live backend checkout as the staging directory.
 5. Before upload, scan the frontend output with `node scripts/check-client-secrets.mjs dist/heroku/qa`. Verify the packaged backend contains the new hosting code, authentication migrations, and matching dependencies. Review `Procfile` release migration scope before any remote deployment.
 
-## Heroku QA preflight (still pending)
+## Heroku QA preflight
 
-Heroku CLI authentication was rejected during this implementation. `heroku login` must be completed by the account owner before remote app/config/database facts can be verified. No cloud config, data, or deployment was changed.
+Heroku access confirmed that the QA and Production apps attach the same PostgreSQL add-on. QA already has the `leai_qa` schema, while Production uses `public`. The owner chose to keep this topology. PostgreSQL schemas organize names; they are not a strong isolation boundary when the same database role can access both. The release must set `LEAI_ENVIRONMENT=qa` and `LEAI_DB_SCHEMA=leai_qa`, and the backend must pin the connection search path before the release-phase migration.
 
-- Inspect the actual QA app, default URL, stack/buildpack/runtime, release, and database attachments. Do not print credentials/config dumps. Prior notes describe a shared database add-on: treat that as a warning requiring live verification, not evidence of current isolation. Do not run migrations against a shared Production database.
-- Confirm a separate QA database and backup/recovery path. Any new paid resources require approval.
+- Recheck the actual QA app, default URL, stack/buildpack/runtime, release, and database attachment without printing credentials/config dumps. Record a database backup/recovery point before migrating `leai_qa`.
 - Set `LEAI_SERVE_FRONTEND=1`, `LEAI_ENVIRONMENT=qa`, and `LEAI_BUILD_ID=<packaged-backend-sha>`.
 - Set `DJANGO_ALLOWED_HOSTS` to the actual hostname only; `HEROKU_APP_DEFAULT_DOMAIN_NAME` is the fallback when available. Do not infer a hostname by appending `.herokuapp.com` to an app name.
 - Use a strong independent `SECRET_KEY` and QA-only provider credentials. Keep `DATABASE_URL` in Heroku, never in frontend variables.
-- The current canonical handshake expects QA schema `leai_qa`, Production schema `public`. Verify PostgreSQL `current_schema()` and the exact database attachment before applying migrations. If QA needs schema initialization, do it only after the database is confirmed isolated. Frontend schema/build mismatches fail closed.
+- The canonical handshake expects QA schema `leai_qa`, Production schema `public`. Verify PostgreSQL `current_schema()` under the app's actual connection and inspect the migration plan before applying migrations. Confirm Production `public` table and migration counts remain unchanged afterward. Frontend schema/build mismatches fail closed.
 - Keep uploads/outputs off the dyno filesystem; it is not durable storage. This change only serves immutable public frontend build files.
 - Deploy QA only, wait for the release to finish, then verify HTTPS, HSTS, Secure cookie flags, redirects, login/reload/logout/password rotation, CSRF rejection, private API access, student consent/resume, environment identity, and database persistence on the actual Heroku URL. A local test does not prove cloud behavior.
 - Retain the prior app release and compatible data backup for rollback. Do not deploy Production until QA is accepted and the user approves that action.

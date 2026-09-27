@@ -16,7 +16,7 @@
     "build:heroku": "node scripts/build-heroku.mjs",
     "build:pages": "node scripts/compose-pages-artifact.mjs",
     "verify:pages": "node scripts/verify-pages-artifact.mjs",
-    "check:client-secrets": "node scripts/check-client-secrets.mjs --tracked dist/pages",
+    "check:client-secrets": "node scripts/check-client-secrets.mjs --tracked",
     "lint": "oxlint",
     "test": "vitest",
     "test:scripts": "node --test scripts/*.test.mjs",

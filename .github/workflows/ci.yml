@@ -46,36 +46,18 @@ jobs:
       - name: Run build-script tests
         run: npm run test:scripts
 
-      - name: Build Production candidate
-        run: npm run build:production
-
-      - name: Build and verify Pages candidate
+      - name: Build same-origin Heroku QA candidate
+        env:
+          LEAI_QA_BACKEND_SHA: ${{ vars.LEAI_QA_BACKEND_SHA }}
         run: |
-          npm run build:pages
-          npm run verify:pages
+          test "${#LEAI_QA_BACKEND_SHA}" -eq 40
+          npm run build:heroku -- qa "$LEAI_QA_BACKEND_SHA"
 
-      - name: Scan tracked client source and Pages candidate
-        run: npm run check:client-secrets
+      - name: Scan tracked client source and QA candidate
+        run: npm run check:client-secrets -- dist/heroku/qa
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium firefox webkit
 
       - name: Run Chromium, Firefox, and WebKit acceptance
         run: npm run test:e2e
-
-      - name: Upload clean Pages candidate
-        uses: actions/upload-artifact@v7
-        with:
-          name: leai-pages-candidate-${{ github.sha }}
-          path: dist/pages
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Upload Playwright report
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: playwright-report-${{ github.sha }}
-          path: playwright-report
-          if-no-files-found: ignore
-          retention-days: 7
