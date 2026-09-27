@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy — LEAI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary:       #006493;
+            --primary-dim:   #005881;
+            --surface:       #f8fafb;
+            --surface-low:   #f0f4f6;
+            --surface-card:  #ffffff;
+            --text:          #2a3437;
+            --text-variant:  #566164;
+            --muted:         #727d80;
+            --outline:       rgba(169,180,183,0.35);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--surface);
+            color: var(--text);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+        header {
+            background: var(--surface-card);
+            border-bottom: 1px solid rgba(169,180,183,0.25);
+            padding: 16px 32px;
+        }
+        .header-inner {
+            max-width: 760px; margin: 0 auto;
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 16px; flex-wrap: wrap;
+        }
+        .brand {
+            font-size: 0.78rem; font-weight: 800; letter-spacing: 0.12em;
+            text-transform: uppercase; color: var(--primary);
+        }
+        .nav-links { display: flex; gap: 18px; font-size: 0.82rem; }
+        .nav-links a {
+            color: var(--text-variant); text-decoration: none; font-weight: 500;
+            padding: 4px 2px; border-bottom: 2px solid transparent;
+        }
+        .nav-links a:hover { color: var(--primary); }
+        .nav-links a.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+        main {
+            max-width: 760px; margin: 0 auto;
+            padding: 48px 32px 96px;
+            background: var(--surface-card);
+        }
+        .md-content { font-size: 1rem; color: var(--text); line-height: 1.7; }
+        .md-content h1 {
+            font-size: 2rem; font-weight: 800; color: var(--text);
+            letter-spacing: -0.02em;
+            margin: 0 0 8px 0;
+        }
+        .md-content h1 + p,
+        .md-content h1 + p em {
+            font-size: 0.85rem; color: var(--muted);
+            text-transform: uppercase; letter-spacing: 0.05em;
+            margin-bottom: 28px;
+            font-style: normal;
+        }
+        .md-content h2 {
+            font-size: 1.25rem; font-weight: 700; color: var(--text);
+            letter-spacing: -0.01em;
+            margin: 36px 0 12px 0;
+            padding-top: 8px;
+        }
+        .md-content h3 {
+            font-size: 1.05rem; font-weight: 700; color: var(--text);
+            margin: 24px 0 8px 0;
+        }
+        .md-content p {
+            margin: 0 0 14px 0;
+            line-height: 1.7;
+        }
+        .md-content ul, .md-content ol {
+            margin: 0 0 14px 0;
+            padding-left: 26px;
+        }
+        .md-content ul { list-style: disc outside; }
+        .md-content ol { list-style: decimal outside; }
+        .md-content li {
+            margin-bottom: 6px;
+            line-height: 1.65;
+        }
+        .md-content li p { margin-bottom: 4px; }
+        .md-content strong { font-weight: 700; color: var(--text); }
+        .md-content em { color: var(--text-variant); font-style: italic; }
+        .md-content hr { border: none; border-top: 1px solid rgba(169,180,183,0.3); margin: 24px 0; }
+        .md-content a { color: var(--primary); text-decoration: underline; }
+        .back-link {
+            display: inline-block;
+            margin-top: 48px; padding-top: 20px;
+            border-top: 1px solid rgba(169,180,183,0.25);
+            font-size: 0.85rem; color: var(--text-variant); text-decoration: none;
+        }
+        .back-link:hover { color: var(--primary); }
+        .doc-version {
+            margin-top: 24px; padding-top: 16px;
+            font-size: 0.68rem; color: var(--muted);
+            letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600;
+        }
+        @media (max-width: 640px) {
+            header { padding: 14px 20px; }
+            main { padding: 32px 20px 64px; }
+            .md-content { font-size: 0.95rem; }
+            .md-content h1 { font-size: 1.6rem; }
+            .md-content h2 { font-size: 1.12rem; margin-top: 28px; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-inner">
+            <span class="brand">LEAI &middot; Legal</span>
+            <nav class="nav-links">
+                <a href="terms.html">Terms of Use</a>
+                <a href="privacy.html" class="active">Privacy Policy</a>
+            </nav>
+        </div>
+    </header>
+    <main>
+        <article class="md-content" id="doc-body">
+            <p>Loading&hellip;</p>
+        </article>
+        <a href="javascript:history.length>1?history.back():window.close()" class="back-link">&larr; Back</a>
+        <div class="doc-version" data-leai-version></div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+    <script>
+        // Render markdown into the DOM via DOMPurify's RETURN_DOM_FRAGMENT mode,
+        // which returns a sanitized DocumentFragment — no innerHTML assignment,
+        // no XSS risk even if the source file is modified.
+        fetch('privacy.md')
+            .then(function (r) { if (!r.ok) throw new Error('fetch failed'); return r.text(); })
+            .then(function (text) {
+                var parsed = marked.parse(text);
+                var fragment = DOMPurify.sanitize(parsed, { RETURN_DOM_FRAGMENT: true });
+                var body = document.getElementById('doc-body');
+                while (body.firstChild) body.removeChild(body.firstChild);
+                body.appendChild(fragment);
+                var firstH1 = body.querySelector('h1');
+                if (firstH1) document.title = firstH1.textContent + ' — LEAI';
+            })
+            .catch(function (err) {
+                console.error(err);
+                var body = document.getElementById('doc-body');
+                body.textContent = 'Failed to load Privacy Policy. Please refresh the page.';
+            });
+    </script>
+</body>
+</html>

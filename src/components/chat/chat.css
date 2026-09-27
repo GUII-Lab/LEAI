@@ -1,0 +1,16 @@
+.chat-composer .chat-composer-send[data-variant="ghost"],
+.chat-composer .chat-composer-voice[data-variant="ghost"] {
+  background-color: var(--chat-control-background, var(--primary));
+  color: var(--chat-control-foreground, var(--primary-foreground));
+}
+
+.chat-composer .chat-composer-send[data-variant="ghost"]:hover:not(:disabled),
+.chat-composer .chat-composer-voice[data-variant="ghost"]:hover:not(:disabled) {
+  filter: brightness(0.92);
+  color: var(--chat-control-foreground, var(--primary-foreground));
+}
+
+.chat-composer .chat-composer-send:not(:disabled),
+.chat-composer .chat-composer-voice:not(:disabled) {
+  opacity: 1;
+}
