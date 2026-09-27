@@ -9,9 +9,9 @@
   --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
   --font-heading: var(--font-sans);
 
-  /* The project's regular text size; Tailwind's default text-sm is 14px. */
-  --text-sm: 1rem;
-  --text-sm--line-height: calc(1.5 / 1);
+  /* Small text is 12px; regular UI text uses Tailwind's text-base at 16px. */
+  --text-sm: 0.75rem;
+  --text-sm--line-height: calc(1 / 0.75);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);

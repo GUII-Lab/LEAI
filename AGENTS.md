@@ -21,6 +21,13 @@
 - Never commit credentials, provider keys, private exports, student transcripts, or secret-bearing `.env` values.
 - Publishing QA and promoting Production are separate action-time approval gates.
 
+## LEAI typography standard
+
+- Use `text-base` (16px) for regular body copy, navigation labels, form labels and controls, buttons, tabs, and other normal interface text. Do not use `text-sm` for regular copy.
+- LEAI overrides Tailwind `text-sm` to 12px in `src/styles/globals.css`. Reserve it for genuinely secondary captions, metadata, brief helper/status text, and compact component descriptions.
+- Keep ordinary content at 16px in student chat and consent UI too; arbitrary 15px overrides are not a substitute for `text-base`. Keep the separately requested mobile navigation drawer at 16pt.
+- When adding a component, preserve these semantic roles in its defaults so pages inherit the shared rule without page-by-page overrides.
+
 ## Product boundaries
 
 - Student participation remains anonymous unless a separately approved study changes that boundary.

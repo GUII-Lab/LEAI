@@ -12,7 +12,7 @@ export function CourseList({ courses, environment, canCreate, selectedCourseId }
   if (courses.length === 0) {
     return <section className="mt-6 rounded-xl border border-dashed border-border bg-card px-6 py-10 text-center">
       <h2 className="text-lg font-semibold">{canCreate ? 'Create your first course' : 'No courses available'}</h2>
-      <p className="mt-2 text-sm text-muted-foreground">{canCreate
+      <p className="mt-2 text-base text-muted-foreground">{canCreate
         ? 'Your courses and feedback activities will appear here.'
         : 'Ask your LEAI administrator to grant you access to a course.'}</p>
     </section>

@@ -46,10 +46,10 @@ export function AccountPanel({ account, api, environment }: {
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={save}>
-            <label className="block space-y-1.5 text-sm font-medium">Display name
+            <label className="block space-y-1.5 text-base font-medium">Display name
               <Input autoComplete="name" maxLength={100} onChange={(event) => setDisplayName(event.target.value)} required value={displayName} />
             </label>
-            <label className="block space-y-1.5 text-sm font-medium">Email address
+            <label className="block space-y-1.5 text-base font-medium">Email address
               <Input readOnly type="email" value={account.email} />
             </label>
             <Button disabled={profile.isPending || !displayName.trim()} type="submit">{profile.isPending ? 'Saving…' : 'Save profile'}</Button>
@@ -67,7 +67,7 @@ export function AccountPanel({ account, api, environment }: {
         </Card>
         <Card>
           <CardHeader><CardTitle><h2>Institution access</h2></CardTitle></CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
+          <CardContent className="text-base text-muted-foreground">
             {account.institutions.length > 0
               ? <ul className="space-y-1">{account.institutions.map((institution) => <li key={institution.slug}>{institution.name}</li>)}</ul>
               : <p>No institution assigned.</p>}

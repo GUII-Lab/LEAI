@@ -74,7 +74,7 @@ export function AppShell({
         {activeCourseItem && (
           <a
             aria-current="page"
-            className="min-w-0 truncate text-sm font-semibold text-foreground"
+            className="min-w-0 truncate text-base font-semibold text-foreground"
             href={activeCourseItem.href}
           >
             {activeCourseItem.label}
@@ -82,8 +82,8 @@ export function AppShell({
         )}
       </div>
       <div className={showCourseNavigation
-        ? 'lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-[4.5rem_15rem_minmax(0,1fr)]'
-        : 'lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-[4.5rem_minmax(0,1fr)]'}>
+        ? 'lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-[7rem_15rem_minmax(0,1fr)]'
+        : 'lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-[7rem_minmax(0,1fr)]'}>
         <aside className="hidden min-h-0 bg-sidebar lg:flex lg:flex-col">
           <AccountRail items={accountItems} />
           {onSignOut && (

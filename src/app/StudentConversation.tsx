@@ -175,15 +175,15 @@ export function StudentConversation({ survey, session, text, onTextChange, ratin
         <span className="shrink-0 text-xs font-extrabold tracking-[0.12em] text-primary">LEAI</span>
         <span className="hidden h-5 border-l border-border sm:block" aria-hidden="true" />
         <div className="min-w-0">
-          <h1 className="truncate text-sm font-medium text-muted-foreground sm:text-base">{survey?.label ?? 'Reflection'}</h1>
-          <p className="truncate text-[11px] text-muted-foreground sm:text-xs">Your responses are anonymous</p>
+          <h1 className="truncate text-base font-medium text-muted-foreground">{survey?.label ?? 'Reflection'}</h1>
+          <p className="truncate text-xs text-muted-foreground">Your responses are anonymous</p>
         </div>
-        <span className="hidden shrink-0 items-center gap-1 rounded-full border border-success/25 bg-success/10 px-2 py-1 text-[10px] font-bold tracking-wide text-success sm:inline-flex"><LockKeyhole className="size-3" />ANONYMOUS</span>
+        <span className="hidden shrink-0 items-center gap-1 rounded-full border border-success/25 bg-success/10 px-2 py-1 text-xs font-bold tracking-wide text-success sm:inline-flex"><LockKeyhole className="size-3" />ANONYMOUS</span>
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <a className="student-header-link" href={termsHref} rel="noopener noreferrer" target="_blank">Terms</a>
         <a className="student-header-link" href={privacyHref} rel="noopener noreferrer" target="_blank">Privacy</a>
-        {session && <Button aria-label="Copy resume link" className="student-resume-button h-9 gap-1 rounded-md text-[11px] font-semibold uppercase tracking-wide" onClick={onCopyResume} size="sm" type="button" variant="outline"><Link2 className="size-3.5"/><span aria-hidden="true" className="hidden sm:inline">Copy resume link</span><span aria-hidden="true" className="sm:hidden">Resume</span></Button>}
+        {session && <Button aria-label="Copy resume link" className="student-resume-button h-9 gap-1 rounded-md text-base font-semibold uppercase tracking-wide" onClick={onCopyResume} size="sm" type="button" variant="outline"><Link2 className="size-3.5"/><span aria-hidden="true" className="hidden sm:inline">Copy resume link</span><span aria-hidden="true" className="sm:hidden">Resume</span></Button>}
       </div>
     </header>
     </div>
@@ -194,12 +194,12 @@ export function StudentConversation({ survey, session, text, onTextChange, ratin
       {!session ? null : <ChatTranscript className="student-transcript mx-auto flex w-full max-w-[832px] flex-col gap-7 px-5 py-10 sm:gap-8 sm:px-0 sm:py-12" endAnchorRef={transcriptEnd}>
         {shownMessages.map((message) => message.role === 'student' ?
           <ChatMessage author="You" className="student-user-message" key={message.id} metaClassName="student-message-meta" role="user" timestamp={message.created_at}>
-            <p className="w-full max-w-[83%] whitespace-pre-wrap break-words rounded bg-muted px-5 py-4 text-[15px] leading-7">{message.content}</p>
+            <p className="w-full max-w-[83%] whitespace-pre-wrap break-words rounded bg-muted px-5 py-4 text-base leading-7">{message.content}</p>
           </ChatMessage> : <ChatMessage author="LEAI" className={`${message.id === highlightedAssistantId ? 'student-assistant-arrival ' : ''}student-assistant-message`} key={message.id} metaClassName="student-message-meta" role="assistant" timestamp={message.created_at}>
             <div className="ml-1 border-l border-border/60 py-0.5 pl-7">
-              {message.content.split('\n').map((line, index) => <p className="min-h-[1em] whitespace-pre-wrap break-words text-[15px] leading-[1.7]" key={index}>{line}</p>)}
+              {message.content.split('\n').map((line, index) => <p className="min-h-[1em] whitespace-pre-wrap break-words text-base leading-[1.7]" key={index}>{line}</p>)}
               {activePromptMessage && (message.id === messages.at(-1)?.id || (message.id === -2 && !messages.length)) && prompt && prompt.phase !== 'complete' && prompt.context_note &&
-                <p className="mt-3 text-sm text-muted-foreground">{prompt.context_note}</p>}
+                <p className="mt-3 text-base text-muted-foreground">{prompt.context_note}</p>}
               {message.id === latestAssistantId && debugDisclosure}
             </div>
           </ChatMessage>)}
@@ -217,8 +217,8 @@ export function StudentConversation({ survey, session, text, onTextChange, ratin
         {session?.status === 'completed' ? <p className="py-3 text-sm font-medium text-success">Reflection downloaded. This version is final.</p> : session && prompt ?
           <form onSubmit={onSubmit}>
             {prompt.phase === 'rating' ? <fieldset className="mb-3 flex flex-wrap gap-2">
-              <legend className="mb-2 text-sm font-medium">Choose a rating</legend>
-              {prompt.choices?.map((choice) => <label className="cursor-pointer rounded-md border border-border px-3 py-2 text-sm has-[:checked]:border-primary has-[:checked]:bg-accent" key={choice.value}>
+              <legend className="mb-2 text-base font-medium">Choose a rating</legend>
+              {prompt.choices?.map((choice) => <label className="cursor-pointer rounded-md border border-border px-3 py-2 text-base has-[:checked]:border-primary has-[:checked]:bg-accent" key={choice.value}>
                 <input checked={rating === choice.value} className="mr-2 accent-primary" name="rating" onChange={() => onRatingChange(choice.value)} type="radio" value={choice.value} />{choice.label}
               </label>)}
             </fieldset> : null}

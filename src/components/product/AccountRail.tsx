@@ -34,7 +34,7 @@ export function AccountRail({
           <a
             aria-label={item.label}
             className={cn(
-              'flex min-h-10 items-center gap-2 rounded-md px-2 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent focus-visible:bg-sidebar-accent',
+              'flex min-h-10 items-center gap-2 rounded-md px-2 text-base font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent focus-visible:bg-sidebar-accent',
               mobile && 'text-[16pt]',
               !mobile && 'min-h-[3.5rem] flex-col justify-center gap-1 px-1 py-1 leading-5',
             )}
@@ -63,7 +63,7 @@ export function AccountSignOut({
     <button
       aria-label="Sign out"
       className={cn(
-        'flex min-h-10 w-full items-center gap-2 rounded-md px-2 text-sm font-medium transition-colors disabled:opacity-50',
+        'flex min-h-10 w-full items-center gap-2 rounded-md px-2 text-base font-medium transition-colors disabled:opacity-50',
         mobile
           ? 'text-[16pt] text-sidebar-foreground hover:bg-sidebar-accent focus-visible:bg-sidebar-accent'
           : 'text-sidebar-foreground hover:bg-sidebar-accent focus-visible:bg-sidebar-accent',

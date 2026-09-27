@@ -58,6 +58,8 @@ for (const width of [390, 820, 1022, 1440]) {
       ]) {
         await expect.poll(() => label.evaluate(element => getComputedStyle(element).fontSize))
           .toBe('16px')
+        await expect.poll(() => label.evaluate(element => element.getBoundingClientRect().height))
+          .toBeLessThanOrEqual(20)
       }
       await expect.poll(() => page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight))
         .toBe(true)
@@ -84,6 +86,10 @@ test('entering a course opens its workspace navigation', async ({ page }, testIn
 
   const card = page.getByRole('article', { name: 'Game Design' })
   await expect(card).toBeVisible()
+  await expect.poll(() => card.locator('p').evaluate(element => getComputedStyle(element).fontSize))
+    .toBe('12px')
+  await expect.poll(() => card.getByRole('link', { name: 'Open feedback' })
+    .evaluate(element => getComputedStyle(element).fontSize)).toBe('16px')
   await expect(page.getByRole('navigation', { name: 'Course navigation' })).toHaveCount(0)
   const desktopSignOut = page.getByRole('button', { name: 'Sign out' })
   const desktopSignOutBox = await desktopSignOut.boundingBox()
@@ -97,6 +103,9 @@ test('entering a course opens its workspace navigation', async ({ page }, testIn
   await expect(page).toHaveURL(/FeedbackAnalyzer\.html$/)
   await expect(page.getByRole('navigation', { name: 'Course navigation' })).toBeVisible()
   await expect(page.getByRole('navigation', { name: 'Course navigation' })).toContainText('Feedback Analyzer')
+  await expect.poll(() => page.getByRole('navigation', { name: 'Course navigation' })
+    .getByRole('link', { name: 'Feedback Analyzer' }).evaluate(element => getComputedStyle(element).fontSize))
+    .toBe('16px')
   await expect(page.getByRole('navigation', { name: 'Course navigation' })).toContainText('Instructor workspace')
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight))
     .toBe(true)
@@ -148,6 +157,58 @@ test('entering a course opens its workspace navigation', async ({ page }, testIn
   const mobileCourseScreenshot = join(screenshotDirectory, `course-nav-${testInfo.project.name}-course-mobile.png`)
   await page.screenshot({ path: mobileCourseScreenshot, fullPage: true })
   await testInfo.attach('course-mobile', { path: mobileCourseScreenshot, contentType: 'image/png' })
+})
+
+test('keeps student consent and conversation body copy at the regular 16px size', async ({ page }, testInfo) => {
+  const surveyId = '550e8400-e29b-41d4-a716-446655440010'
+  const sessionId = '550e8400-e29b-41d4-a716-446655440011'
+  const token = 'a'.repeat(64)
+  await page.route(`**/datapipeline/api/v1/surveys/${surveyId}/`, (route) => route.fulfill({
+    headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },
+    json: {
+      survey_id: surveyId, label: 'Typography review', intro: 'Welcome to the course reflection.',
+      available: true, completion_certificate_enabled: false, completed_response_download_enabled: false,
+    },
+  }))
+  await page.route(`**/datapipeline/api/v1/surveys/${surveyId}/debug-access/`, (route) => route.fulfill({
+    headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },
+    json: { enabled: false },
+  }))
+  await page.route(`**/datapipeline/api/v1/surveys/${surveyId}/sessions/${sessionId}/`, (route) => route.fulfill({
+    headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },
+    json: {
+      session_id: sessionId, survey_id: surveyId, turn_version: 1, status: 'active',
+      prompt: { item_id: 'P1', phase: 'answer', text: 'Share your thoughts.', wording: 'exact', choices: null },
+      progress_label: 'Question 1 of 1', results: {}, answer_map: {},
+      messages: [{ id: 1, sequence: 1, role: 'assistant', content: 'Tell us about the course.', attribution: {} }],
+    },
+  }))
+  await page.setViewportSize({ width: 1022, height: 844 })
+  await page.goto(`/feedback.html?id=${surveyId}`)
+  const consent = page.getByRole('dialog', { name: 'Before you begin' })
+  await expect(consent).toBeVisible()
+  for (const text of [consent.locator('.student-consent-header p'), consent.locator('.student-consent-checkbox').first(), consent.getByRole('button', { name: 'Continue' })]) {
+    await expect.poll(() => text.evaluate(element => getComputedStyle(element).fontSize)).toBe('16px')
+  }
+  const screenshotDirectory = join(process.cwd(), '.web-verify', 'screenshots')
+  await mkdir(screenshotDirectory, { recursive: true })
+  const consentScreenshot = join(screenshotDirectory, 'typography-student-consent-chromium.png')
+  await page.screenshot({ path: consentScreenshot, fullPage: true })
+  await testInfo.attach('student-consent', { path: consentScreenshot, contentType: 'image/png' })
+
+  await page.evaluate(({ surveyId, sessionId, token }) => {
+    sessionStorage.setItem(`leai:local:student:${surveyId}`, JSON.stringify({ sessionId, token }))
+  }, { surveyId, sessionId, token })
+  await page.reload()
+  const message = page.getByRole('log', { name: 'Conversation' }).getByText('Tell us about the course.')
+  await expect(message).toBeVisible()
+  await expect.poll(() => message.evaluate(element => getComputedStyle(element).fontSize)).toBe('16px')
+  const composer = page.getByRole('textbox', { name: 'Message' })
+  await expect(composer).toBeVisible()
+  await expect.poll(() => composer.evaluate(element => getComputedStyle(element).fontSize)).toBe('16px')
+  const conversationScreenshot = join(screenshotDirectory, 'typography-student-conversation-chromium.png')
+  await page.screenshot({ path: conversationScreenshot, fullPage: true })
+  await testInfo.attach('student-conversation', { path: conversationScreenshot, contentType: 'image/png' })
 })
 
 test('opens and closes the mobile navigation with real keyboard focus return', async ({ page }) => {

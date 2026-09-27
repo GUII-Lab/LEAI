@@ -61,11 +61,11 @@ export function CustomizationsPage({ api, environment, verified }: {
     || coursesQuery.error instanceof AuthenticationRequiredError
   const conflict = update.error instanceof InstructorApiError && update.error.status === 409
 
-  if (!verified) return <p className="mt-6 text-sm text-muted-foreground" role="status">Waiting for backend identity verification before loading course settings.</p>
+  if (!verified) return <p className="mt-6 text-base text-muted-foreground" role="status">Waiting for backend identity verification before loading course settings.</p>
 
   return <div className="mt-6 max-w-3xl space-y-5">
-    {courses.length > 0 && <label className="block max-w-xl space-y-1.5 text-sm font-medium">Course
-      <select aria-label="Course" className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+    {courses.length > 0 && <label className="block max-w-xl space-y-1.5 text-base font-medium">Course
+      <select aria-label="Course" className="h-10 w-full rounded-lg border border-input bg-background px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         disabled={coursesQuery.isPending} onChange={(event) => chooseCourse(event.target.value)} value={selectedCourseId}>
         {courses.map((course) => <option key={course.course_id} value={course.course_id}>{course.course_name} · {course.course_code}</option>)}
       </select>
@@ -73,7 +73,7 @@ export function CustomizationsPage({ api, environment, verified }: {
     {coursesQuery.isPending && <p role="status">Loading courses…</p>}
     {coursesQuery.isError && !sessionExpired && <p role="alert">Could not load course settings. Please try again.</p>}
     {sessionExpired && <p role="alert">Your sign-in has expired. <a className="font-medium text-primary underline" href={loginHref(environment, window.location.pathname)}>Sign in again</a>.</p>}
-    {coursesQuery.isSuccess && courses.length === 0 && <p className="text-sm text-muted-foreground">No active courses are available for this account.</p>}
+    {coursesQuery.isSuccess && courses.length === 0 && <p className="text-base text-muted-foreground">No active courses are available for this account.</p>}
 
     {courses.length > 0 && <Card>
       <CardHeader>
@@ -83,13 +83,13 @@ export function CustomizationsPage({ api, environment, verified }: {
       <CardContent className="space-y-4">
         {environment.name === 'production' ? <p className="text-sm text-muted-foreground">AI debug state is disabled in Production.</p>
           : settingsQuery.isPending ? <p role="status">Checking Researcher access…</p>
-            : researcherDenied ? <p className="text-sm text-muted-foreground" role="status">Only an authorized institutional Researcher can view or change this course setting.</p>
+            : researcherDenied ? <p className="text-base text-muted-foreground" role="status">Only an authorized institutional Researcher can view or change this course setting.</p>
               : settingsQuery.isError ? <p className="text-sm text-muted-foreground" role="alert">Could not load the Researcher debug setting.</p>
                 : settingsQuery.data && <>
                   <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border p-4">
                     <div className="min-w-0 flex-1">
                       <p className="font-medium">Enable AI debug panel</p>
-                      <p className="mt-1 text-sm text-muted-foreground">When enabled, signed-in Researchers with access to this course can open saved AI decisions and answer mappings beneath messages in the student conversation. Students and instructors cannot view this panel.</p>
+                      <p className="mt-1 text-base text-muted-foreground">When enabled, signed-in Researchers with access to this course can open saved AI decisions and answer mappings beneath messages in the student conversation. Students and instructors cannot view this panel.</p>
                     </div>
                     <button aria-checked={settingsQuery.data.debug_enabled} aria-label="Enable AI debug panel"
                       className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-transparent transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 ${settingsQuery.data.debug_enabled ? 'bg-primary' : 'bg-muted'}`}

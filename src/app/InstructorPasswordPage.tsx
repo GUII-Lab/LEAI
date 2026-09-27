@@ -59,13 +59,13 @@ function PasswordForm({ environment }: { environment: PublicEnvironment }) {
           </CardHeader>
           <CardContent>
             <form className="space-y-4" onSubmit={(event) => void changePassword(event)}>
-              <label className="block space-y-1.5 text-sm font-medium">Current password
+              <label className="block space-y-1.5 text-base font-medium">Current password
                 <Input autoComplete="current-password" onChange={(event) => setCurrentPassword(event.target.value)} required type="password" value={currentPassword} />
               </label>
-              <label className="block space-y-1.5 text-sm font-medium">New password
+              <label className="block space-y-1.5 text-base font-medium">New password
                 <Input autoComplete="new-password" onChange={(event) => setNewPassword(event.target.value)} required type="password" value={newPassword} />
               </label>
-              <label className="block space-y-1.5 text-sm font-medium">Confirm new password
+              <label className="block space-y-1.5 text-base font-medium">Confirm new password
                 <Input autoComplete="new-password" onChange={(event) => setConfirmation(event.target.value)} required type="password" value={confirmation} />
               </label>
               {error && <p className="text-sm text-destructive" role="alert">{error}</p>}

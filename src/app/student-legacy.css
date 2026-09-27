@@ -14,7 +14,7 @@
   border: 1px solid rgba(169, 180, 183, 0.45);
   border-radius: 4px;
   color: #566164;
-  font-size: 0.72rem;
+  font-size: 1rem;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -88,12 +88,12 @@
   border-radius: 4px;
   background: transparent;
   color: #566164;
-  font-size: 0.72rem;
+  font-size: 1rem;
   font-weight: 600;
   letter-spacing: 0.06em;
 }
 .legacy-student .student-resume-button:hover { border-color: #006493; color: #006493; }
-.legacy-student .student-progress { padding: 6px 12px; color: #727d80; font-size: 0.78rem; }
+.legacy-student .student-progress { padding: 6px 12px; color: #727d80; font-size: 0.75rem; }
 .legacy-student .student-transcript { max-width: 832px; padding-top: 48px; gap: 32px; }
 .legacy-student .student-assistant-arrival > div {
   border-radius: 4px;
@@ -122,7 +122,7 @@
   max-height: 120px;
   border: 0;
   border-radius: 18px;
-  font: 0.95rem/1.5 'Inter', sans-serif;
+  font: 1rem/1.5 'Inter', sans-serif;
 }
 .legacy-student .student-chat-footer textarea.chat-composer-input:focus { outline: none; border-color: transparent; }
 .legacy-student .chat-composer { border-color: rgba(169, 180, 183, 0.45); }
@@ -138,7 +138,7 @@
   border-radius: 4px;
   background: rgba(255, 196, 0, 0.16);
   color: #6b4e00;
-  font-size: 0.74rem;
+  font-size: 1rem;
   line-height: 1.5;
 }
 .legacy-student .student-revise-hint > span:first-child { color: #a07a00; font-size: 14px; }
@@ -162,7 +162,7 @@
   border-radius: 10px;
   background: rgba(0, 100, 147, 0.05);
   color: #727d80;
-  font-size: 0.78rem;
+  font-size: 0.75rem;
 }
 .legacy-student .student-download-status { flex: 1 1 auto; min-width: 0; }
 .legacy-student .student-download-status strong { color: #2a3437; font-weight: 600; }
@@ -174,7 +174,7 @@
   background: transparent;
   color: #006493;
   cursor: pointer;
-  font-size: 0.82rem;
+  font-size: 1rem;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -226,7 +226,7 @@
 
 .legacy-student .student-consent-header p {
   color: #566164;
-  font-size: 0.85rem;
+  font-size: 1rem;
   line-height: 1.55;
 }
 
@@ -248,7 +248,7 @@
   gap: 10px;
   color: #2a3437;
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: 1rem;
   line-height: 1.5;
 }
 
@@ -285,7 +285,7 @@
   color: #fff;
   cursor: pointer;
   font-family: inherit;
-  font-size: 0.78rem;
+  font-size: 1rem;
   font-weight: 700;
   letter-spacing: 0.07em;
   text-transform: uppercase;
@@ -305,9 +305,9 @@
   .legacy-student .student-consent-overlay { padding: 12px; }
   .legacy-student .student-consent-header { padding: 18px 20px 12px; }
   .legacy-student .student-consent-header h2 { font-size: 1.02rem; }
-  .legacy-student .student-consent-header p { font-size: 0.8rem; }
+  .legacy-student .student-consent-header p { font-size: 1rem; }
   .legacy-student .student-consent-checkboxes { padding: 14px 20px 6px; }
-  .legacy-student .student-consent-checkbox { font-size: 0.76rem; }
+  .legacy-student .student-consent-checkbox { font-size: 1rem; }
   .legacy-student .student-consent-actions { padding: 10px 20px 16px; }
-  .legacy-student .student-consent-actions button { padding: 10px 18px; font-size: 0.74rem; }
+  .legacy-student .student-consent-actions button { padding: 10px 18px; font-size: 1rem; }
 }

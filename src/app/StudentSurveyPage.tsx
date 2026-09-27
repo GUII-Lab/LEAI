@@ -46,9 +46,9 @@ function StudentDebugPanel({ snapshot }: { snapshot: StudentDebug }) {
   return <Card className="min-w-0 border border-border bg-muted/30">
     <CardHeader>
       <CardTitle>Recorded schema state</CardTitle>
-      <p className="text-sm text-muted-foreground">This shows saved decisions and answer links, not the AI’s private reasoning.</p>
+      <p className="text-base text-muted-foreground">This shows saved decisions and answer links, not the AI’s private reasoning.</p>
     </CardHeader>
-    <CardContent className="space-y-5 text-sm">
+    <CardContent className="space-y-5 text-base">
       <dl className="grid grid-cols-2 gap-3 rounded-lg bg-background p-3 sm:grid-cols-3">
         <div><dt className="text-muted-foreground">Current phase</dt><dd className="font-medium">{state.phase}</dd></div>
         <div><dt className="text-muted-foreground">Question index</dt><dd className="font-medium">{state.phase === 'complete' ? 'Complete' : state.item_index + 1}</dd></div>

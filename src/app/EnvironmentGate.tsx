@@ -70,7 +70,7 @@ export function EnvironmentGate({
             </p>
           )}
           {state.status === 'read-only' && (
-            <div className="border-b border-warning/30 bg-warning/10 px-4 py-2 text-sm text-foreground" role="alert">
+            <div className="border-b border-warning/30 bg-warning/10 px-4 py-2 text-base text-foreground" role="alert">
               <strong>Read-only mode.</strong> {state.reason}
             </div>
           )}

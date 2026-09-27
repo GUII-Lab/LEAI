@@ -125,10 +125,10 @@ export function FeedbackSearchPage({ api, environment, verified }: {
   }
 
   if (!verified) {
-    return <p className="mt-6 text-sm text-muted-foreground">Waiting for backend identity verification before opening instructor feedback.</p>
+    return <p className="mt-6 text-base text-muted-foreground">Waiting for backend identity verification before opening instructor feedback.</p>
   }
 
-  if (signedOut) return <p className="mt-6 text-sm text-muted-foreground" role="status">Returning to sign-in…</p>
+  if (signedOut) return <p className="mt-6 text-base text-muted-foreground" role="status">Returning to sign-in…</p>
 
   const selectedCourse = courses.find((course) => course.course_id === activeCourseId)
   const canSearch = selectedCourse?.allowed_actions.includes('responses.view') ?? false
@@ -140,9 +140,9 @@ export function FeedbackSearchPage({ api, environment, verified }: {
   return (
     <div className="mt-6 max-w-4xl space-y-5">
       <div className="flex flex-wrap items-end gap-3">
-        <label className="min-w-0 flex-1 space-y-1.5 text-sm font-medium">Course
+        <label className="min-w-0 flex-1 space-y-1.5 text-base font-medium">Course
           <select
-            className="h-9 w-full min-w-0 rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="h-9 w-full min-w-0 rounded-lg border border-input bg-background px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
             disabled={loadingCourses || courses.length === 0}
             onChange={(event) => chooseCourse(event.target.value)}
             value={activeCourseId}
@@ -157,9 +157,9 @@ export function FeedbackSearchPage({ api, environment, verified }: {
       {loadingCourses ? <p role="status">Loading your courses…</p> : courseQuery.isError ? (
         <Button onClick={() => void courseQuery.refetch()} type="button" variant="outline">Retry loading courses</Button>
       ) : courses.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No active courses are available for this account.</p>
+        <p className="text-base text-muted-foreground">No active courses are available for this account.</p>
       ) : !canSearch ? (
-        <p className="text-sm text-muted-foreground">You do not have permission to view responses for this course.</p>
+        <p className="text-base text-muted-foreground">You do not have permission to view responses for this course.</p>
       ) : (
         <Card>
           <CardHeader>
@@ -168,7 +168,7 @@ export function FeedbackSearchPage({ api, environment, verified }: {
           </CardHeader>
           <CardContent className="space-y-5">
             <form className="flex flex-col gap-2 sm:flex-row" onSubmit={(event) => void search(event)} role="search">
-              <label className="min-w-0 flex-1 space-y-1.5 text-sm font-medium">
+              <label className="min-w-0 flex-1 space-y-1.5 text-base font-medium">
                 <span className="sr-only">Search student responses</span>
                 <Input aria-label="Search student responses" maxLength={100} minLength={2} onChange={(event) => setQuery(event.target.value)} placeholder="Search a word or phrase" required type="search" value={query} />
               </label>
@@ -182,7 +182,7 @@ export function FeedbackSearchPage({ api, environment, verified }: {
                   {searchResult.results.map((result) => (
                     <li className="rounded-lg border border-border bg-background p-4" key={result.message_id}>
                       <p className="text-xs font-semibold text-muted-foreground">{result.occurrence_label}</p>
-                      <p className="mt-2 whitespace-pre-wrap break-words text-sm">{result.excerpt}</p>
+                      <p className="mt-2 whitespace-pre-wrap break-words text-base">{result.excerpt}</p>
                     </li>
                   ))}
                 </ul>

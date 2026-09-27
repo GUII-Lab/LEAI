@@ -46,7 +46,7 @@ export function ChatComposer({ value, onValueChange, onKeyDown, placeholder, dis
   return <div className={`chat-composer flex flex-col gap-1 rounded-[26px] border border-border/70 bg-card p-2 shadow-sm transition-colors focus-within:border-primary/40 sm:p-2.5 ${className}`.trim()} data-testid="chat-composer">
     {showInput && <label className="block min-w-0">
       <span className="sr-only">{inputLabel}</span>
-      <textarea aria-label={inputLabel} className="chat-composer-input block max-h-32 min-h-12 w-full resize-none border-0 bg-transparent px-2.5 py-2 text-[15px] leading-6 outline-none placeholder:text-muted-foreground/75 focus-visible:ring-0 disabled:opacity-60"
+      <textarea aria-label={inputLabel} className="chat-composer-input block max-h-32 min-h-12 w-full resize-none border-0 bg-transparent px-2.5 py-2 text-base leading-6 outline-none placeholder:text-muted-foreground/75 focus-visible:ring-0 disabled:opacity-60"
         disabled={disabled} maxLength={maxLength} onChange={(event) => onValueChange(event.target.value)} onKeyDown={onKeyDown}
         placeholder={placeholder} value={value} />
     </label>}

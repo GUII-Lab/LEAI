@@ -47,15 +47,15 @@ export function CreateCourseSheet({ account, api, onCreated }: {
         <SheetDescription>Set up the course identity before adding feedback activities.</SheetDescription>
       </SheetHeader>
       <form className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4" id="create-course-form" onSubmit={submit}>
-        <label className="space-y-1.5 text-sm font-medium">Institution
-          <select className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm" onChange={(event) => setInstitutionSlug(event.target.value)} required value={institutionSlug}>
+        <label className="space-y-1.5 text-base font-medium">Institution
+          <select className="h-9 w-full rounded-lg border border-input bg-background px-3 text-base" onChange={(event) => setInstitutionSlug(event.target.value)} required value={institutionSlug}>
             {institutions.map((institution) => <option key={institution.slug} value={institution.slug}>{institution.name}</option>)}
           </select>
         </label>
-        <label className="space-y-1.5 text-sm font-medium">Course name
+        <label className="space-y-1.5 text-base font-medium">Course name
           <Input maxLength={200} onChange={(event) => setCourseName(event.target.value)} required value={courseName} />
         </label>
-        <label className="space-y-1.5 text-sm font-medium">Course code
+        <label className="space-y-1.5 text-base font-medium">Course code
           <Input autoCapitalize="none" autoComplete="off" maxLength={100} onChange={(event) => setCourseCode(event.target.value.toLowerCase())} pattern="[a-z0-9-]+" required value={courseCode} />
         </label>
         <p className="text-xs text-muted-foreground">Use lowercase letters, numbers, and hyphens for the course code.</p>

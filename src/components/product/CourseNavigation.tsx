@@ -44,7 +44,7 @@ export function CourseNavigation({
               'flex min-h-10 items-center gap-2 rounded-md px-2 font-medium transition-colors',
               mobile
                 ? 'text-[16pt] text-sidebar-foreground hover:bg-sidebar-accent focus-visible:bg-sidebar-accent'
-                : 'text-sm text-foreground hover:bg-muted focus-visible:bg-muted',
+                : 'text-base text-foreground hover:bg-muted focus-visible:bg-muted',
               isActive && (mobile
                 ? 'bg-sidebar-accent text-sidebar-accent-foreground'
                 : 'bg-secondary text-secondary-foreground'),

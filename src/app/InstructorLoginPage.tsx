@@ -58,10 +58,10 @@ function LoginForm({ environment }: { environment: PublicEnvironment }) {
           </CardHeader>
           <CardContent>
             <form className="space-y-4" onSubmit={(event) => void signIn(event)}>
-              <label className="block space-y-1.5 text-sm font-medium">Email
+              <label className="block space-y-1.5 text-base font-medium">Email
                 <Input autoComplete="username" onChange={(event) => setEmail(event.target.value)} required type="email" value={email} />
               </label>
-              <label className="block space-y-1.5 text-sm font-medium">Password
+              <label className="block space-y-1.5 text-base font-medium">Password
                 <Input autoComplete="current-password" onChange={(event) => setPassword(event.target.value)} required type="password" value={password} />
               </label>
               {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
