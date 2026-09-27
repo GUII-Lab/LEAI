@@ -15,7 +15,8 @@ coverage
 playwright-report
 test-results
 .web-verify/
-docs/verification/
+/docs/
+/design-qa.md
 verification-screenshots/
 verification-report-*.html
 

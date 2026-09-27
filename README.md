@@ -20,7 +20,7 @@ QA and Production are built from this repository with separate backend identitie
 - TanStack Query and Zod
 - Vitest, Testing Library, and Playwright
 
-Canonical architecture, UI-system, API-contract, and implementation documents live under `docs/`.
+Architecture, UI-system, API-contract, and implementation working documents are kept locally under `docs/` and are not included in this repository.
 
 ## Local prerequisites
 
