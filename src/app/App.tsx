@@ -1,21 +1,31 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { EnvironmentGate, useEnvironmentWriteAccess } from './EnvironmentGate'
 import { getEnvironment, qualifyBrowserKey, toAppHref } from '@/config/environment'
 import type { PublicEnvironment } from '@/config/environment'
 import { AppShell } from '@/components/product/AppShell'
 import { PageHeader } from '@/components/product/PageHeader'
-import { FeedbackSearchPage } from './FeedbackSearchPage'
+import { FeedbackAnalyzerPage } from './FeedbackAnalyzerPage'
+import { FeedbackChatPage } from './FeedbackChatPage'
 import { CustomizationsPage } from './CustomizationsPage'
 import { StudentSurveyPage } from './StudentSurveyPage'
 import { InstructorAuthGate } from '@/auth/InstructorAuthGate'
 import { AuthenticationRequiredError, createInstructorApi } from '@/api/instructor-v1'
 import { loginHref } from '@/auth/navigation'
 import { InstructorHomePage } from './InstructorHomePage'
+import { CourseRouteGate } from './CourseRouteGate'
+import { PageNotFound } from './PageNotFound'
 
 function Analyzer({ environment }: { environment: PublicEnvironment }) {
   const verified = useEnvironmentWriteAccess()
-  return <FeedbackSearchPage environment={environment} verified={verified} />
+  const api = useMemo(() => createInstructorApi(environment, () => verified), [environment, verified])
+  return <FeedbackAnalyzerPage api={api} verified={verified} />
+}
+
+function FeedbackChat({ environment }: { environment: PublicEnvironment }) {
+  const verified = useEnvironmentWriteAccess()
+  const api = useMemo(() => createInstructorApi(environment, () => verified), [environment, verified])
+  return <FeedbackChatPage api={api} environment={environment} verified={verified} />
 }
 
 function StudentSurvey({ environment }: { environment: PublicEnvironment }) {
@@ -62,6 +72,7 @@ export function App({
     ...item,
     href: toAppHref(environment, path),
   }))
+  const isCourseRoute = courseDestinations.some(({ id }) => id === activeItem)
 
   async function signOut() {
     setSigningOut(true)
@@ -88,24 +99,38 @@ export function App({
         <StudentSurvey environment={environment} />
       ) : (
         <InstructorAuthGate environment={environment}>
-          <AppShell
-            accountItems={accountItems}
-            activeItem={activeItem}
-            courseItems={courseItems}
-            courseName="Instructor workspace"
-            environment={environment}
-            onSignOut={() => { void signOut() }}
-            signingOut={signingOut}
-            signOutError={signOutError}
-          >
-            {activeItem === 'all-courses'
-              ? <InstructorHomePage environment={environment} verified />
-              : <PageHeader description={description} title={pageTitle} />}
-            {activeItem === 'feedback-analyzer' && <Analyzer environment={environment} />}
-            {activeItem === 'customizations' && <Customizations environment={environment} />}
-          </AppShell>
+          {isCourseRoute ? (
+            <CourseRouteGate environment={environment}>
+              {renderWorkspace()}
+            </CourseRouteGate>
+          ) : renderWorkspace()}
         </InstructorAuthGate>
       )}
     </EnvironmentGate>
   )
+
+  function renderWorkspace() {
+    return (
+      <AppShell
+        accountItems={accountItems}
+        activeItem={activeItem}
+        courseItems={courseItems}
+        courseName="Instructor workspace"
+        environment={environment}
+        onSignOut={() => { void signOut() }}
+        showCourseNavigation={activeItem !== 'not-found' && activeItem !== 'account' && activeItem !== 'all-courses'}
+        signingOut={signingOut}
+        signOutError={signOutError}
+      >
+        {activeItem === 'all-courses'
+          ? <InstructorHomePage environment={environment} verified />
+          : activeItem === 'not-found'
+            ? <PageNotFound environment={environment} />
+            : <PageHeader description={description} title={pageTitle} />}
+        {activeItem === 'feedback-analyzer' && <Analyzer environment={environment} />}
+        {activeItem === 'feedback-chat' && <FeedbackChat environment={environment} />}
+        {activeItem === 'customizations' && <Customizations environment={environment} />}
+      </AppShell>
+    )
+  }
 }

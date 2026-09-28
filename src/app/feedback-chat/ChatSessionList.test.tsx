@@ -130,10 +130,12 @@ it('shows loading, empty, and retryable error states', async () => {
 
   rerender(<ChatSessionList {...props} status="ready" sessions={[]} />)
   expect(screen.getByText('No chats yet')).toBeVisible()
+  expect(screen.getByText('No chats yet')).toHaveClass('text-base')
 
   const user = userEvent.setup()
   rerender(<ChatSessionList {...props} status="error" sessions={[]} />)
   expect(screen.getByRole('alert')).toHaveTextContent('Chats could not be loaded')
+  expect(screen.getByText('Chats could not be loaded.')).toHaveClass('text-base')
   await user.click(screen.getByRole('button', { name: 'Try again' }))
   expect(props.onRetry).toHaveBeenCalledOnce()
 })

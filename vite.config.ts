@@ -31,6 +31,7 @@ export default defineConfig({
         Customizations: fileURLToPath(new URL('./Customizations.html', import.meta.url)),
         InstructorLogin: fileURLToPath(new URL('./InstructorLogin.html', import.meta.url)),
         InstructorPassword: fileURLToPath(new URL('./InstructorPassword.html', import.meta.url)),
+        NotFound: fileURLToPath(new URL('./NotFound.html', import.meta.url)),
         feedback: fileURLToPath(new URL('./feedback.html', import.meta.url)),
       },
     },

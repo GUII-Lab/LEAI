@@ -5,7 +5,7 @@ import JSZip from 'jszip'
 
 it('generates a real Word archive from saved student messages', async () => {
   const survey: StudentSurvey = { survey_id: '550e8400-e29b-41d4-a716-446655440010', label: 'Planning Reflection',
-    intro: 'Welcome.', available: true, completion_certificate_enabled: false, completed_response_download_enabled: true }
+    intro: 'Welcome.', available: true, anonymous_matching_enabled: false, completion_certificate_enabled: false, completed_response_download_enabled: true }
   const session: StudentSession = { session_id: '550e8400-e29b-41d4-a716-446655440011', survey_id: survey.survey_id,
     turn_version: 2, status: 'active', prompt: { phase: 'complete' }, progress_label: 'Area 1 of 3 — Planning · Question 1 of 4',
     results: {}, answer_map: { P1: [2] }, messages: [

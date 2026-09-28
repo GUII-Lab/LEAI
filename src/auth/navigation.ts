@@ -7,6 +7,7 @@ const instructorPages = [
   'FeedbackChat.html',
   'CourseBanner.html',
   'Customizations.html',
+  'NotFound.html',
 ] as const
 
 export function safeInstructorDestination(environment: PublicEnvironment, requested: string | null) {

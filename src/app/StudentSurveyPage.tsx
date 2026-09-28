@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronDown } from 'lucide-react'
 import { createStudentApi, type StudentDebug, type StudentSession, type StudentTurn } from '@/api/student'
@@ -11,6 +11,39 @@ import { createStudentDraft, downloadStudentDraft, saveStudentDocumentBlob } fro
 
 type StudentApi = ReturnType<typeof createStudentApi>
 type StoredSession = { sessionId: string; token: string }
+type FingerprintRuntime = { load: () => Promise<{ get: () => Promise<{ visitorId: string }> }> }
+
+function getOrCreateDeviceKey(): string {
+  try {
+    const existing = window.localStorage.getItem('leai_device_key')
+    if (existing) return existing
+    const key = window.crypto?.randomUUID?.() ?? `dk_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`
+    window.localStorage.setItem('leai_device_key', key)
+    return key
+  } catch {
+    return ''
+  }
+}
+
+function loadBrowserFingerprint(): Promise<string> {
+  const browser = window as Window & { FingerprintJS?: FingerprintRuntime }
+  const getVisitorId = async () => {
+    try {
+      return (await (await browser.FingerprintJS!.load()).get()).visitorId
+    } catch {
+      return ''
+    }
+  }
+  if (browser.FingerprintJS) return getVisitorId()
+  return new Promise((resolve) => {
+    const script = document.createElement('script')
+    script.async = true
+    script.src = 'https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3.4.2/dist/fp.min.js'
+    script.onload = () => { void getVisitorId().then(resolve) }
+    script.onerror = () => resolve('')
+    document.head.appendChild(script)
+  })
+}
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 function readStoredSession(key: string): StoredSession | null {
@@ -106,6 +139,7 @@ export function StudentSurveyPage({ api, environment, verified }: {
   const [conflict, setConflict] = useState(false)
   const [busy, setBusy] = useState(false)
   const [showDebug, setShowDebug] = useState(false)
+  const matchingSessions = useRef(new Set<string>())
   const activeApi = useMemo(() => api ?? createStudentApi(environment, () => verified), [api, environment, verified])
   const surveyQuery = useQuery({
     queryKey: ['student-survey', environment.name, surveyId],
@@ -120,6 +154,20 @@ export function StudentSurveyPage({ api, environment, verified }: {
     retry: false,
   })
   const session = current ?? sessionQuery.data ?? null
+
+  useEffect(() => {
+    if (!surveyQuery.data?.anonymous_matching_enabled || !stored || !session) return
+    if (matchingSessions.current.has(session.session_id)) return
+    matchingSessions.current.add(session.session_id)
+    let cancelled = false
+    void loadBrowserFingerprint().then((fingerprint) => {
+      if (cancelled) return
+      void activeApi.matchingSignals(surveyId, stored.sessionId, stored.token, {
+        device_key: getOrCreateDeviceKey(), fingerprint,
+      }).catch(() => {})
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [activeApi, session?.session_id, stored?.sessionId, stored?.token, surveyQuery.data?.anonymous_matching_enabled, surveyId])
   const debugAllowed = verified && environment.name !== 'production'
   const debugAccessQuery = useQuery({
     queryKey: ['student-debug-access', environment.name, surveyId],

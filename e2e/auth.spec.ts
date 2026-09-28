@@ -119,7 +119,7 @@ for (const width of [390, 820, 1022, 1440]) {
   })
 }
 
-test('opens the requested instructor page after login even when the legacy password flag is set', async ({ page }) => {
+test('routes a course deep link to Not Found after login when no course was selected', async ({ page }) => {
   const api = '**/datapipeline/api/v1/'
   const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' }
   let authenticated = false
@@ -152,8 +152,9 @@ test('opens the requested instructor page after login even when the legacy passw
   await page.getByRole('textbox', { name: 'Email' }).fill('teacher@ucsc.edu')
   await page.getByLabel('Password').fill('Test-Password-Only-2026!')
   await page.getByRole('button', { name: 'Sign in' }).click()
-  await expect(page).toHaveURL(/\/FeedbackAnalyzer\.html$/)
-  await expect(page.getByRole('heading', { name: 'Feedback Analyzer' })).toBeVisible()
+  await expect(page).toHaveURL(/\/NotFound\.html$/)
+  await expect(page.getByRole('heading', { name: 'Page Not Found' })).toBeVisible()
+  await expect(page.getByRole('navigation', { name: 'Course navigation' })).toHaveCount(0)
   await expect.poll(() => page.evaluate(() => sessionStorage.getItem('leai:local:instructor-token')))
     .toBeNull()
 })

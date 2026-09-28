@@ -17,6 +17,10 @@ function makeApi(overrides: Partial<{ settings: () => Promise<{ debug_enabled: b
     courses: vi.fn().mockResolvedValue(courses),
     debugSettings: vi.fn().mockImplementation(overrides.settings ?? (() => Promise.resolve({ debug_enabled: false, settings_version: 1 }))),
     updateDebugSettings: vi.fn().mockImplementation(async (_id: string, enabled: boolean) => ({ debug_enabled: enabled, settings_version: 2 })),
+    settings: vi.fn().mockResolvedValue({ anonymous_matching_enabled: false, settings_version: 1 }),
+    updateSettings: vi.fn().mockImplementation(async (_id: string, input: { anonymous_matching_enabled: boolean }) => ({
+      anonymous_matching_enabled: input.anonymous_matching_enabled, settings_version: 2,
+    })),
   } as unknown as TestInstructorApi
 }
 
@@ -59,4 +63,21 @@ it('never requests or displays debug settings in Production', async () => {
   expect(await screen.findByText('AI debug state is disabled in Production.')).toBeInTheDocument()
   expect(api.debugSettings).not.toHaveBeenCalled()
   expect(screen.queryByRole('switch', { name: 'Enable AI debug panel' })).not.toBeInTheDocument()
+})
+
+
+it('persists course-enabled anonymous matching from Customizations with optimistic versioning', async () => {
+  const api = makeApi()
+  api.settings = vi.fn().mockResolvedValue({ anonymous_matching_enabled: false, settings_version: 3 })
+  api.updateSettings = vi.fn().mockResolvedValue({ anonymous_matching_enabled: true, settings_version: 4 })
+  const user = userEvent.setup()
+  renderPage(api)
+
+  const toggle = await screen.findByRole('switch', { name: 'Enable anonymous cross-week matching' })
+  expect(toggle).toHaveAttribute('aria-checked', 'false')
+  await user.click(toggle)
+  await waitFor(() => expect(api.updateSettings).toHaveBeenCalledWith(courseId, {
+    anonymous_matching_enabled: true, expected_settings_version: 3,
+  }))
+  expect(await screen.findByText('Anonymous matching setting saved.')).toBeInTheDocument()
 })

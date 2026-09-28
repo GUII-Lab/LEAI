@@ -73,10 +73,12 @@ const surveySchema = z.object({
   label: z.string().min(1),
   intro: z.string().min(1),
   available: z.boolean(),
+  anonymous_matching_enabled: z.boolean(),
   completion_certificate_enabled: z.boolean(),
   completed_response_download_enabled: z.boolean(),
 }).strict()
 const debugAccessSchema = z.object({ enabled: z.boolean() }).strict()
+const matchingSignalsResponseSchema = z.object({ accepted: z.boolean() }).strict()
 const turnSchema = z.discriminatedUnion('kind', [
   z.object({ expected_version: z.number().int().positive(), item_id: z.string().min(1), kind: z.literal('rating'), value: z.number().int().positive() }).strict(),
   z.object({ expected_version: z.number().int().positive(), item_id: z.string().min(1).optional(), kind: z.literal('text'), text: z.string().trim().min(1).max(3000) }).strict(),
@@ -111,6 +113,12 @@ export function createStudentApi(
     },
     async session(surveyId: string, sessionId: string, token: string) {
       return parseJsonResponse(await privateRequest(token)(sessionPath(surveyId, sessionId)), studentSessionSchema)
+    },
+    async matchingSignals(surveyId: string, sessionId: string, token: string, signals: { device_key: string; fingerprint: string }) {
+      const body = z.object({ device_key: z.string().max(128), fingerprint: z.string().max(256) }).strict().parse(signals)
+      return parseJsonResponse(await privateRequest(token)(`${sessionPath(surveyId, sessionId)}matching-signals/`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      }), matchingSignalsResponseSchema)
     },
     async debugAccess(surveyId: string) {
       if (environment.name === 'production') throw new Error('Debug state is unavailable in production')

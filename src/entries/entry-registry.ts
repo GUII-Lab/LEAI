@@ -7,6 +7,7 @@ export const entryNames = [
   'Customizations',
   'InstructorLogin',
   'InstructorPassword',
+  'NotFound',
   'feedback',
 ] as const
 
@@ -58,6 +59,11 @@ const entries: Record<EntryName, EntryDefinition> = {
     activeItem: 'instructor-password',
     description: 'Change your instructor password',
     pageTitle: 'Change password',
+  },
+  NotFound: {
+    activeItem: 'not-found',
+    description: 'The requested page could not be found.',
+    pageTitle: 'Page Not Found',
   },
   feedback: {
     activeItem: 'feedback',

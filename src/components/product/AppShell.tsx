@@ -21,6 +21,7 @@ export type AppShellProps = {
   children: ReactNode
   courseItems: NavigationItem[]
   courseName?: string
+  showCourseNavigation?: boolean
   environment: EnvironmentManifest
   onSignOut?: () => void
   signingOut?: boolean
@@ -33,13 +34,15 @@ export function AppShell({
   children,
   courseItems,
   courseName,
+  showCourseNavigation: showCourseNavigationOverride,
   environment,
   onSignOut,
   signingOut,
   signOutError,
 }: AppShellProps) {
   const activeCourseItem = courseItems.find((item) => item.id === activeItem)
-  const showCourseNavigation = activeItem !== 'all-courses' && activeItem !== 'account'
+  const showCourseNavigation = showCourseNavigationOverride
+    ?? (activeItem !== 'all-courses' && activeItem !== 'account' && activeItem !== 'not-found')
 
   return (
     <div className="min-h-screen bg-background text-foreground lg:flex lg:h-svh lg:min-h-0 lg:flex-col lg:overflow-hidden">

@@ -11,6 +11,7 @@ it('maps every real HTML entry to an application page', () => {
     'Customizations',
     'InstructorLogin',
     'InstructorPassword',
+    'NotFound',
     'feedback',
   ])
 

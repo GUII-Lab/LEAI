@@ -83,13 +83,13 @@ export function ChatSessionList({
 
       {status === 'error' && (
         <div className="flex flex-col items-start gap-2 rounded-lg border border-border p-3" role="alert">
-          <p className="text-sm text-foreground">Chats could not be loaded.</p>
+          <p className="text-base text-foreground">Chats could not be loaded.</p>
           <Button onClick={onRetry} type="button" variant="outline">Try again</Button>
         </div>
       )}
 
       {status === 'ready' && sessions.length === 0 && (
-        <p className="text-sm text-muted-foreground">No chats yet</p>
+        <p className="text-base text-muted-foreground">No chats yet</p>
       )}
 
       {status === 'ready' && sessions.length > 0 && (
@@ -114,14 +114,15 @@ export function ChatSessionList({
                       value={draftTitle}
                     />
                     {renameError && (
-                      <p className="basis-full text-sm text-destructive" role="alert">
+                      <p className="basis-full text-base text-destructive" role="alert">
                         Title could not be saved. Your draft is still here.
                       </p>
                     )}
-                    <Button disabled={renameSaving} size="sm" type="submit" variant="outline">
+                    <Button className="text-base" disabled={renameSaving} size="sm" type="submit" variant="outline">
                       {renameError ? 'Retry save' : renameSaving ? 'Saving title…' : 'Save title'}
                     </Button>
                     <Button
+                      className="text-base"
                       disabled={renameSaving}
                       onClick={cancelRename}
                       size="sm"
@@ -157,6 +158,7 @@ export function ChatSessionList({
                     </Button>
                     <Button
                       aria-label={`Archive ${session.title}`}
+                      className="text-base"
                       onClick={() => onArchiveSession(session.id)}
                       size="sm"
                       type="button"

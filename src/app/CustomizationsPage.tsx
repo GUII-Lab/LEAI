@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AuthenticationRequiredError, createInstructorApi, InstructorApiError } from '@/api/instructor-v1'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card'
 import { qualifyBrowserKey, type PublicEnvironment } from '@/config/environment'
 import { loginHref } from '@/auth/navigation'
@@ -42,6 +43,19 @@ export function CustomizationsPage({ api, environment, verified }: {
       queryClient.setQueryData(['course-debug-settings', environment.name, selectedCourseId], settings)
     },
   })
+  const matchingSettingsQuery = useQuery({
+    queryKey: ['analysis-settings', environment.name, selectedCourseId],
+    queryFn: ({ signal }) => activeApi.settings(selectedCourseId, signal),
+    enabled: verified && Boolean(selectedCourseId),
+    retry: false,
+  })
+  const matchingUpdate = useMutation({
+    mutationFn: ({ enabled, version }: { enabled: boolean; version: number }) =>
+      activeApi.updateSettings(selectedCourseId, { anonymous_matching_enabled: enabled, expected_settings_version: version }),
+    onSuccess: (settings) => {
+      queryClient.setQueryData(['analysis-settings', environment.name, selectedCourseId], settings)
+    },
+  })
 
   useEffect(() => {
     if (!coursesQuery.data) return
@@ -60,6 +74,8 @@ export function CustomizationsPage({ api, environment, verified }: {
   const sessionExpired = settingsError instanceof AuthenticationRequiredError
     || coursesQuery.error instanceof AuthenticationRequiredError
   const conflict = update.error instanceof InstructorApiError && update.error.status === 409
+  const matchingDenied = matchingSettingsQuery.error instanceof InstructorApiError && matchingSettingsQuery.error.status === 404
+  const matchingConflict = matchingUpdate.error instanceof InstructorApiError && matchingUpdate.error.status === 409
 
   if (!verified) return <p className="mt-6 text-base text-muted-foreground" role="status">Waiting for backend identity verification before loading course settings.</p>
 
@@ -104,6 +120,34 @@ export function CustomizationsPage({ api, environment, verified }: {
                   {conflict && <div className="flex flex-wrap items-center gap-3"><p className="text-sm text-destructive" role="alert">This setting changed elsewhere. Reload it before trying again.</p><Button onClick={() => { update.reset(); void settingsQuery.refetch() }} type="button" variant="outline">Reload setting</Button></div>}
                   {update.isError && !conflict && <p className="text-sm text-destructive" role="alert">Could not save the setting. Please try again.</p>}
                 </>}
+      </CardContent>
+    </Card>}
+
+    {courses.length > 0 && <Card>
+      <CardHeader>
+        <h2 className="text-base font-semibold">Anonymous cross-week matching</h2>
+        <CardDescription>Optional course setting. LEAI groups returning browser sessions under anonymous labels; it does not use student names or rosters.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {matchingSettingsQuery.isPending ? <p role="status">Checking course access…</p>
+          : matchingDenied ? <p className="text-base text-muted-foreground" role="status">Only an authorized course manager can view or change this setting.</p>
+            : matchingSettingsQuery.isError ? <p className="text-sm text-destructive" role="alert">Could not load the anonymous matching setting.</p>
+              : matchingSettingsQuery.data && <>
+                <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border p-4">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium">Enable anonymous cross-week matching</p>
+                    <p className="mt-1 text-base text-muted-foreground">When enabled, the student page sends the existing browser device key and optional fingerprint signal. The backend stores environment-scoped digests, and Analyzer shows arbitrary labels such as S1.</p>
+                  </div>
+                  <Switch aria-label="Enable anonymous cross-week matching" checked={matchingSettingsQuery.data.anonymous_matching_enabled}
+                    disabled={matchingUpdate.isPending} onCheckedChange={(enabled) => matchingUpdate.mutate({
+                      enabled, version: matchingSettingsQuery.data.settings_version,
+                    })} />
+                </div>
+                {matchingUpdate.isPending && <p role="status">Saving setting…</p>}
+                {matchingUpdate.isSuccess && <p className="text-sm text-success" role="status">Anonymous matching setting saved.</p>}
+                {matchingConflict && <div className="flex flex-wrap items-center gap-3"><p className="text-sm text-destructive" role="alert">This setting changed elsewhere. Reload it before trying again.</p><Button onClick={() => { matchingUpdate.reset(); void matchingSettingsQuery.refetch() }} type="button" variant="outline">Reload setting</Button></div>}
+                {matchingUpdate.isError && !matchingConflict && <p className="text-sm text-destructive" role="alert">Could not save the anonymous matching setting. Please try again.</p>}
+              </>}
       </CardContent>
     </Card>}
   </div>

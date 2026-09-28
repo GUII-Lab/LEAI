@@ -105,6 +105,7 @@ it('keeps account and course navigation inside the QA application base', async (
 
 it('shows the Researcher course debug switch in Customizations and persists its change', async () => {
   const user = userEvent.setup()
+  sessionStorage.setItem('leai:qa:selected-course', '11111111-1111-4111-8111-111111111111')
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(<QueryClientProvider client={client}><App activeItem="customizations" pageTitle="Customizations" description="Adjust course feedback settings." /></QueryClientProvider>)
 

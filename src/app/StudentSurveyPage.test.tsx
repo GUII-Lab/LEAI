@@ -14,7 +14,7 @@ const sessionId = '550e8400-e29b-41d4-a716-446655440011'
 const token = 'a'.repeat(64)
 const researcherToken = 'researcher-session-token'
 const survey = { survey_id: surveyId, label: 'Ulia reflection', intro: 'Welcome to reflection.', available: true,
-  completion_certificate_enabled: false, completed_response_download_enabled: false }
+  anonymous_matching_enabled: false, completion_certificate_enabled: false, completed_response_download_enabled: false }
 const ratingPrompt = { item_id: 'P1', phase: 'rating' as const, text: 'I think about the work.', wording: 'exact' as const, choices: [
   { value: 1, label: 'Strongly disagree' }, { value: 2, label: 'Disagree' },
   { value: 3, label: 'Neutral' }, { value: 4, label: 'Agree' }, { value: 5, label: 'Strongly agree' },
@@ -22,7 +22,7 @@ const ratingPrompt = { item_id: 'P1', phase: 'rating' as const, text: 'I think a
 const reflectionPrompt = { item_id: 'P1', phase: 'reflection' as const, text: 'Why?', wording: 'adaptive' as const, choices: null }
 const baseSession = { session_id: sessionId, survey_id: surveyId, turn_version: 1, status: 'active' as const, prompt: ratingPrompt,
   progress_label: 'Area 1 of 3 — Planning · Question 1 of 4', results: {}, answer_map: {}, messages: [] }
-const api = { survey: vi.fn(), start: vi.fn(), session: vi.fn(), turn: vi.fn(), debugAccess: vi.fn(), debug: vi.fn(), finalize: vi.fn() } as unknown as ReturnType<typeof createStudentApi>
+const api = { survey: vi.fn(), start: vi.fn(), session: vi.fn(), turn: vi.fn(), matchingSignals: vi.fn(), debugAccess: vi.fn(), debug: vi.fn(), finalize: vi.fn() } as unknown as ReturnType<typeof createStudentApi>
 const browserStorage = new Map<string, string>()
 
 function renderPage(verified = true, selectedEnvironment = environment) {
@@ -52,6 +52,8 @@ beforeEach(() => {
   vi.mocked(api.session).mockReset().mockResolvedValue(baseSession)
   vi.mocked(api.turn).mockReset()
   vi.mocked(api.finalize).mockReset()
+  vi.mocked(api.matchingSignals).mockReset().mockResolvedValue({ accepted: true })
+  Object.defineProperty(window, 'FingerprintJS', { configurable: true, value: undefined })
   vi.mocked(api.debugAccess).mockReset().mockResolvedValue({ enabled: false })
   vi.mocked(api.debug).mockReset().mockResolvedValue({
     session_id: sessionId, turn_version: 1,
@@ -479,4 +481,30 @@ it('keeps structured reflection inside the student conversation instead of a que
   expect(conversation).toHaveTextContent('I planned before asking.')
   expect(conversation).toHaveTextContent('How did you decide?')
   expect(screen.queryByText('Your reflection')).not.toBeInTheDocument()
+})
+
+
+it('collects the existing anonymous browser signals only for an opted-in course', async () => {
+  Object.defineProperty(window, 'FingerprintJS', { configurable: true, value: {
+    load: async () => ({ get: async () => ({ visitorId: 'visitor-id' }) }),
+  } })
+  vi.mocked(api.survey).mockResolvedValue({ ...survey, anonymous_matching_enabled: true })
+  const user = userEvent.setup()
+  renderPage()
+  await acceptConsent(user)
+
+  await waitFor(() => expect(api.matchingSignals).toHaveBeenCalledWith(surveyId, sessionId, token, {
+    device_key: expect.any(String), fingerprint: 'visitor-id',
+  }))
+  expect(window.localStorage.getItem('leai_device_key')).toBeTruthy()
+})
+
+it('does not load or send matching signals when the course setting is off', async () => {
+  const user = userEvent.setup()
+  renderPage()
+  await acceptConsent(user)
+
+  expect(api.matchingSignals).not.toHaveBeenCalled()
+  expect(document.querySelector('script[src*="fingerprintjs"]')).not.toBeInTheDocument()
+  expect(window.localStorage.getItem('leai_device_key')).toBeNull()
 })

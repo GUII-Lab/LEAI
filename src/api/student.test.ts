@@ -25,7 +25,7 @@ it('accepts honest unknown answers and exact mapped excerpts without inventing c
 
 it('starts an anonymous survey and sends the capability only to session endpoints', async () => {
   const fetcher = vi.fn()
-    .mockResolvedValueOnce(new Response(JSON.stringify({ survey_id: surveyId, label: 'Reflection', intro: 'Hello', available: true,
+    .mockResolvedValueOnce(new Response(JSON.stringify({ survey_id: surveyId, label: 'Reflection', intro: 'Hello', available: true, anonymous_matching_enabled: false,
       completion_certificate_enabled: false, completed_response_download_enabled: false }), { status: 200 }))
     .mockResolvedValueOnce(new Response(JSON.stringify({ session_id: sessionId, survey_id: surveyId, turn_version: 1, status: 'active', prompt, progress_label: 'Area 1 of 3 — Planning · Question 1 of 4', results: {}, messages: [], token }), { status: 201 }))
     .mockResolvedValueOnce(new Response(JSON.stringify({ session_id: sessionId, survey_id: surveyId, turn_version: 1, status: 'active', prompt, progress_label: 'Area 1 of 3 — Planning · Question 1 of 4', results: {}, messages: [] }), { status: 200 }))
@@ -98,5 +98,31 @@ it('freezes a completed-question session only via the final-download endpoint', 
   expect(frozen.answer_map.P1).toEqual([3])
   expect(String(fetcher.mock.calls[0]?.[0])).toContain('/finalize/')
   expect(JSON.parse(fetcher.mock.calls[0]?.[1]?.body as string)).toEqual({ expected_version: 3 })
+  expect(new Headers(fetcher.mock.calls[0]?.[1]?.headers).get('Authorization')).toBe(`Bearer ${token}`)
+})
+
+
+it('parses the course opt-in matching flag on the student survey', async () => {
+  const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    survey_id: surveyId, label: 'Reflection', intro: 'Hello', available: true,
+    anonymous_matching_enabled: true, completion_certificate_enabled: false,
+    completed_response_download_enabled: false,
+  }), { status: 200 }))
+  const api = createStudentApi(getEnvironment({}), () => true, fetcher)
+  await expect(api.survey(surveyId)).resolves.toMatchObject({ anonymous_matching_enabled: true })
+})
+
+it('posts matching signals with the session capability and no instructor cookie', async () => {
+  const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ accepted: true }), { status: 200 }))
+  const api = createStudentApi(getEnvironment({}), () => true, fetcher)
+
+  await expect(api.matchingSignals(surveyId, sessionId, token, {
+    device_key: 'device-key', fingerprint: 'visitor-id',
+  })).resolves.toEqual({ accepted: true })
+  expect(String(fetcher.mock.calls[0]?.[0])).toContain(`/surveys/${surveyId}/sessions/${sessionId}/matching-signals/`)
+  expect(fetcher.mock.calls[0]?.[1]?.method).toBe('POST')
+  expect(JSON.parse(fetcher.mock.calls[0]?.[1]?.body as string)).toEqual({
+    device_key: 'device-key', fingerprint: 'visitor-id',
+  })
   expect(new Headers(fetcher.mock.calls[0]?.[1]?.headers).get('Authorization')).toBe(`Bearer ${token}`)
 })

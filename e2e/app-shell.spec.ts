@@ -20,8 +20,18 @@ test.beforeEach(async ({ page }) => {
       institutions: [],
     },
   }))
-  await page.route(`${api}instructor_courses/`, (route) => route.fulfill({ headers, json: { courses: [] } }))
-  await page.addInitScript(() => sessionStorage.setItem('leai:local:instructor-token', 'test-session-token'))
+  await page.route(`${api}instructor_courses/`, (route) => route.fulfill({ headers, json: { courses: [{
+    course_id: '11111111-1111-4111-8111-111111111111',
+    course_code: 'cmpm-80h', course_name: 'Game Design', institution_slug: 'ucsc',
+    lifecycle_state: 'active', role: 'owner', allowed_actions: ['course.manage', 'feedback.author'],
+  }] } }))
+  await page.addInitScript(() => {
+    sessionStorage.setItem('leai:local:instructor-token', 'test-session-token')
+    if (!sessionStorage.getItem('leai:test-course-context-initialized')) {
+      sessionStorage.setItem('leai:local:selected-course', '11111111-1111-4111-8111-111111111111')
+      sessionStorage.setItem('leai:test-course-context-initialized', 'true')
+    }
+  })
 })
 
 for (const width of [390, 820, 1022, 1440]) {
@@ -159,6 +169,39 @@ test('entering a course opens its workspace navigation', async ({ page }, testIn
   await testInfo.attach('course-mobile', { path: mobileCourseScreenshot, contentType: 'image/png' })
 })
 
+test('missing course context redirects to the dedicated 404 without course navigation', async ({ page }, testInfo) => {
+  await page.route('**/datapipeline/api/v1/instructor_courses/', (route) => route.fulfill({
+    headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },
+    json: { courses: [] },
+  }))
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/FeedbackAnalyzer.html')
+
+  await expect(page).toHaveURL(/NotFound\.html$/)
+  await expect(page.getByRole('heading', { name: 'Page Not Found' })).toBeVisible()
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await expect(page.getByRole('navigation', { name: 'Account navigation' })).toBeVisible()
+  await expect(page.getByRole('navigation', { name: 'Course navigation' })).toHaveCount(0)
+  const screenshotDirectory = join(process.cwd(), '.web-verify', 'screenshots')
+  await mkdir(screenshotDirectory, { recursive: true })
+  const desktopShot = join(screenshotDirectory, `course-not-found-desktop-${testInfo.project.name}.png`)
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.screenshot({ path: desktopShot, fullPage: true })
+  await testInfo.attach('not-found-desktop', { path: desktopShot, contentType: 'image/png' })
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.getByRole('button', { name: 'Open navigation' }).click()
+  const mobileNavigation = page.getByRole('dialog', { name: 'Navigation' })
+  await expect(mobileNavigation.getByRole('navigation', { name: 'Account navigation' })).toBeVisible()
+  await expect(mobileNavigation.getByRole('navigation', { name: 'Course navigation' })).toHaveCount(0)
+  await expect(mobileNavigation.getByRole('button', { name: 'Sign out' })).toBeVisible()
+  await page.waitForTimeout(350)
+  const mobileShot = join(screenshotDirectory, `course-not-found-mobile-${testInfo.project.name}.png`)
+  await page.screenshot({ path: mobileShot, fullPage: true })
+  await testInfo.attach('not-found-mobile-drawer', { path: mobileShot, contentType: 'image/png' })
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem('leai:local:selected-course'))).toBeNull()
+})
+
 test('keeps student consent and conversation body copy at the regular 16px size', async ({ page }, testInfo) => {
   const surveyId = '550e8400-e29b-41d4-a716-446655440010'
   const sessionId = '550e8400-e29b-41d4-a716-446655440011'
@@ -167,7 +210,8 @@ test('keeps student consent and conversation body copy at the regular 16px size'
     headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },
     json: {
       survey_id: surveyId, label: 'Typography review', intro: 'Welcome to the course reflection.',
-      available: true, completion_certificate_enabled: false, completed_response_download_enabled: false,
+      available: true, anonymous_matching_enabled: false,
+      completion_certificate_enabled: false, completed_response_download_enabled: false,
     },
   }))
   await page.route(`**/datapipeline/api/v1/surveys/${surveyId}/debug-access/`, (route) => route.fulfill({
@@ -238,6 +282,7 @@ for (const [path, title] of [
   ['/FeedbackChat.html', 'Feedback Chat'],
   ['/CourseBanner.html', 'Course Banner'],
   ['/Customizations.html', 'Customizations'],
+  ['/NotFound.html', 'Page Not Found'],
   ['/feedback.html', 'Reflection'],
 ]) {
   test(`mounts ${path} without a rewrite`, async ({ page }) => {

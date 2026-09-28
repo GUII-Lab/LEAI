@@ -55,6 +55,7 @@ test('researcher enables QA debug and only their authenticated view reveals it i
       await route.fulfill({ json: { csrf_token: 'test-csrf' } })
     } else if (url.pathname === `/datapipeline/api/v1/surveys/${surveyId}/`) {
       await route.fulfill({ json: { survey_id: surveyId, label: 'QA test reflection', intro: 'Welcome.', available: true,
+        anonymous_matching_enabled: false,
         completion_certificate_enabled: false, completed_response_download_enabled: false } })
     } else if (url.pathname === `/datapipeline/api/v1/surveys/${surveyId}/sessions/` && request.method() === 'POST') {
       await route.fulfill({ status: 201, json: { ...studentSession([
@@ -80,6 +81,7 @@ test('researcher enables QA debug and only their authenticated view reveals it i
     }
   }
   await context.route(`${apiBase}**`, handleRoute(true))
+  await page.addInitScript(() => sessionStorage.setItem('leai:local:selected-course', '11111111-1111-4111-8111-111111111111'))
 
   await page.goto('/Customizations.html')
   await expect(page.getByRole('heading', { name: 'AI debug visibility' })).toBeVisible()
@@ -89,7 +91,7 @@ test('researcher enables QA debug and only their authenticated view reveals it i
   await expect(toggle).toHaveAttribute('aria-checked', 'true')
   await expect(toggle).toHaveAttribute('data-state', 'checked')
   await expect(toggle.locator('span')).toHaveClass(/translate-x-5/)
-  await expect(page.getByRole('status')).toContainText('Researcher debug setting saved')
+  await expect(page.getByText('Researcher debug setting saved.')).toBeVisible()
   await page.waitForTimeout(250)
   await page.screenshot({ path: testInfo.outputPath('researcher-customizations-enabled.png'), fullPage: true })
 

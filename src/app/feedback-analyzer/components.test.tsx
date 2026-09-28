@@ -146,6 +146,42 @@ it('preserves n-gram size and keyness controls with cutoff metadata and retryabl
   expect(onRetry).toHaveBeenCalledOnce()
 })
 
+it('opens matching response records when an instructor selects an n-gram term', async () => {
+  const user = userEvent.setup()
+  const onTermSelect = vi.fn()
+  const panelProps = {
+    state: {
+      status: 'ready' as const,
+      sourceCount: 2,
+      cutoffAt: '2026-09-27T12:00:00Z',
+      keynessAvailable: true,
+      items: [{ term: 'clear instructions', count: 2, keyness: 1.8 }],
+    },
+    ngramSize: 2 as const,
+    sort: 'frequency' as const,
+    onNgramSizeChange: vi.fn(),
+    onSortChange: vi.fn(),
+    onTermSelect,
+  }
+
+  render(<NgramPanel {...panelProps} />)
+  await user.click(screen.getByRole('button', { name: 'clear instructions' }))
+
+  expect(onTermSelect).toHaveBeenCalledWith('clear instructions')
+})
+
+it('keeps ordinary Analyzer table headings at the regular text scale', () => {
+  render(<NgramPanel
+    state={{ status: 'ready', sourceCount: 1, cutoffAt: null, keynessAvailable: false, items: [{ term: 'clear', count: 1, keyness: null }] }}
+    ngramSize={1}
+    sort="frequency"
+    onNgramSizeChange={vi.fn()}
+    onSortChange={vi.fn()}
+  />)
+
+  expect(within(screen.getByRole('table', { name: 'N-gram terms' })).getByRole('row', { name: 'Term Frequency' })).toHaveClass('text-base')
+})
+
 it('opens an insight citation with its exact response source', async () => {
   const user = userEvent.setup()
   const onCitationOpen = vi.fn()
@@ -299,6 +335,56 @@ it('selects PDF files and exposes commit, revert, and parsed answer states', asy
   expect(onRevert).toHaveBeenCalledWith('batch-committed')
 })
 
+it('rejects a PDF over 10 MiB before starting an import', async () => {
+  const user = userEvent.setup()
+  const onFilesSelected = vi.fn()
+  render(<PdfImportPanel
+    mode="structured" onFilesSelected={onFilesSelected} batches={[]} batchListState="ready"
+    parsedAnswers={{ status: 'idle' }} onCommit={vi.fn()} onRevert={vi.fn()}
+  />)
+  const file = new File(['x'], 'large.pdf', { type: 'application/pdf' })
+  Object.defineProperty(file, 'size', { value: 10 * 1024 * 1024 + 1 })
+
+  await user.upload(screen.getByLabelText('Choose PDF reflections'), file)
+
+  expect(screen.getByRole('alert')).toHaveTextContent('Each PDF must be 10 MiB or smaller.')
+  expect(onFilesSelected).not.toHaveBeenCalled()
+})
+
+it('rejects more than 50 PDFs before starting an import', async () => {
+  const user = userEvent.setup()
+  const onFilesSelected = vi.fn()
+  render(<PdfImportPanel
+    mode="structured" onFilesSelected={onFilesSelected} batches={[]} batchListState="ready"
+    parsedAnswers={{ status: 'idle' }} onCommit={vi.fn()} onRevert={vi.fn()}
+  />)
+  const files = Array.from({ length: 51 }, (_, index) => new File(['x'], `${index}.pdf`, { type: 'application/pdf' }))
+
+  await user.upload(screen.getByLabelText('Choose PDF reflections'), files)
+
+  expect(screen.getByRole('alert')).toHaveTextContent('A batch can include at most 50 PDF files.')
+  expect(onFilesSelected).not.toHaveBeenCalled()
+})
+
+it('rejects a batch over 50 MiB even when each PDF is under its individual limit', async () => {
+  const user = userEvent.setup()
+  const onFilesSelected = vi.fn()
+  render(<PdfImportPanel
+    mode="structured" onFilesSelected={onFilesSelected} batches={[]} batchListState="ready"
+    parsedAnswers={{ status: 'idle' }} onCommit={vi.fn()} onRevert={vi.fn()}
+  />)
+  const files = Array.from({ length: 6 }, (_, index) => {
+    const file = new File(['x'], `${index}.pdf`, { type: 'application/pdf' })
+    Object.defineProperty(file, 'size', { value: 9 * 1024 * 1024 })
+    return file
+  })
+
+  await user.upload(screen.getByLabelText('Choose PDF reflections'), files)
+
+  expect(screen.getByRole('alert')).toHaveTextContent('A batch can total no more than 50 MiB.')
+  expect(onFilesSelected).not.toHaveBeenCalled()
+})
+
 it('explains unavailable and failed parsed-answer states and keeps team PDF unsupported', async () => {
   const unavailable = render(<PdfImportPanel
     mode="structured" onFilesSelected={vi.fn()} batches={[]} batchListState="ready"
@@ -406,7 +492,7 @@ it('distinguishes an unlinked response count from response details that were not
   />)
 
   expect(screen.getByRole('region', { name: 'Unlinked response records' })).toHaveTextContent(
-    '3 unlinked response records were reported, but no response details were returned. They remain unassigned to a team.',
+    '3 unlinked response records were reported; no response details were returned, so they remain unassigned to a team.',
   )
 })
 

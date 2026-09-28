@@ -2,6 +2,7 @@ import { useState, type ChangeEvent, type FormEvent } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverDescription, PopoverHeader, PopoverTitle, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
@@ -54,6 +55,7 @@ export function WeekScopeChips({
   return <nav aria-label="Survey week scope" className="flex flex-wrap gap-2">
     {scopes.map((scope) => <Button
       aria-pressed={selectedScopeId === scope.id}
+      className="text-base"
       key={scope.id}
       onClick={() => onScopeChange(scope.id)}
       size="sm"
@@ -118,7 +120,13 @@ export type NgramState =
   | { status: 'loading' }
   | { status: 'unavailable'; message: string }
   | { status: 'error'; message: string; retryable: boolean }
-  | { status: 'ready'; sourceCount: number; cutoffAt: string; keynessAvailable: boolean; items: readonly NgramTerm[] }
+  | { status: 'ready'; sourceCount: number; cutoffAt: string | null; keynessAvailable: boolean; items: readonly NgramTerm[] }
+
+export type NgramDrilldownState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'error'; message: string }
+  | { status: 'ready'; responses: readonly AnalyzerResponse[]; hasMore: boolean; loadingMore: boolean }
 
 export function NgramPanel({
   state,
@@ -127,6 +135,12 @@ export function NgramPanel({
   onNgramSizeChange,
   onSortChange,
   onRetry,
+  selectedTerm,
+  drilldown = { status: 'idle' },
+  onTermSelect,
+  onClearTerm,
+  onRetryDrilldown,
+  onLoadMore,
 }: {
   state: NgramState
   ngramSize: NgramSize
@@ -134,20 +148,27 @@ export function NgramPanel({
   onNgramSizeChange: (size: NgramSize) => void
   onSortChange: (sort: NgramSort) => void
   onRetry?: () => void
+  selectedTerm?: string
+  drilldown?: NgramDrilldownState
+  onTermSelect?: (term: string) => void
+  onClearTerm?: () => void
+  onRetryDrilldown?: () => void
+  onLoadMore?: () => void
 }) {
   return <Card>
     <CardHeader>
       <CardTitle>N-gram terms</CardTitle>
       <CardDescription>Word frequency and keyness in the selected scope.</CardDescription>
-      {state.status === 'ready' && <p className="text-xs text-muted-foreground">{state.sourceCount.toLocaleString()} responses · data through <time dateTime={state.cutoffAt}>{state.cutoffAt}</time></p>}
+      {state.status === 'ready' && <p className="text-xs text-muted-foreground">{state.sourceCount.toLocaleString()} responses{state.cutoffAt && <> · data through <time dateTime={state.cutoffAt}>{state.cutoffAt}</time></>}</p>}
     </CardHeader>
     <CardContent className="space-y-4">
       <div className="flex flex-wrap items-end gap-4">
         <fieldset className="min-w-0">
-          <legend className="mb-1 text-xs font-medium text-muted-foreground">N-gram length</legend>
+          <legend className="mb-1 text-base font-medium">N-gram length</legend>
           <div className="flex flex-wrap gap-1">
             {([1, 2, 3] as const).map((size) => <Button
               aria-pressed={ngramSize === size}
+              className="text-base"
               key={size}
               onClick={() => onNgramSizeChange(size)}
               size="sm"
@@ -157,11 +178,12 @@ export function NgramPanel({
           </div>
         </fieldset>
         <fieldset className="min-w-0">
-          <legend className="mb-1 text-xs font-medium text-muted-foreground">Sort terms</legend>
+          <legend className="mb-1 text-base font-medium">Sort terms</legend>
           <div className="flex flex-wrap gap-1">
-            <Button aria-pressed={sort === 'frequency'} onClick={() => onSortChange('frequency')} size="sm" type="button" variant={sort === 'frequency' ? 'secondary' : 'outline'}>Freq</Button>
+            <Button aria-pressed={sort === 'frequency'} className="text-base" onClick={() => onSortChange('frequency')} size="sm" type="button" variant={sort === 'frequency' ? 'secondary' : 'outline'}>Freq</Button>
             <Button
               aria-pressed={sort === 'keyness'}
+              className="text-base"
               disabled={state.status !== 'ready' || !state.keynessAvailable}
               onClick={() => onSortChange('keyness')}
               size="sm"
@@ -182,14 +204,70 @@ export function NgramPanel({
         ? <p className="text-base text-muted-foreground">No n-gram terms are available for this scope.</p>
         : <div className="overflow-x-auto">
           <table aria-label="N-gram terms" className="w-full min-w-72 text-left text-base">
-            <thead><tr className="border-b border-border text-xs text-muted-foreground"><th className="px-2 py-2 font-medium">Term</th><th className="px-2 py-2 text-right font-medium">Frequency</th>{sort === 'keyness' && <th className="px-2 py-2 text-right font-medium">Keyness</th>}</tr></thead>
+            <thead><tr className="border-b border-border text-base text-muted-foreground"><th className="px-2 py-2 font-medium">Term</th><th className="px-2 py-2 text-right font-medium">Frequency</th>{sort === 'keyness' && <th className="px-2 py-2 text-right font-medium">Keyness</th>}</tr></thead>
             <tbody>{state.items.map((item) => <tr className="border-b border-border last:border-0" key={item.term}>
-              <th className="px-2 py-2 font-medium" scope="row">{item.term}</th>
+              <th className="px-2 py-2 font-medium" scope="row">{onTermSelect
+                ? <Button aria-pressed={selectedTerm === item.term} className="h-auto p-0 font-medium" onClick={() => onTermSelect(item.term)} type="button" variant="link">{item.term}</Button>
+                : item.term}</th>
               <td className="px-2 py-2 text-right tabular-nums">{item.count.toLocaleString()}</td>
               {sort === 'keyness' && <td className="px-2 py-2 text-right tabular-nums">{item.keyness == null ? 'Unavailable' : item.keyness.toFixed(2)}</td>}
             </tr>)}</tbody>
           </table>
         </div>)}
+      {selectedTerm && <section aria-label={`Responses matching ${selectedTerm}`} className="space-y-3 border-t border-border pt-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-semibold">Responses matching “{selectedTerm}”</h3>
+          {onClearTerm && <Button className="text-base" onClick={onClearTerm} size="sm" type="button" variant="outline">Clear term</Button>}
+        </div>
+        {drilldown.status === 'loading' && <p className="text-base text-muted-foreground" role="status">Loading matching responses…</p>}
+        {drilldown.status === 'error' && <div className="flex flex-wrap items-center gap-3" role="alert"><p className="text-base text-destructive">{drilldown.message}</p>{onRetryDrilldown && <Button onClick={onRetryDrilldown} type="button" variant="outline">Retry matching responses</Button>}</div>}
+        {drilldown.status === 'ready' && (drilldown.responses.length === 0
+          ? <p className="text-base text-muted-foreground">No matching responses were found in this scope.</p>
+          : <ul className="space-y-3">{drilldown.responses.map((response) => <li key={response.responseId}><ResponseCard response={response} /></li>)}</ul>)}
+        {drilldown.status === 'ready' && drilldown.hasMore && onLoadMore && <Button disabled={drilldown.loadingMore} onClick={onLoadMore} type="button" variant="outline">{drilldown.loadingMore ? 'Loading more matches…' : 'Load more matching responses'}</Button>}
+      </section>}
+    </CardContent>
+  </Card>
+}
+
+export type CourseSearchResult = { id: number; surveyLabel: string; excerpt: string; createdAt: string }
+export type CourseResponseSearchState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'error' }
+  | { status: 'ready'; results: readonly CourseSearchResult[]; hasMore: boolean }
+
+export function CourseResponseSearch({
+  state,
+  onSearch,
+}: {
+  state: CourseResponseSearchState
+  onSearch: (query: string) => void
+}) {
+  const [query, setQuery] = useState('')
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const normalized = query.trim()
+    if (normalized.length >= 2 && normalized.length <= 100) onSearch(normalized)
+  }
+
+  return <Card>
+    <CardHeader><CardTitle>Search course responses</CardTitle><CardDescription>Search covers completed responses across all surveys.</CardDescription></CardHeader>
+    <CardContent className="space-y-4">
+      <form className="flex flex-col gap-2 sm:flex-row" onSubmit={submit} role="search">
+        <Input aria-label="Search course responses" maxLength={100} minLength={2} onChange={(event) => setQuery(event.target.value)} placeholder="Search a word or phrase" required type="search" value={query} />
+        <Button disabled={state.status === 'loading' || query.trim().length < 2} type="submit">{state.status === 'loading' ? 'Searching…' : 'Search course responses'}</Button>
+      </form>
+      {state.status === 'loading' && <p className="text-base text-muted-foreground" role="status">Searching responses…</p>}
+      {state.status === 'error' && <p className="text-base text-destructive" role="alert">Search could not be completed. Please try again.</p>}
+      {state.status === 'ready' && <div aria-label="Course response search results" aria-live="polite" className="space-y-3" role="region">
+        <p className="text-base text-muted-foreground">{state.results.length === 0 ? 'No matching responses found.' : `${state.results.length} matching response${state.results.length === 1 ? '' : 's'}${state.hasMore ? ' shown. Refine your search for more.' : ''}`}</p>
+        {state.results.length > 0 && <ul className="space-y-3">{state.results.map((result) => <li className="rounded-lg border border-border bg-background p-4" key={result.id}>
+          <p className="text-xs font-semibold text-muted-foreground">{result.surveyLabel}</p>
+          <p className="mt-2 whitespace-pre-wrap break-words text-base">{result.excerpt}</p>
+          <time className="mt-2 block text-xs text-muted-foreground" dateTime={result.createdAt}>{result.createdAt}</time>
+        </li>)}</ul>}
+      </div>}
     </CardContent>
   </Card>
 }
@@ -286,6 +364,7 @@ export type ChatResponse = {
   nudged: boolean
   responseHref: string
   transcript: readonly { messageId: string; content: string; timestamp?: string }[]
+  highlightedMessageId?: string
 }
 
 export type PdfResponse = {
@@ -334,7 +413,7 @@ export function ResponseList({
       <div><h2 className="text-lg font-semibold" id="analyzer-response-heading">Student Responses</h2><p className="text-base text-muted-foreground">Each card is one response record; chat messages are student turns within it.</p></div>
       <div className="flex flex-wrap items-center gap-4">
         <div className="grid gap-1">
-          <label className="text-xs font-medium text-muted-foreground" htmlFor="response-source-filter">Response source</label>
+          <label className="text-base font-medium" htmlFor="response-source-filter">Response source</label>
           <Select onValueChange={(value) => {
             if (value === 'all' || value === 'chat' || value === 'pdf') onSourceFilterChange(value)
           }} value={sourceFilter}>
@@ -364,7 +443,7 @@ export function ResponseList({
 export function ResponseCard({ response }: { response: AnalyzerResponse }) {
   const turnCount = response.kind === 'chat' ? response.transcript.length : response.answers.length
   return <Card className="py-0">
-    <details className="group/response">
+    <details className="group/response" open={response.kind === 'chat' && Boolean(response.highlightedMessageId)}>
       <summary aria-label={`Show response ${response.label}`} className="flex cursor-pointer list-none flex-wrap items-center gap-2 p-4 focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
         <span aria-hidden="true" className="text-muted-foreground transition-transform group-open/response:rotate-180">⌄</span>
         <span className="font-medium">{response.label}</span>
@@ -375,12 +454,16 @@ export function ResponseCard({ response }: { response: AnalyzerResponse }) {
         <span className="ml-auto text-xs text-muted-foreground">{response.kind === 'pdf' ? `${turnCount} parsed answer${turnCount === 1 ? '' : 's'}` : `${turnCount} student turn${turnCount === 1 ? '' : 's'}`}</span>
       </summary>
       <div className="space-y-4 border-t border-border p-4">
-        <Button asChild size="sm" variant="outline"><a href={response.responseHref}>Open response {response.label}</a></Button>
+        <Button asChild className="text-base" size="sm" variant="outline"><a href={response.responseHref}>Open response {response.label}</a></Button>
         {response.kind === 'chat'
           ? <section aria-label={`Transcript for response ${response.label}`}>
             {response.transcript.length === 0
               ? <p className="text-base text-muted-foreground">No student turns are available for this response.</p>
-              : <ChatTranscript>{response.transcript.map((message) => <ChatMessage author="Student" key={message.messageId} role="user" timestamp={message.timestamp}>{message.content}</ChatMessage>)}</ChatTranscript>}
+              : <ChatTranscript>{response.transcript.map((message) => <ChatMessage author="Student" key={message.messageId} role="user" timestamp={message.timestamp}>
+                <div className={`rounded-lg p-2 ${message.messageId === response.highlightedMessageId ? 'ring-2 ring-primary' : ''}`.trim()} id={`response-message-${message.messageId}`}>
+                  {message.content}
+                </div>
+              </ChatMessage>)}</ChatTranscript>}
           </section>
           : response.answers.length === 0
             ? <p className="text-base text-muted-foreground">No parsed answers are available for this PDF response.</p>
@@ -400,6 +483,19 @@ export type PdfParsedAnswers =
   | { status: 'error'; message: string }
   | { status: 'ready'; answers: readonly { id: string; sourceLabel: string; question: string; value: string }[] }
 
+const PDF_IMPORT_LIMITS = {
+  maxFiles: 50,
+  maxFileBytes: 10 * 1024 * 1024,
+  maxBatchBytes: 50 * 1024 * 1024,
+} as const
+
+function pdfSelectionError(files: readonly File[]): string {
+  if (files.length > PDF_IMPORT_LIMITS.maxFiles) return 'A batch can include at most 50 PDF files.'
+  if (files.some((file) => file.size > PDF_IMPORT_LIMITS.maxFileBytes)) return 'Each PDF must be 10 MiB or smaller.'
+  if (files.reduce((total, file) => total + file.size, 0) > PDF_IMPORT_LIMITS.maxBatchBytes) return 'A batch can total no more than 50 MiB.'
+  return ''
+}
+
 type PdfImportPanelProps =
   | { mode: 'team' }
   | {
@@ -414,6 +510,7 @@ type PdfImportPanelProps =
   }
 
 export function PdfImportPanel(props: PdfImportPanelProps) {
+  const [selectionError, setSelectionError] = useState('')
   if (props.mode === 'team') return <Card>
     <CardHeader><CardTitle>PDF reflection import</CardTitle></CardHeader>
     <CardContent><p className="text-base text-muted-foreground">Team PDF import is not supported because a PDF response cannot be attributed to an exact team.</p></CardContent>
@@ -422,7 +519,12 @@ export function PdfImportPanel(props: PdfImportPanelProps) {
   const { onFilesSelected, batches, batchListState, parsedAnswers, onCommit, onRevert, onRetryBatches } = props
 
   function selectFiles(event: ChangeEvent<HTMLInputElement>) {
-    if (event.currentTarget.files) onFilesSelected(Array.from(event.currentTarget.files))
+    if (!event.currentTarget.files) return
+    const files = Array.from(event.currentTarget.files)
+    const error = pdfSelectionError(files)
+    setSelectionError(error)
+    event.currentTarget.value = ''
+    if (!error) onFilesSelected(files)
   }
 
   return <Card>
@@ -430,8 +532,9 @@ export function PdfImportPanel(props: PdfImportPanelProps) {
     <CardContent className="space-y-5">
       <div className="grid gap-2">
         <label className="text-base font-medium" htmlFor="pdf-reflection-files">Choose PDF reflections</label>
-        <input accept="application/pdf,.pdf" className="block w-full min-w-0 rounded-md border border-input bg-background px-3 py-2 text-base file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-base file:font-medium" id="pdf-reflection-files" multiple onChange={selectFiles} type="file" />
-        <p className="text-xs text-muted-foreground">PDFs are private course files. Team survey imports are not supported.</p>
+        <input accept="application/pdf,.pdf" aria-describedby="pdf-reflection-files-help" className="block w-full min-w-0 rounded-md border border-input bg-background px-3 py-2 text-base file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-base file:font-medium" id="pdf-reflection-files" multiple onChange={selectFiles} type="file" />
+        <p className="text-sm text-muted-foreground" id="pdf-reflection-files-help">Original PDFs are discarded after processing. Up to 50 files per batch, 10 MiB each, 50 MiB total.</p>
+        {selectionError && <p className="text-base text-destructive" role="alert">{selectionError}</p>}
       </div>
       <section aria-labelledby="pdf-recent-batches-heading" className="space-y-2">
         <h3 className="text-base font-semibold" id="pdf-recent-batches-heading">Recent PDF uploads</h3>
@@ -443,10 +546,10 @@ export function PdfImportPanel(props: PdfImportPanelProps) {
         {batchListState === 'ready' && (batches.length === 0
           ? <p className="text-base text-muted-foreground">No PDF uploads yet.</p>
           : <ul className="space-y-2">{batches.map((batch) => <li className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border p-3" key={batch.id}>
-            <div className="min-w-0"><p className="font-medium">{batch.label}</p><p className="text-xs text-muted-foreground">{batch.fileCount.toLocaleString()} PDF file{batch.fileCount === 1 ? '' : 's'} · {batch.status}</p></div>
+            <div className="min-w-0"><p className="font-medium">{batch.label}</p><p className="text-sm text-muted-foreground">{batch.fileCount.toLocaleString()} PDF file{batch.fileCount === 1 ? '' : 's'} · {batch.status}</p></div>
             <div className="flex flex-wrap gap-2">
-              {batch.status === 'ready' && <Button onClick={() => onCommit(batch.id)} size="sm" type="button">Commit {batch.label}</Button>}
-              {batch.status === 'committed' && <Button onClick={() => onRevert(batch.id)} size="sm" type="button" variant="outline">Revert {batch.label}</Button>}
+              {batch.status === 'ready' && <Button className="text-base" onClick={() => onCommit(batch.id)} size="sm" type="button">Commit {batch.label}</Button>}
+              {batch.status === 'committed' && <Button className="text-base" onClick={() => onRevert(batch.id)} size="sm" type="button" variant="outline">Revert {batch.label}</Button>}
             </div>
           </li>)}</ul>)}
       </section>
@@ -459,7 +562,7 @@ export function PdfImportPanel(props: PdfImportPanelProps) {
         {parsedAnswers.status === 'ready' && (parsedAnswers.answers.length === 0
           ? <p className="text-base text-muted-foreground">No parsed answers for this import yet.</p>
           : <ul className="space-y-3">{parsedAnswers.answers.map((answer) => <li className="grid gap-1" key={answer.id}>
-            <p className="text-xs font-medium text-muted-foreground">{answer.sourceLabel}</p><p className="font-medium">{answer.question}</p><p className="whitespace-pre-wrap text-base">{answer.value}</p>
+            <p className="text-sm text-muted-foreground">{answer.sourceLabel}</p><p className="font-medium">{answer.question}</p><p className="whitespace-pre-wrap text-base">{answer.value}</p>
           </li>)}</ul>)}
       </section>
     </CardContent>
@@ -507,19 +610,19 @@ export function TeamSurveyPanel({
       {state.status === 'ready' && state.surveys.length === 0 && <p className="text-base text-muted-foreground">No In-Group surveys for this course yet.</p>}
       {state.status === 'ready' && state.surveys.length > 0 && <>
         <nav aria-label="In-Group surveys" className="flex flex-wrap gap-2">
-          {state.surveys.map((survey) => <Button aria-pressed={selectedSurvey?.id === survey.id} key={survey.id} onClick={() => onSurveyChange(survey.id)} size="sm" type="button" variant={selectedSurvey?.id === survey.id ? 'secondary' : 'outline'}>{survey.label}</Button>)}
+          {state.surveys.map((survey) => <Button aria-pressed={selectedSurvey?.id === survey.id} className="text-base" key={survey.id} onClick={() => onSurveyChange(survey.id)} size="sm" type="button" variant={selectedSurvey?.id === survey.id ? 'secondary' : 'outline'}>{survey.label}</Button>)}
         </nav>
         {selectedSurvey && <>
           <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">Team setup: {selectedSurvey.configurationLabel}</p>
+            <p className="text-sm text-muted-foreground">Team setup: {selectedSurvey.configurationLabel}</p>
             {selectedSurvey.teams.length === 0
               ? <p className="text-base text-muted-foreground">No team responses are available for this survey.</p>
               : <div className="overflow-x-auto">
                 <table aria-label="Team response counts" className="w-full min-w-64 text-left text-base">
-                  <thead><tr className="border-b border-border text-xs text-muted-foreground"><th className="px-2 py-2 font-medium">Team</th><th className="px-2 py-2 text-right font-medium">Responses</th><th className="px-2 py-2 text-right font-medium"><span className="sr-only">Open team</span></th></tr></thead>
+                  <thead><tr className="border-b border-border text-base text-muted-foreground"><th className="px-2 py-2 font-medium">Team</th><th className="px-2 py-2 text-right font-medium">Responses</th><th className="px-2 py-2 text-right font-medium"><span className="sr-only">Open team</span></th></tr></thead>
                   <tbody>{selectedSurvey.teams.map((team) => <tr className="border-b border-border last:border-0" key={team.id}>
                     <th className="px-2 py-2 font-medium" scope="row">{team.label}</th><td className="px-2 py-2 text-right tabular-nums">{team.responseCount.toLocaleString()}</td>
-                    <td className="px-2 py-2 text-right"><Button onClick={() => onTeamChange(team.id)} size="sm" type="button" variant="outline">View {team.label}</Button></td>
+                    <td className="px-2 py-2 text-right"><Button className="text-base" onClick={() => onTeamChange(team.id)} size="sm" type="button" variant="outline">View {team.label}</Button></td>
                   </tr>)}</tbody>
                   <tfoot><tr className="border-t border-border"><th className="px-2 py-2 font-medium" scope="row">Unlinked responses</th><td className="px-2 py-2 text-right tabular-nums">{selectedSurvey.unlinkedResponseCount.toLocaleString()}</td><td className="px-2 py-2"><span className="sr-only">Not assigned to a team</span></td></tr></tfoot>
                 </table>
@@ -536,7 +639,7 @@ export function TeamSurveyPanel({
             {(selectedSurvey.unlinkedResponseCount > 0 || selectedSurvey.unlinkedResponses.length > 0) && <section aria-label="Unlinked response records" className="space-y-2">
               <h3 className="font-semibold">Unlinked response records</h3>
               {selectedSurvey.unlinkedResponses.length === 0
-                ? <p className="text-base text-muted-foreground">{selectedSurvey.unlinkedResponseCount.toLocaleString()} unlinked response record{selectedSurvey.unlinkedResponseCount === 1 ? ' was' : 's were'} reported, but no response details were returned. They remain unassigned to a team.</p>
+                ? <p className="text-base text-muted-foreground">{selectedSurvey.unlinkedResponseCount.toLocaleString()} unlinked response record{selectedSurvey.unlinkedResponseCount === 1 ? ' was' : 's were'} reported; no response details were returned, so they remain unassigned to a team.</p>
                 : <>
                   <p className="text-base text-muted-foreground">These response details are available for review and are not assigned to a team.</p>
                   <ul className="space-y-3">{selectedSurvey.unlinkedResponses.map((response) => <li key={response.responseId}><ResponseCard response={response} /></li>)}</ul>
@@ -573,7 +676,7 @@ export function ProgressTables({ state, onRetry }: { state: ProgressState; onRet
         <CardContent>{state.students.length === 0
           ? <p className="text-base text-muted-foreground">No cross-week student matches are available.</p>
           : <div className="overflow-x-auto"><table aria-label="Student progress" className="w-full min-w-80 text-left text-base">
-            <thead><tr className="border-b border-border text-xs text-muted-foreground"><th className="px-2 py-2 font-medium">Anonymous label</th><th className="px-2 py-2 font-medium">Match confidence</th>{state.occurrences.map((occurrence) => <th className="px-2 py-2 text-right font-medium" key={occurrence.id}>{occurrence.label}</th>)}</tr></thead>
+            <thead><tr className="border-b border-border text-base text-muted-foreground"><th className="px-2 py-2 font-medium">Anonymous label</th><th className="px-2 py-2 font-medium">Match confidence</th>{state.occurrences.map((occurrence) => <th className="px-2 py-2 text-right font-medium" key={occurrence.id}>{occurrence.label}</th>)}</tr></thead>
             <tbody>{state.students.map((student) => <tr className="border-b border-border last:border-0" key={student.label}>
               <th className="px-2 py-2 font-medium" scope="row">{student.label}</th><td className="px-2 py-2">{confidenceLabel(student.matchConfidence)}</td>
               {state.occurrences.map((occurrence) => <td className="px-2 py-2 text-right tabular-nums" key={occurrence.id}>{student.responsesByOccurrence[occurrence.id] ?? '—'}</td>)}
@@ -585,7 +688,7 @@ export function ProgressTables({ state, onRetry }: { state: ProgressState; onRet
         <CardContent>{state.groups.length === 0
           ? <p className="text-base text-muted-foreground">No anonymous group progress is available.</p>
           : <div className="overflow-x-auto"><table aria-label="Group progress" className="w-full min-w-80 text-left text-base">
-            <thead><tr className="border-b border-border text-xs text-muted-foreground"><th className="px-2 py-2 font-medium">Anonymous group</th><th className="px-2 py-2 font-medium">Team setup snapshot</th>{state.occurrences.map((occurrence) => <th className="px-2 py-2 text-right font-medium" key={occurrence.id}>{occurrence.label}</th>)}</tr></thead>
+            <thead><tr className="border-b border-border text-base text-muted-foreground"><th className="px-2 py-2 font-medium">Anonymous group</th><th className="px-2 py-2 font-medium">Team setup snapshot</th>{state.occurrences.map((occurrence) => <th className="px-2 py-2 text-right font-medium" key={occurrence.id}>{occurrence.label}</th>)}</tr></thead>
             <tbody>{state.groups.map((group) => <tr className="border-b border-border last:border-0" key={`${group.teamSnapshotId}:${group.label}`}>
               <th className="px-2 py-2 font-medium" scope="row">{group.label}</th><td className="px-2 py-2">{group.teamSnapshotLabel}</td>
               {state.occurrences.map((occurrence) => <td className="px-2 py-2 text-right tabular-nums" key={occurrence.id}>{group.responsesByOccurrence[occurrence.id] ?? '—'}</td>)}
@@ -656,7 +759,7 @@ export function CertificateVerification({
         {state.results.length === 0
           ? <p className="text-base text-muted-foreground">No certificate results were returned.</p>
           : <div className="overflow-x-auto"><table aria-label="Certificate verification results" className="w-full min-w-64 text-left text-base">
-            <thead><tr className="border-b border-border text-xs text-muted-foreground"><th className="px-2 py-2 font-medium">Code</th><th className="px-2 py-2 font-medium">Status</th></tr></thead>
+            <thead><tr className="border-b border-border text-base text-muted-foreground"><th className="px-2 py-2 font-medium">Code</th><th className="px-2 py-2 font-medium">Status</th></tr></thead>
             <tbody>{state.results.map((result, index) => <tr className="border-b border-border last:border-0" key={`${result.code}:${index}`}>
               <th className="px-2 py-2 font-mono font-medium" scope="row">{result.code}</th><td className="px-2 py-2">{result.status.split('_').map((part) => part ? `${part[0]?.toLocaleUpperCase()}${part.slice(1)}` : '').join(' ') || 'Unknown'}</td>
             </tr>)}</tbody>
