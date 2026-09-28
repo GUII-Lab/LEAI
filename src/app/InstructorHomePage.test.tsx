@@ -52,10 +52,11 @@ it('shows authorized courses and selects one for the implemented feedback tool',
   const card = await screen.findByRole('article', { name: /Game Design/ })
   expect(within(card).getByText('cmpm-80h')).toBeInTheDocument()
   expect(within(card).getByText(/UC Santa Cruz|ucsc/)).toBeInTheDocument()
-  const open = within(card).getByRole('link', { name: 'Open feedback' })
+  const open = within(card).getByRole('link', { name: 'Open Game Design' })
   expect(open).toHaveAttribute('href', '/FeedbackAnalyzer.html')
+  expect(within(card).queryByText('Open feedback')).not.toBeInTheDocument()
   open.addEventListener('click', (event) => event.preventDefault())
-  await user.click(open)
+  await user.click(within(card).getByRole('heading', { name: 'Game Design' }))
   expect(sessionStorage.getItem('leai:local:selected-course')).toBe(course.course_id)
 })
 

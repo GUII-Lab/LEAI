@@ -80,7 +80,7 @@ export function InstructorHomePage({ api, environment, verified }: {
   return <div className="max-w-6xl">
     <PageHeader title="Your courses" description={`Welcome, ${account.display_name}. Open a course to review its feedback.`}
       actions={canCreate && <CreateCourseSheet account={account} api={activeApi} onCreated={courseCreated} />} />
-    {created && <p className="mt-5 rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-base text-foreground" role="status">Course created. Open feedback to continue.</p>}
+    {created && <p className="mt-5 rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-base text-foreground" role="status">Course created. Select it to continue.</p>}
     {selectionNotice && <p className="mt-5 rounded-lg border border-border bg-muted px-4 py-3 text-base" role="status">Your previously selected course is no longer available. Choose another course to continue.</p>}
     <CourseList canCreate={canCreate} courses={courses} environment={environment}
       selectedCourseId={sessionStorage.getItem(qualifyBrowserKey(environment.name, 'selected-course'))} />
