@@ -16,7 +16,7 @@ export function AuthoringConversation({ messages, value, onValueChange, onSend, 
     event.preventDefault()
     if (value.trim() && !disabled && !busy) onSend()
   }
-  return <section aria-label="AI collaboration" className="flex min-h-[30rem] flex-col overflow-hidden rounded-xl border border-border bg-card">
+  return <section aria-label="AI collaboration" className="flex min-h-[30rem] flex-col overflow-hidden rounded-xl border border-border bg-card xl:sticky xl:top-0 xl:h-[calc(100dvh-18rem)] xl:max-h-[38rem]">
     <header className="border-b border-border px-4 py-3">
       <h3 className="font-semibold">Design together</h3>
       <p className="text-sm text-muted-foreground">Describe the change you want. The draft updates after validation.</p>
