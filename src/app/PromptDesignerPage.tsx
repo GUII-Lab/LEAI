@@ -528,7 +528,7 @@ export function PromptDesignerPage({ api, environment, verified }: {
           {draft && <p className="text-sm text-muted-foreground">The audience and format are fixed for this draft. Create a new draft to change them.</p>}
         </fieldset>
       </div>}
-      {step === 2 && body && <div className="grid min-w-0 gap-4 2xl:grid-cols-[minmax(18rem,0.85fr)_minmax(0,1.15fr)]">
+      {step === 2 && body && <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(18rem,0.85fr)_minmax(0,1.15fr)]">
         <AuthoringConversation busy={!!aiJobId} disabled={!draft} messages={conversation} onSend={() => { void sendAi() }}
           onValueChange={setComposer} value={composer} />
         <ArtifactEditor body={body} collectionStyle={draft?.collection_style ?? 'guided'} disabled={false} onChange={editBody} onRestore={(version) => { void restoreVersion(version) }}
