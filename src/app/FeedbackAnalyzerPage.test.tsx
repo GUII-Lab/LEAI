@@ -9,10 +9,12 @@ import type {
   AnalysisResponsesResponse,
 } from '@/api/contracts/feedback-analyzer'
 import type { CanonicalCourse } from '@/api/contracts/instructor'
+import { getEnvironment, qualifyBrowserKey } from '@/config/environment'
 import type { FeedbackAnalyzerApi } from './FeedbackAnalyzerPage'
 import { FeedbackAnalyzerPage } from './FeedbackAnalyzerPage'
 
 const courseId = '550e8400-e29b-41d4-a716-446655440000'
+const environment = getEnvironment({})
 const generalOccurrenceId = '550e8400-e29b-41d4-a716-446655440010'
 const teamOccurrenceId = '550e8400-e29b-41d4-a716-446655440011'
 const responseId = '550e8400-e29b-41d4-a716-446655440020'
@@ -120,12 +122,14 @@ const api: FeedbackAnalyzerApi = {
 }
 
 function renderPage(verified = true, pageApi: FeedbackAnalyzerApi = api) {
+  sessionStorage.setItem(qualifyBrowserKey(environment.name, 'selected-course'), courseId)
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  render(<QueryClientProvider client={client}><FeedbackAnalyzerPage api={pageApi} verified={verified} /></QueryClientProvider>)
+  render(<QueryClientProvider client={client}><FeedbackAnalyzerPage api={pageApi} environment={environment} verified={verified} /></QueryClientProvider>)
   return client
 }
 
 beforeEach(() => {
+  sessionStorage.clear()
   window.history.replaceState(null, '', '/FeedbackAnalyzer.html')
   vi.mocked(api.courses).mockReset().mockResolvedValue({ courses: [course] })
   vi.mocked(api.overview).mockReset().mockResolvedValue(overview)
@@ -148,7 +152,8 @@ beforeEach(() => {
 it('loads course analysis and composes response records using the existing presentation components', async () => {
   const user = userEvent.setup()
   renderPage()
-  expect(await screen.findByRole('combobox', { name: 'Course' })).toHaveValue(courseId)
+  expect(await screen.findByText('Week 1 feedback')).toBeInTheDocument()
+  expect(screen.queryByRole('combobox', { name: 'Course' })).not.toBeInTheDocument()
   expect(await screen.findByText('Week 1 feedback')).toBeInTheDocument()
   expect(await screen.findByText('The weekly instructions were clear.')).toBeInTheDocument()
   expect(screen.getByText('2')).toBeInTheDocument()

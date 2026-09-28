@@ -20,7 +20,7 @@ import { PageNotFound } from './PageNotFound'
 function Analyzer({ environment }: { environment: PublicEnvironment }) {
   const verified = useEnvironmentWriteAccess()
   const api = useMemo(() => createInstructorApi(environment, () => verified), [environment, verified])
-  return <FeedbackAnalyzerPage api={api} verified={verified} />
+  return <FeedbackAnalyzerPage api={api} environment={environment} verified={verified} />
 }
 
 function FeedbackChat({ environment }: { environment: PublicEnvironment }) {
@@ -54,8 +54,7 @@ const courseDestinations = [
   { id: 'prompt-designer', label: 'Prompt Designer', path: 'PromptDesigner.html' },
   { id: 'feedback-analyzer', label: 'Feedback Analyzer', path: 'FeedbackAnalyzer.html' },
   { id: 'feedback-chat', label: 'Feedback Chat', path: 'FeedbackChat.html' },
-  { id: 'course-banner', label: 'Course Banner', path: 'CourseBanner.html' },
-  { id: 'customizations', label: 'Customizations', path: 'Customizations.html' },
+  { id: 'settings', label: 'Settings', path: 'Customizations.html' },
 ]
 
 export function App({
@@ -139,7 +138,7 @@ export function App({
         {activeItem === 'feedback-analyzer' && <Analyzer environment={environment} />}
         {activeItem === 'feedback-chat' && <FeedbackChat environment={environment} />}
         {activeItem === 'prompt-designer' && <PromptDesigner environment={environment} />}
-        {activeItem === 'customizations' && <Customizations environment={environment} />}
+        {activeItem === 'settings' && <Customizations environment={environment} />}
       </AppShell>
     )
   }

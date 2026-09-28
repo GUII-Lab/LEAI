@@ -100,7 +100,7 @@ export function FeedbackChatPage({ api, environment, verified }: {
   const courseKey = qualifyBrowserKey(environment.name, 'selected-course')
   const [signedOut, setSignedOut] = useState(false)
   const params = useMemo(() => new URLSearchParams(window.location.search), [])
-  const [selectedCourseId, setSelectedCourseId] = useState(() => params.get('course_id') ?? sessionStorage.getItem(courseKey) ?? '')
+  const selectedCourseId = sessionStorage.getItem(courseKey) ?? ''
   const [selectedChatId, setSelectedChatId] = useState(() => params.get('chat_id') ?? '')
   const [selectedOccurrenceId, setSelectedOccurrenceId] = useState(() => params.get('occurrence_id') ?? '')
   const [composerText, setComposerText] = useState('')
@@ -117,7 +117,6 @@ export function FeedbackChatPage({ api, environment, verified }: {
     sessionStorage.removeItem(tokenKey)
     sessionStorage.removeItem(courseKey)
     setSignedOut(true)
-    setSelectedCourseId('')
     setSelectedChatId('')
     setActiveJobId('')
     setError(message)
@@ -136,7 +135,7 @@ export function FeedbackChatPage({ api, environment, verified }: {
     enabled: verified && !signedOut, retry: false,
   })
   const courses = courseQuery.data ?? []
-  const activeCourseId = courses.find((course) => course.course_id === selectedCourseId)?.course_id ?? courses[0]?.course_id ?? ''
+  const activeCourseId = courses.some((course) => course.course_id === selectedCourseId) ? selectedCourseId : ''
   const course = courses.find((row) => row.course_id === activeCourseId)
   const canUse = course?.allowed_actions.includes('analysis.use') ?? false
   const occurrencesQuery = useQuery({
@@ -245,14 +244,6 @@ export function FeedbackChatPage({ api, environment, verified }: {
   }
 
   useEffect(() => {
-    if (!courseQuery.data) return
-    if (activeCourseId) {
-      sessionStorage.setItem(courseKey, activeCourseId)
-      if (activeCourseId !== selectedCourseId) setSelectedCourseId(activeCourseId)
-    } else sessionStorage.removeItem(courseKey)
-  }, [activeCourseId, courseKey, courseQuery.data, selectedCourseId])
-
-  useEffect(() => {
     if (!chatsQuery.data) return
     if (selectedChatId && !summaries.some((summary) => summary.id === selectedChatId)) setSelectedChatId('')
     if (!selectedChatId && summaries.length) setSelectedChatId(summaries[0].id)
@@ -292,13 +283,6 @@ export function FeedbackChatPage({ api, environment, verified }: {
   async function signOut() {
     try { await api.logout(); clearSession() }
     catch (cause) { if (cause instanceof AuthenticationRequiredError) clearSession(); else setError('Sign-out could not finish. Please try again.') }
-  }
-  function chooseCourse(id: string) {
-    setSelectedCourseId(id)
-    setSelectedChatId('')
-    setActiveJobId('')
-    sessionStorage.setItem(courseKey, id)
-    setError('')
   }
   function send(text = composerText, retryMessageId?: string) {
     const value = text.trim()
@@ -374,13 +358,7 @@ export function FeedbackChatPage({ api, environment, verified }: {
   const visibleError = error || (courseQuery.isError && !(courseQuery.error instanceof AuthenticationRequiredError) ? 'Could not load your courses. Please retry.' : '')
   const firstLoad = courseQuery.isPending
   return <div className="mt-6 space-y-5">
-    <div className="flex flex-wrap items-end gap-3">
-      <label className="min-w-0 flex-1 space-y-1.5 text-base font-medium">Course
-        <select aria-label="Course" className="h-10 w-full min-w-0 rounded-lg border border-input bg-background px-3 text-base focus-visible:ring-3 focus-visible:ring-ring/50" disabled={firstLoad || courses.length === 0} onChange={(event) => chooseCourse(event.target.value)} value={activeCourseId}>
-          {courses.length === 0 && <option value="">No courses available</option>}
-          {courses.map((row) => <option key={row.course_id} value={row.course_id}>{row.course_name} · {row.course_code}</option>)}
-        </select>
-      </label>
+    <div className="flex flex-wrap justify-end">
       <Button onClick={() => void signOut()} type="button" variant="outline">Sign out</Button>
     </div>
     {visibleError && <p className="text-base text-destructive" role="alert">{visibleError}</p>}
@@ -397,7 +375,7 @@ export function FeedbackChatPage({ api, environment, verified }: {
               <Card>
                 <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
                   <div><CardTitle>{chat.title}</CardTitle><CardDescription>Add sources here to use them for future questions in this Chat.</CardDescription></div>
-                  <div className="flex flex-wrap gap-2"><Button onClick={downloadMarkdown} type="button" variant="outline">Export Markdown</Button><Button onClick={() => { setError(''); setNotice(''); createChatMutation.mutate() }} type="button">New chat</Button></div>
+                  <div className="flex flex-wrap gap-2"><Button onClick={downloadMarkdown} type="button" variant="outline">Export Markdown</Button><Button aria-label="Create another Chat" onClick={() => { setError(''); setNotice(''); createChatMutation.mutate() }} type="button">New chat</Button></div>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex flex-wrap items-end gap-2">

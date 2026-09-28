@@ -28,11 +28,12 @@ const chat = {
   ],
 }
 const api: FeedbackChatApi = {
-  courses: vi.fn(), logout: vi.fn(), occurrences: vi.fn(), chats: vi.fn(), createChat: vi.fn(), chat: vi.fn(),
-  renameChat: vi.fn(), archiveChat: vi.fn(), addChatScope: vi.fn(), createTurn: vi.fn(), job: vi.fn(),
+  courses: vi.fn(), occurrences: vi.fn(), chats: vi.fn(), createChat: vi.fn(), chat: vi.fn(),
+  renameChat: vi.fn(), archiveChat: vi.fn(), addChatScope: vi.fn(), createTurn: vi.fn(), job: vi.fn(), logout: vi.fn(),
 }
 
 function renderPage() {
+  sessionStorage.setItem('leai:local:selected-course', courseId)
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   render(<QueryClientProvider client={client}><FeedbackChatPage api={api} environment={environment} verified /></QueryClientProvider>)
   return client
@@ -42,7 +43,6 @@ beforeEach(() => {
   sessionStorage.clear()
   window.history.replaceState({}, '', '/FeedbackChat.html')
   vi.mocked(api.courses).mockReset().mockResolvedValue({ courses: [course] })
-  vi.mocked(api.logout).mockReset().mockResolvedValue(undefined)
   vi.mocked(api.occurrences).mockReset().mockResolvedValue({ occurrences: [occurrence, secondOccurrence] })
   vi.mocked(api.chats).mockReset().mockResolvedValue({ chats: [{ id: chatId, title: chat.title, updated_at: chat.updated_at }] })
   vi.mocked(api.createChat).mockReset().mockResolvedValue(chat)
@@ -52,11 +52,17 @@ beforeEach(() => {
   vi.mocked(api.addChatScope).mockReset().mockResolvedValue(chat)
   vi.mocked(api.createTurn).mockReset().mockResolvedValue({ job_id: jobId })
   vi.mocked(api.job).mockReset().mockResolvedValue({ id: jobId, status: 'completed', error_code: null, result: { assistant_message_id: '11' } })
+  vi.mocked(api.logout).mockReset().mockResolvedValue(undefined)
 })
 
 it('creates a Chat and composes the existing transcript, messages, composer, and citations', async () => {
   const user = userEvent.setup()
   renderPage()
+  expect(await screen.findByText('Week 2 feedback')).toBeInTheDocument()
+  expect(screen.queryByRole('combobox', { name: 'Course' })).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'New chat' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Create another Chat' })).toBeInTheDocument()
   await user.click(await screen.findByRole('button', { name: 'New chat' }))
   const transcript = await screen.findByRole('log', { name: 'Conversation' })
   expect(within(transcript).getByText('Students asked for clearer steps. Source 1')).toBeInTheDocument()

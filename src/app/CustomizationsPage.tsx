@@ -1,13 +1,140 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AuthenticationRequiredError, createInstructorApi, InstructorApiError } from '@/api/instructor-v1'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { qualifyBrowserKey, type PublicEnvironment } from '@/config/environment'
 import { loginHref } from '@/auth/navigation'
 
 type InstructorApi = ReturnType<typeof createInstructorApi>
+type BannerSettings = Awaited<ReturnType<InstructorApi['courseBannerSettings']>>
+const defaultBannerText = "You're chatting with an AI assistant, not a person. It can make mistakes, so use your own judgment."
+
+function CourseBannerEditor({ api, courseId, environmentName }: {
+  api: InstructorApi
+  courseId: string
+  environmentName: string
+}) {
+  const queryClient = useQueryClient()
+  const queryKey = ['course-banner-settings', environmentName, courseId]
+  const bannerQuery = useQuery({
+    queryKey,
+    queryFn: ({ signal }) => api.courseBannerSettings(courseId, signal),
+    retry: false,
+  })
+  const [draftOverride, setDraftOverride] = useState<Omit<BannerSettings, 'settings_version'> | null>(null)
+  const serverDraft = bannerQuery.data
+    ? (({ settings_version: _version, ...settings }) => settings)(bannerQuery.data)
+    : null
+  const draft = draftOverride ?? serverDraft
+  function updateDraft(patch: Partial<Omit<BannerSettings, 'settings_version'>>) {
+    if (draft) setDraftOverride({ ...draft, ...patch })
+  }
+  const save = useMutation({
+    mutationFn: (settings: Omit<BannerSettings, 'settings_version'>) =>
+      api.updateCourseBannerSettings(courseId, {
+        ...settings,
+        expected_settings_version: bannerQuery.data?.settings_version ?? 0,
+      }),
+    onSuccess: async (settings) => {
+      queryClient.setQueryData(queryKey, settings)
+      setDraftOverride(null)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['course-debug-settings', environmentName, courseId] }),
+        queryClient.invalidateQueries({ queryKey: ['analysis-settings', environmentName, courseId] }),
+      ])
+    },
+  })
+  const conflict = save.error instanceof InstructorApiError && save.error.status === 409
+
+  return <Card>
+    <CardHeader>
+      <h2 className="text-xl font-semibold">Course Banner</h2>
+      <CardDescription>Set the notification students see on this course’s feedback surveys.</CardDescription>
+    </CardHeader>
+    <CardContent className="space-y-5">
+      {bannerQuery.isPending && <p role="status">Loading course banner settings…</p>}
+      {bannerQuery.isError && <p role="alert">Could not load the course banner settings.</p>}
+      {draft && <>
+        <section className="rounded-xl border border-border bg-card p-4">
+          <div className="flex items-center justify-between gap-4">
+            <div><h3 className="font-semibold">Show the banner to students</h3><p className="mt-1 text-base text-muted-foreground">When off, students see no banner.</p></div>
+            <Switch aria-label="Show the banner to students" checked={draft.banner_enabled} disabled={save.isPending}
+              onCheckedChange={(banner_enabled) => updateDraft({ banner_enabled })} />
+          </div>
+        </section>
+        <section className="space-y-3 rounded-xl border border-border bg-card p-4">
+          <div><h3 className="font-semibold">Banner text</h3><p className="mt-1 text-base text-muted-foreground">Leave blank to use the default disclaimer. Up to 2,000 characters.</p></div>
+          <Textarea aria-label="Banner text" maxLength={2000} value={draft.banner_text}
+            onChange={(event) => updateDraft({ banner_text: event.target.value })} />
+          <Button onClick={() => updateDraft({ banner_text: '' })} type="button" variant="outline">Use default disclaimer</Button>
+        </section>
+        <section className="space-y-4 rounded-xl border border-border bg-card p-4">
+          <h3 className="font-semibold">Display behavior</h3>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="space-y-2 text-base">Display duration
+              <select aria-label="Display duration" className="h-10 w-full rounded-lg border border-input bg-background px-3" value={draft.banner_display_mode}
+                onChange={(event) => updateDraft({ banner_display_mode: event.target.value as BannerSettings['banner_display_mode'] })}>
+                <option value="persistent">Until the student closes it</option><option value="timed">Automatically dismiss</option>
+              </select>
+            </label>
+            {draft.banner_display_mode === 'timed' && <label className="space-y-2 text-base">Auto-dismiss after (seconds)
+              <Input aria-label="Auto-dismiss after seconds" max={600} min={1} type="number" value={draft.banner_duration_seconds}
+                onChange={(event) => updateDraft({ banner_duration_seconds: Number(event.target.value) })} />
+            </label>}
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <div><h4 className="font-medium">Allow students to close it</h4><p className="mt-1 text-base text-muted-foreground">Adds a close button to the banner.</p></div>
+            <Switch aria-label="Allow students to close the banner" checked={draft.banner_dismissible}
+              onCheckedChange={(banner_dismissible) => updateDraft({ banner_dismissible })} />
+          </div>
+        </section>
+        <section className="space-y-4 rounded-xl border border-border bg-card p-4">
+          <div className="flex items-center justify-between gap-4">
+            <div><h3 className="font-semibold">Anonymous A/B split</h3><p className="mt-1 text-base text-muted-foreground">Show the banner to a random share of students; the rest are a silent control group.</p></div>
+            <Switch aria-label="Enable anonymous A/B split" checked={draft.banner_split_enabled}
+              onCheckedChange={(banner_split_enabled) => updateDraft({ banner_split_enabled })} />
+          </div>
+          {draft.banner_split_enabled && <div className="grid gap-4 sm:grid-cols-2">
+            <label className="space-y-2 text-base">Split by
+              <select aria-label="Split by" className="h-10 w-full rounded-lg border border-input bg-background px-3" value={draft.banner_split_mode}
+                onChange={(event) => updateDraft({ banner_split_mode: event.target.value as BannerSettings['banner_split_mode'], banner_split_value: event.target.value === 'count' ? 20 : 50 })}>
+                <option value="percentage">Percentage of students</option><option value="count">Number of students</option>
+              </select>
+            </label>
+            <label className="space-y-2 text-base">{draft.banner_split_mode === 'percentage' ? 'Percentage (0–100)' : 'Student count (minimum 1)'}
+              <Input aria-label={draft.banner_split_mode === 'percentage' ? 'Banner split percentage' : 'Banner split count'}
+                max={draft.banner_split_mode === 'percentage' ? 100 : 100000} min={draft.banner_split_mode === 'percentage' ? 0 : 1}
+                type="number" value={draft.banner_split_value}
+                onChange={(event) => updateDraft({ banner_split_value: Number(event.target.value) })} />
+            </label>
+          </div>}
+        </section>
+        <section className="space-y-3 rounded-xl border border-border bg-muted/30 p-4">
+          <h3 className="font-semibold">Student preview</h3>
+          {draft.banner_enabled
+            ? <div className="flex items-start gap-3 rounded-lg border border-warning/30 bg-warning/10 p-4 text-foreground">
+              <span aria-hidden="true">ⓘ</span><p className="min-w-0 flex-1">{draft.banner_text.trim() || defaultBannerText}</p>
+              {draft.banner_dismissible && <button aria-label="Preview close banner" className="rounded px-2" type="button">×</button>}
+            </div>
+            : <p className="text-base text-muted-foreground">Banner is off. Students won’t see anything.</p>}
+          {draft.banner_enabled && draft.banner_display_mode === 'timed' && <p className="text-sm text-muted-foreground">Auto-dismisses after {draft.banner_duration_seconds} seconds.</p>}
+          {draft.banner_enabled && draft.banner_split_enabled && <p className="text-sm text-muted-foreground">A/B: {draft.banner_split_mode === 'count' ? 'the first ' + draft.banner_split_value + ' students' : 'about ' + draft.banner_split_value + '% of students'} see this; the rest see nothing.</p>}
+        </section>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button disabled={save.isPending} onClick={() => save.mutate(draft)} type="button">Save banner</Button>
+          {save.isPending && <p role="status">Saving course banner…</p>}
+          {save.isSuccess && <p className="text-sm text-success" role="status">Course banner saved.</p>}
+          {conflict && <div className="flex flex-wrap items-center gap-3"><p className="text-sm text-destructive" role="alert">These settings changed elsewhere. Reload before saving.</p><Button onClick={() => { save.reset(); setDraftOverride(null); void bannerQuery.refetch() }} type="button" variant="outline">Reload settings</Button></div>}
+          {save.isError && !conflict && <p className="text-sm text-destructive" role="alert">Could not save the course banner.</p>}
+        </div>
+      </>}
+    </CardContent>
+  </Card>
+}
 
 export function CustomizationsPage({ api, environment, verified }: {
   api?: InstructorApi
@@ -16,7 +143,7 @@ export function CustomizationsPage({ api, environment, verified }: {
 }) {
   const queryClient = useQueryClient()
   const courseKey = qualifyBrowserKey(environment.name, 'selected-course')
-  const [selectedId, setSelectedId] = useState(() => sessionStorage.getItem(courseKey) ?? '')
+  const selectedId = sessionStorage.getItem(courseKey) ?? ''
   const activeApi = useMemo(
     () => api ?? createInstructorApi(environment, () => verified),
     [api, environment, verified],
@@ -28,8 +155,7 @@ export function CustomizationsPage({ api, environment, verified }: {
     retry: false,
   })
   const courses = coursesQuery.data?.courses ?? []
-  const selectedCourseId = courses.find((course) => course.course_id === selectedId)?.course_id
-    ?? courses[0]?.course_id ?? ''
+  const selectedCourseId = courses.some((course) => course.course_id === selectedId) ? selectedId : ''
   const settingsQuery = useQuery({
     queryKey: ['course-debug-settings', environment.name, selectedCourseId],
     queryFn: ({ signal }) => activeApi.debugSettings(selectedCourseId, signal),
@@ -41,6 +167,8 @@ export function CustomizationsPage({ api, environment, verified }: {
       activeApi.updateDebugSettings(selectedCourseId, enabled, version),
     onSuccess: (settings) => {
       queryClient.setQueryData(['course-debug-settings', environment.name, selectedCourseId], settings)
+      void queryClient.invalidateQueries({ queryKey: ['course-banner-settings', environment.name, selectedCourseId] })
+      void queryClient.invalidateQueries({ queryKey: ['analysis-settings', environment.name, selectedCourseId] })
     },
   })
   const matchingSettingsQuery = useQuery({
@@ -54,20 +182,10 @@ export function CustomizationsPage({ api, environment, verified }: {
       activeApi.updateSettings(selectedCourseId, { anonymous_matching_enabled: enabled, expected_settings_version: version }),
     onSuccess: (settings) => {
       queryClient.setQueryData(['analysis-settings', environment.name, selectedCourseId], settings)
+      void queryClient.invalidateQueries({ queryKey: ['course-banner-settings', environment.name, selectedCourseId] })
+      void queryClient.invalidateQueries({ queryKey: ['course-debug-settings', environment.name, selectedCourseId] })
     },
   })
-
-  useEffect(() => {
-    if (!coursesQuery.data) return
-    if (selectedCourseId) sessionStorage.setItem(courseKey, selectedCourseId)
-    else sessionStorage.removeItem(courseKey)
-  }, [courseKey, coursesQuery.data, selectedCourseId])
-
-  function chooseCourse(id: string) {
-    setSelectedId(id)
-    sessionStorage.setItem(courseKey, id)
-    update.reset()
-  }
 
   const settingsError = settingsQuery.error
   const researcherDenied = settingsError instanceof InstructorApiError && settingsError.status === 404
@@ -80,16 +198,12 @@ export function CustomizationsPage({ api, environment, verified }: {
   if (!verified) return <p className="mt-6 text-base text-muted-foreground" role="status">Waiting for backend identity verification before loading course settings.</p>
 
   return <div className="mt-6 max-w-3xl space-y-5">
-    {courses.length > 0 && <label className="block max-w-xl space-y-1.5 text-base font-medium">Course
-      <select aria-label="Course" className="h-10 w-full rounded-lg border border-input bg-background px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-        disabled={coursesQuery.isPending} onChange={(event) => chooseCourse(event.target.value)} value={selectedCourseId}>
-        {courses.map((course) => <option key={course.course_id} value={course.course_id}>{course.course_name} · {course.course_code}</option>)}
-      </select>
-    </label>}
     {coursesQuery.isPending && <p role="status">Loading courses…</p>}
     {coursesQuery.isError && !sessionExpired && <p role="alert">Could not load course settings. Please try again.</p>}
     {sessionExpired && <p role="alert">Your sign-in has expired. <a className="font-medium text-primary underline" href={loginHref(environment, window.location.pathname)}>Sign in again</a>.</p>}
     {coursesQuery.isSuccess && courses.length === 0 && <p className="text-base text-muted-foreground">No active courses are available for this account.</p>}
+
+    {courses.length > 0 && selectedCourseId && <CourseBannerEditor api={activeApi} courseId={selectedCourseId} environmentName={environment.name} key={selectedCourseId} />}
 
     {courses.length > 0 && <Card>
       <CardHeader>

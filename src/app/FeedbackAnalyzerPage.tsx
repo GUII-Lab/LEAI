@@ -12,6 +12,7 @@ import type {
   CertificateVerificationRequest,
   CertificateVerificationResponse,
 } from '@/api/contracts/feedback-analyzer'
+import { qualifyBrowserKey, type PublicEnvironment } from '@/config/environment'
 import { Button } from '@/components/ui/button'
 import {
   AnalysisModeTabs,
@@ -57,13 +58,13 @@ const modes: readonly AnalysisModeOption[] = [
   { value: 'group-progress', label: 'Group progress' },
 ]
 
-export function FeedbackAnalyzerPage({ api, verified }: { api: FeedbackAnalyzerApi; verified: boolean }) {
+export function FeedbackAnalyzerPage({ api, environment, verified }: { api: FeedbackAnalyzerApi; environment: PublicEnvironment; verified: boolean }) {
   const routeParams = useMemo(() => new URLSearchParams(window.location.search), [])
   const linkedOccurrenceId = routeParams.get('occurrence_id') ?? ''
   const linkedResponseId = routeParams.get('response_id') ?? ''
   const linkedMessageIdRaw = routeParams.get('response_message_id') ?? ''
   const linkedMessageId = /^\d{1,20}$/.test(linkedMessageIdRaw) ? linkedMessageIdRaw : ''
-  const [selectedCourseId, setSelectedCourseId] = useState(() => routeParams.get('course_id') ?? '')
+  const selectedCourseId = sessionStorage.getItem(qualifyBrowserKey(environment.name, 'selected-course')) ?? ''
   const [mode, setMode] = useState<AnalysisMode>('general')
   const [selectedScopeId, setSelectedScopeId] = useState(() => linkedOccurrenceId || 'all')
   const [selectedSurveyId, setSelectedSurveyId] = useState('')
@@ -82,9 +83,7 @@ export function FeedbackAnalyzerPage({ api, verified }: { api: FeedbackAnalyzerA
     retry: false,
   })
   const courses = coursesQuery.data?.courses ?? []
-  const courseId = courses.some((course) => course.course_id === selectedCourseId)
-    ? selectedCourseId
-    : courses[0]?.course_id ?? ''
+  const courseId = courses.some((course) => course.course_id === selectedCourseId) ? selectedCourseId : ''
   const course = courses.find((item) => item.course_id === courseId)
   const canAnalyze = course?.allowed_actions.includes('analysis.use') ?? false
   const canViewResponses = course?.allowed_actions.includes('responses.view') ?? false
@@ -249,24 +248,6 @@ export function FeedbackAnalyzerPage({ api, verified }: { api: FeedbackAnalyzerA
   if (courses.length === 0) return <p className="mt-6 text-base text-muted-foreground">No active courses are available for this account.</p>
 
   return <div className="mt-6 space-y-5">
-    <div className="flex flex-wrap items-end gap-3">
-      <label className="min-w-0 flex-1 space-y-1.5 text-base font-medium">Course
-        <select
-          aria-label="Course"
-          className="h-9 w-full min-w-0 rounded-lg border border-input bg-background px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-          onChange={(event) => {
-            setSelectedCourseId(event.target.value)
-            setSelectedScopeId('all')
-            setSelectedSurveyId('')
-            setSelectedTeamId('')
-            setSelectedTerm('')
-            setSearchTerm('')
-          }}
-          value={courseId}
-        >{courses.map((item) => <option key={item.course_id} value={item.course_id}>{item.course_name} · {item.course_code}</option>)}</select>
-      </label>
-    </div>
-
     {!canAnalyze && <p className="text-base text-muted-foreground">You do not have permission to use Feedback Analyzer for this course.</p>}
     {canAnalyze && <>
       <AnalysisModeTabs mode={mode} modes={modes} onModeChange={(nextMode) => { setMode(nextMode); setSelectedScopeId('all'); setSelectedTeamId(''); setSelectedTerm('') }} />

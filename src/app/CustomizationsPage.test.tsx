@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { InstructorApiError } from '@/api/instructor-v1'
-import { getEnvironment } from '@/config/environment'
+import { getEnvironment, qualifyBrowserKey } from '@/config/environment'
 import { CustomizationsPage } from './CustomizationsPage'
 
 const environment = getEnvironment({})
@@ -13,6 +13,11 @@ const courses = { courses: [{ course_id: courseId, course_code: 'CMPM-80H', cour
   institution_slug: 'ucsc', lifecycle_state: 'active' as const, role: 'researcher' as const, allowed_actions: [] }] }
 
 function makeApi(overrides: Partial<{ settings: () => Promise<{ debug_enabled: boolean; settings_version: number }> }> = {}): TestInstructorApi {
+  const bannerSettings = {
+    banner_enabled: false, banner_text: '', banner_dismissible: false, banner_display_mode: 'persistent' as const,
+    banner_duration_seconds: 10, banner_split_enabled: false, banner_split_mode: 'percentage' as const,
+    banner_split_value: 50, settings_version: 1,
+  }
   return {
     courses: vi.fn().mockResolvedValue(courses),
     debugSettings: vi.fn().mockImplementation(overrides.settings ?? (() => Promise.resolve({ debug_enabled: false, settings_version: 1 }))),
@@ -21,10 +26,15 @@ function makeApi(overrides: Partial<{ settings: () => Promise<{ debug_enabled: b
     updateSettings: vi.fn().mockImplementation(async (_id: string, input: { anonymous_matching_enabled: boolean }) => ({
       anonymous_matching_enabled: input.anonymous_matching_enabled, settings_version: 2,
     })),
+    courseBannerSettings: vi.fn().mockResolvedValue(bannerSettings),
+    updateCourseBannerSettings: vi.fn().mockImplementation(async (_id: string, input: Record<string, unknown>) => ({
+      ...input, expected_settings_version: undefined, settings_version: 2,
+    })),
   } as unknown as TestInstructorApi
 }
 
 function renderPage(api: ReturnType<typeof makeApi>, selectedEnvironment = environment) {
+  sessionStorage.setItem(qualifyBrowserKey(selectedEnvironment.name, 'selected-course'), courseId)
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(<QueryClientProvider client={client}><CustomizationsPage api={api} environment={selectedEnvironment} verified /></QueryClientProvider>)
 }
@@ -39,6 +49,7 @@ it('persists the researcher switch with the current course settings version', as
   const user = userEvent.setup()
   renderPage(api)
 
+  expect(screen.queryByRole('combobox', { name: 'Course' })).not.toBeInTheDocument()
   const toggle = await screen.findByRole('switch', { name: 'Enable AI debug panel' })
   expect(toggle).toHaveAttribute('aria-checked', 'false')
   await user.click(toggle)
@@ -80,4 +91,18 @@ it('persists course-enabled anonymous matching from Customizations with optimist
     anonymous_matching_enabled: true, expected_settings_version: 3,
   }))
   expect(await screen.findByText('Anonymous matching setting saved.')).toBeInTheDocument()
+})
+
+it('edits and saves the current course banner with its settings version', async () => {
+  const api = makeApi()
+  const user = userEvent.setup()
+  renderPage(api)
+  const text = await screen.findByRole('textbox', { name: 'Banner text' })
+  await user.type(text, 'Welcome to the course')
+  await user.click(screen.getByRole('switch', { name: 'Show the banner to students' }))
+  await user.click(screen.getByRole('button', { name: 'Save banner' }))
+  await waitFor(() => expect(api.updateCourseBannerSettings).toHaveBeenCalledWith(courseId, expect.objectContaining({
+    banner_enabled: true, banner_text: 'Welcome to the course', expected_settings_version: 1,
+  })))
+  expect(await screen.findByRole('status')).toHaveTextContent('Course banner saved')
 })

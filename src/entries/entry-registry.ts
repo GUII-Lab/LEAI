@@ -41,14 +41,14 @@ const entries: Record<EntryName, EntryDefinition> = {
     pageTitle: 'Feedback Chat',
   },
   CourseBanner: {
-    activeItem: 'course-banner',
-    description: 'Set the course-level feedback introduction.',
-    pageTitle: 'Course Banner',
+    activeItem: 'settings',
+    description: 'Adjust this course’s feedback settings.',
+    pageTitle: 'Settings',
   },
   Customizations: {
-    activeItem: 'customizations',
-    description: 'Adjust course feedback settings.',
-    pageTitle: 'Customizations',
+    activeItem: 'settings',
+    description: 'Adjust this course’s feedback settings.',
+    pageTitle: 'Settings',
   },
   InstructorLogin: {
     activeItem: 'instructor-login',

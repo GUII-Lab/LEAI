@@ -96,6 +96,37 @@ export const canonicalCourseActionSchema = z.enum([
   'analysis.use',
 ])
 
+export const courseBannerSettingsSchema = z.object({
+  banner_enabled: z.boolean(),
+  banner_text: z.string().max(2000),
+  banner_dismissible: z.boolean(),
+  banner_display_mode: z.enum(['persistent', 'timed']),
+  banner_duration_seconds: z.number().int().min(1).max(600),
+  banner_split_enabled: z.boolean(),
+  banner_split_mode: z.enum(['percentage', 'count']),
+  banner_split_value: z.number().int().min(0),
+  settings_version: z.number().int().positive(),
+}).strict().superRefine((value, context) => {
+  if (value.banner_split_mode === 'percentage' && value.banner_split_value > 100) {
+    context.addIssue({ code: 'custom', path: ['banner_split_value'], message: 'Percentage must be between 0 and 100' })
+  }
+  if (value.banner_split_mode === 'count' && value.banner_split_value < 1) {
+    context.addIssue({ code: 'custom', path: ['banner_split_value'], message: 'Count must be at least 1' })
+  }
+})
+
+export const courseBannerSettingsPatchSchema = z.object({
+  banner_enabled: z.boolean(),
+  banner_text: z.string().max(2000),
+  banner_dismissible: z.boolean(),
+  banner_display_mode: z.enum(['persistent', 'timed']),
+  banner_duration_seconds: z.number().int().min(1).max(600),
+  banner_split_enabled: z.boolean(),
+  banner_split_mode: z.enum(['percentage', 'count']),
+  banner_split_value: z.number().int().min(0),
+  expected_settings_version: z.number().int().positive(),
+}).strict()
+
 export const canonicalInstructorMeSchema = z.object({
   id: z.string().uuid(),
   email: emailSchema,

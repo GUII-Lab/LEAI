@@ -3,7 +3,6 @@ import {
   CircleHelpIcon,
   FilePenLineIcon,
   MessagesSquareIcon,
-  PanelsTopLeftIcon,
   SlidersHorizontalIcon,
 } from 'lucide-react'
 import type { NavigationItem } from './AccountRail'
@@ -13,8 +12,7 @@ const courseIcons = {
   'prompt-designer': FilePenLineIcon,
   'feedback-analyzer': ChartNoAxesCombinedIcon,
   'feedback-chat': MessagesSquareIcon,
-  'course-banner': PanelsTopLeftIcon,
-  customizations: SlidersHorizontalIcon,
+  settings: SlidersHorizontalIcon,
 }
 
 export function CourseNavigation({

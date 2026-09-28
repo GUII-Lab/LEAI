@@ -27,8 +27,7 @@ const courseItems = [
   { id: 'prompt-designer', label: 'Prompt Designer', href: '/LEAI/qa/PromptDesigner.html' },
   { id: 'feedback-analyzer', label: 'Feedback Analyzer', href: '/LEAI/qa/FeedbackAnalyzer.html' },
   { id: 'feedback-chat', label: 'Feedback Chat', href: '/LEAI/qa/FeedbackChat.html' },
-  { id: 'course-banner', label: 'Course Banner', href: '/LEAI/qa/CourseBanner.html' },
-  { id: 'customizations', label: 'Customizations', href: '/LEAI/qa/Customizations.html' },
+  { id: 'settings', label: 'Settings', href: '/LEAI/qa/Customizations.html' },
 ]
 
 function renderShell(onSignOut?: () => void, activeItem = 'prompt-designer') {
@@ -124,8 +123,7 @@ it('uses the approved Lucide icon for every account and course menu item', () =>
     ['Prompt Designer', 'lucide-file-pen-line'],
     ['Feedback Analyzer', 'lucide-chart-no-axes-combined'],
     ['Feedback Chat', 'lucide-messages-square'],
-    ['Course Banner', 'lucide-panels-top-left'],
-    ['Customizations', 'lucide-sliders-horizontal'],
+    ['Settings', 'lucide-sliders-horizontal'],
   ] as const
   for (const [label, iconClass] of icons) {
     expect(within(courseNavigation).getByRole('link', { name: label }).querySelector('svg'))

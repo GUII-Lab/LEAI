@@ -131,6 +131,37 @@ it('uses the versioned course setting endpoint for anonymous matching', async ()
   expect(new Headers(fetcher.mock.calls[2]?.[1]?.headers).get('X-CSRFToken')).toBe('masked-csrf-token')
 })
 
+it('loads and saves versioned course banner settings through the canonical API', async () => {
+  const settings = {
+    banner_enabled: true,
+    banner_text: 'Welcome',
+    banner_dismissible: true,
+    banner_display_mode: 'timed',
+    banner_duration_seconds: 30,
+    banner_split_enabled: true,
+    banner_split_mode: 'percentage',
+    banner_split_value: 25,
+    settings_version: 7,
+  } as const
+  const saved = { ...settings, settings_version: 8 }
+  const fetcher = vi.fn<typeof fetch>()
+    .mockResolvedValueOnce(new Response(JSON.stringify(settings), { status: 200 }))
+    .mockResolvedValueOnce(csrf())
+    .mockResolvedValueOnce(new Response(JSON.stringify(saved), { status: 200 }))
+  const api = createInstructorApi(environment, () => true, fetcher)
+
+  await expect(api.courseBannerSettings(courseId)).resolves.toEqual(settings)
+  const { settings_version: _settingsVersion, ...patch } = settings
+  await expect(api.updateCourseBannerSettings(courseId, {
+    ...patch, expected_settings_version: 7,
+  })).resolves.toEqual(saved)
+  expect(String(fetcher.mock.calls[0]?.[0])).toContain('instructor_courses/' + courseId + '/banner-settings/')
+  expect(fetcher.mock.calls[2]?.[1]?.method).toBe('PATCH')
+  expect(JSON.parse(fetcher.mock.calls[2]?.[1]?.body as string)).toEqual({
+    ...patch, expected_settings_version: 7,
+  })
+})
+
 it('treats archived Feedback Chat 204 responses as success', async () => {
   const chatId = '22222222-2222-4222-8222-222222222222'
   const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(csrf()).mockResolvedValueOnce(new Response(null, { status: 204 }))

@@ -4,6 +4,8 @@ import { createSessionClient } from './browser-session'
 import {
   canonicalCourseListResponseSchema,
   canonicalCourseCreateRequestSchema,
+  courseBannerSettingsSchema,
+  courseBannerSettingsPatchSchema,
   canonicalCourseSchema,
   canonicalInstructorMeSchema,
   canonicalProfilePatchRequestSchema,
@@ -170,6 +172,33 @@ export function createInstructorApi(
           body: JSON.stringify(body),
         }),
         courseDebugSettingsSchema,
+      )
+    },
+    async courseBannerSettings(courseId: string, signal?: AbortSignal) {
+      const id = z.string().uuid().parse(courseId)
+      return parseResponse(
+        await protectedRequest(`instructor_courses/${id}/banner-settings/`, { signal }),
+        courseBannerSettingsSchema,
+      )
+    },
+    async updateCourseBannerSettings(courseId: string, input: {
+      banner_enabled: boolean
+      banner_text: string
+      banner_dismissible: boolean
+      banner_display_mode: 'persistent' | 'timed'
+      banner_duration_seconds: number
+      banner_split_enabled: boolean
+      banner_split_mode: 'percentage' | 'count'
+      banner_split_value: number
+      expected_settings_version: number
+    }) {
+      const id = z.string().uuid().parse(courseId)
+      const body = courseBannerSettingsPatchSchema.parse(input)
+      return parseResponse(
+        await protectedRequest(`instructor_courses/${id}/banner-settings/`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        }),
+        courseBannerSettingsSchema,
       )
     },
     async search(courseId: string, query: string, signal?: AbortSignal) {

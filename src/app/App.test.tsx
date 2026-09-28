@@ -114,11 +114,11 @@ it('keeps account and course navigation inside the QA application base', async (
   )
 })
 
-it('shows the Researcher course debug switch in Customizations and persists its change', async () => {
+it('shows the Researcher course debug switch in Settings and persists its change', async () => {
   const user = userEvent.setup()
   sessionStorage.setItem('leai:qa:selected-course', '11111111-1111-4111-8111-111111111111')
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  render(<QueryClientProvider client={client}><App activeItem="customizations" pageTitle="Customizations" description="Adjust course feedback settings." /></QueryClientProvider>)
+  render(<QueryClientProvider client={client}><App activeItem="settings" pageTitle="Settings" description="Adjust this course’s feedback settings." /></QueryClientProvider>)
 
   expect(await screen.findByRole('heading', { name: 'AI debug visibility' })).toBeInTheDocument()
   const toggle = await screen.findByRole('switch', { name: 'Enable AI debug panel' })
