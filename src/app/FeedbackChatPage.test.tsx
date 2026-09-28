@@ -60,7 +60,7 @@ it('creates a Chat and composes the existing transcript, messages, composer, and
   renderPage()
   expect(await screen.findByText('Week 2 feedback')).toBeInTheDocument()
   expect(screen.queryByRole('combobox', { name: 'Course' })).not.toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Sign out' })).not.toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'New chat' })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Create another Chat' })).toBeInTheDocument()
   await user.click(await screen.findByRole('button', { name: 'New chat' }))

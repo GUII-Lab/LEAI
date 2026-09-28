@@ -280,10 +280,6 @@ export function FeedbackChatPage({ api, environment, verified }: {
     if (status === 'failed') setError('This answer could not be completed. You can retry the same question.')
   }, [activeChatId, activeCourseId, environment.name, jobQuery.data?.status, queryClient, storedJobKey])
 
-  async function signOut() {
-    try { await api.logout(); clearSession() }
-    catch (cause) { if (cause instanceof AuthenticationRequiredError) clearSession(); else setError('Sign-out could not finish. Please try again.') }
-  }
   function send(text = composerText, retryMessageId?: string) {
     const value = text.trim()
     if (!activeCourseId || !activeChatId || !value || value.length > 3000 || turnMutation.isPending) return
@@ -358,9 +354,6 @@ export function FeedbackChatPage({ api, environment, verified }: {
   const visibleError = error || (courseQuery.isError && !(courseQuery.error instanceof AuthenticationRequiredError) ? 'Could not load your courses. Please retry.' : '')
   const firstLoad = courseQuery.isPending
   return <div className="mt-6 space-y-5">
-    <div className="flex flex-wrap justify-end">
-      <Button onClick={() => void signOut()} type="button" variant="outline">Sign out</Button>
-    </div>
     {visibleError && <p className="text-base text-destructive" role="alert">{visibleError}</p>}
     {notice && <p className="text-sm text-muted-foreground" role="status">{notice}</p>}
     {firstLoad ? <p className="text-base" role="status">Loading courses…</p> : courseQuery.isError ? <Button onClick={() => void courseQuery.refetch()} type="button" variant="outline">Retry loading courses</Button> : !courses.length ? <p className="text-base text-muted-foreground">No active courses are available for this account.</p> : !canUse ? <p className="text-base text-muted-foreground">You do not have permission to use Feedback Chat for this course.</p> : (
