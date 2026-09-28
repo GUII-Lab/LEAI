@@ -37,7 +37,7 @@ export function StudentConversation({ survey, session, text, onTextChange, ratin
   onRatingChange: (value: number) => void
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
   onSkip: () => void
-  onStart: (researchConsent: boolean) => void
+  onStart: (researchConsent: boolean, teamId?: string) => void
   onCopyResume: () => void
   onDownloadDocument: () => void
   busy: boolean
@@ -259,6 +259,7 @@ export function StudentConversation({ survey, session, text, onTextChange, ratin
       </div>
     </footer>
     {!session && <StudentConsentDialog busy={busy} error={error} onContinue={onStart}
+      teamChoices={survey?.team_choices}
       privacyHref={privacyHref} termsHref={termsHref} verified={verified} />}
   </main>
 }

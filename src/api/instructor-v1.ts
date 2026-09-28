@@ -37,6 +37,23 @@ import {
   certificateVerificationResponseSchema,
 } from './contracts/feedback-analyzer'
 import type { AnalyzerResponseRequest, CertificateVerificationRequest } from './contracts/feedback-analyzer'
+import {
+  protocolSchema,
+  wizardConversationSchema,
+  wizardDraftListSchema,
+  wizardDraftSchema,
+  wizardFreezeResponseSchema,
+  wizardJobStartSchema,
+  wizardPreviewSchema,
+  wizardPreviewTurnSchema,
+  wizardRevisionSchema,
+  wizardSaveResponseSchema,
+  wizardSurveyListSchema,
+  wizardSurveySchema,
+  wizardTemplateListSchema,
+  wizardVersionListSchema,
+} from './contracts/wizard'
+import type { WizardProtocol } from './contracts/wizard'
 
 export class AuthenticationRequiredError extends Error {
   constructor() {
@@ -345,6 +362,116 @@ export function createInstructorApi(
         }),
         analysisSettingsResponseSchema,
       )
+    },
+    async wizardTemplates(courseId: string, signal?: AbortSignal) {
+      const id = z.string().uuid().parse(courseId)
+      return parseResponse(await protectedRequest(`instructor_courses/${id}/question-set-templates/`, { signal }), wizardTemplateListSchema)
+    },
+    async wizardDrafts(courseId: string, signal?: AbortSignal) {
+      const id = z.string().uuid().parse(courseId)
+      return parseResponse(await protectedRequest(`instructor_courses/${id}/question-sets/`, { signal }), wizardDraftListSchema)
+    },
+    async createWizardDraft(courseId: string, input: {
+      title: string; audience: 'individual' | 'team'; collection_style: 'guided' | 'open'; template_id?: string
+    }, key: string) {
+      const id = z.string().uuid().parse(courseId)
+      return parseResponse(await protectedRequest(`instructor_courses/${id}/question-sets/`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key },
+        body: JSON.stringify(input),
+      }), wizardDraftSchema)
+    },
+    async wizardDraft(courseId: string, questionSetId: string, signal?: AbortSignal) {
+      const id = z.string().uuid().parse(courseId)
+      const questionSet = z.string().uuid().parse(questionSetId)
+      return parseResponse(await protectedRequest(`instructor_courses/${id}/question-sets/${questionSet}/draft/`, { signal }), wizardDraftSchema)
+    },
+    async saveWizardDraft(courseId: string, questionSetId: string, expectedVersion: number, body: WizardProtocol, key: string) {
+      const id = z.string().uuid().parse(courseId)
+      const questionSet = z.string().uuid().parse(questionSetId)
+      return parseResponse(await protectedRequest(`instructor_courses/${id}/question-sets/${questionSet}/draft/`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key },
+        body: JSON.stringify({ expected_version: expectedVersion, body: protocolSchema.parse(body) }),
+      }), wizardSaveResponseSchema)
+    },
+    async wizardVersions(courseId: string, questionSetId: string) {
+      const id = z.string().uuid().parse(courseId)
+      const questionSet = z.string().uuid().parse(questionSetId)
+      return parseResponse(await protectedRequest(`instructor_courses/${id}/question-sets/${questionSet}/versions/`), wizardVersionListSchema)
+    },
+    async restoreWizardVersion(courseId: string, questionSetId: string, expectedVersion: number, versionId: string, key: string) {
+      const id = z.string().uuid().parse(courseId)
+      const questionSet = z.string().uuid().parse(questionSetId)
+      return parseResponse(await protectedRequest(`instructor_courses/${id}/question-sets/${questionSet}/restore/`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key },
+        body: JSON.stringify({ expected_version: expectedVersion, version_id: versionId }),
+      }), wizardDraftSchema)
+    },
+    async wizardConversation(courseId: string, questionSetId: string) {
+      const id = z.string().uuid().parse(courseId)
+      const questionSet = z.string().uuid().parse(questionSetId)
+      return parseResponse(await protectedRequest(`instructor_courses/${id}/question-sets/${questionSet}/conversation/`), wizardConversationSchema)
+    },
+    async startWizardAi(courseId: string, questionSetId: string, content: string, expectedVersion: number, key: string) {
+      const id = z.string().uuid().parse(courseId)
+      const questionSet = z.string().uuid().parse(questionSetId)
+      return parseResponse(await protectedRequest(`instructor_courses/${id}/question-sets/${questionSet}/ai-runs/`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key },
+        body: JSON.stringify({ content, expected_version: expectedVersion }),
+      }), wizardJobStartSchema)
+    },
+    async freezeWizardDraft(courseId: string, questionSetId: string, expectedVersion: number) {
+      const id = z.string().uuid().parse(courseId)
+      const questionSet = z.string().uuid().parse(questionSetId)
+      return parseResponse(await protectedRequest(`instructor_courses/${id}/question-sets/${questionSet}/freeze/`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expected_version: expectedVersion }),
+      }), wizardFreezeResponseSchema)
+    },
+    async wizardPreview(courseId: string, revisionId: string) {
+      const id = z.string().uuid().parse(courseId)
+      const revision = z.string().uuid().parse(revisionId)
+      return parseResponse(await protectedRequest(`instructor_courses/${id}/revisions/${revision}/preview/`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+      }), wizardPreviewSchema)
+    },
+    async wizardPreviewAnswer(courseId: string, previewId: string, itemId: string, content: string) {
+      const id = z.string().uuid().parse(courseId)
+      const preview = z.string().uuid().parse(previewId)
+      return parseResponse(await protectedRequest(`instructor_courses/${id}/previews/${preview}/messages/`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item_id: itemId, content }),
+      }), wizardPreviewTurnSchema)
+    },
+    async decideWizardPreview(courseId: string, revisionId: string, decision: 'completed' | 'skipped', key: string) {
+      const id = z.string().uuid().parse(courseId)
+      const revision = z.string().uuid().parse(revisionId)
+      return parseResponse(await protectedRequest(`instructor_courses/${id}/revisions/${revision}/preview-decision/`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key },
+        body: JSON.stringify({ decision }),
+      }), wizardRevisionSchema)
+    },
+    async wizardSurveys(courseId: string, signal?: AbortSignal) {
+      const id = z.string().uuid().parse(courseId)
+      return parseResponse(await protectedRequest(`instructor_courses/${id}/surveys/`, { signal }), wizardSurveyListSchema)
+    },
+    async setupWizardTeams(courseId: string, surveyId: string, labels: string[], key: string) {
+      const id = z.string().uuid().parse(courseId)
+      const survey = z.string().uuid().parse(surveyId)
+      return parseResponse(await protectedRequest(`instructor_courses/${id}/surveys/${survey}/teams/`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key },
+        body: JSON.stringify({ labels }),
+      }), wizardSurveySchema)
+    },
+    async publishWizard(courseId: string, revisionId: string, input: {
+      label: string; opens_at: string | null; closes_at: string | null
+      completion_certificate_enabled: boolean; completed_response_download_enabled: boolean
+    }, key: string) {
+      const id = z.string().uuid().parse(courseId)
+      const revision = z.string().uuid().parse(revisionId)
+      return parseResponse(await protectedRequest(`instructor_courses/${id}/revisions/${revision}/publish/`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key },
+        body: JSON.stringify(input),
+      }), wizardSurveySchema)
     },
     async logout() {
       const response = await protectedRequest('instructor_sessions/', { method: 'DELETE' })

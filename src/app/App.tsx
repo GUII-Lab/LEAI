@@ -7,6 +7,7 @@ import { AppShell } from '@/components/product/AppShell'
 import { PageHeader } from '@/components/product/PageHeader'
 import { FeedbackAnalyzerPage } from './FeedbackAnalyzerPage'
 import { FeedbackChatPage } from './FeedbackChatPage'
+import { PromptDesignerPage } from './PromptDesignerPage'
 import { CustomizationsPage } from './CustomizationsPage'
 import { StudentSurveyPage } from './StudentSurveyPage'
 import { InstructorAuthGate } from '@/auth/InstructorAuthGate'
@@ -26,6 +27,12 @@ function FeedbackChat({ environment }: { environment: PublicEnvironment }) {
   const verified = useEnvironmentWriteAccess()
   const api = useMemo(() => createInstructorApi(environment, () => verified), [environment, verified])
   return <FeedbackChatPage api={api} environment={environment} verified={verified} />
+}
+
+function PromptDesigner({ environment }: { environment: PublicEnvironment }) {
+  const verified = useEnvironmentWriteAccess()
+  const api = useMemo(() => createInstructorApi(environment, () => verified), [environment, verified])
+  return <PromptDesignerPage api={api} environment={environment} verified={verified} />
 }
 
 function StudentSurvey({ environment }: { environment: PublicEnvironment }) {
@@ -131,6 +138,7 @@ export function App({
             : <PageHeader description={description} title={pageTitle} />}
         {activeItem === 'feedback-analyzer' && <Analyzer environment={environment} />}
         {activeItem === 'feedback-chat' && <FeedbackChat environment={environment} />}
+        {activeItem === 'prompt-designer' && <PromptDesigner environment={environment} />}
         {activeItem === 'customizations' && <Customizations environment={environment} />}
       </AppShell>
     )

@@ -76,6 +76,8 @@ const surveySchema = z.object({
   anonymous_matching_enabled: z.boolean(),
   completion_certificate_enabled: z.boolean(),
   completed_response_download_enabled: z.boolean(),
+  team_setup_required: z.boolean().optional(),
+  team_choices: z.array(z.object({ id: z.string().regex(/^[1-9][0-9]*$/), label: z.string().min(1) }).strict()).optional(),
 }).strict()
 const debugAccessSchema = z.object({ enabled: z.boolean() }).strict()
 const matchingSignalsResponseSchema = z.object({ accepted: z.boolean() }).strict()
@@ -106,7 +108,7 @@ export function createStudentApi(
     async survey(surveyId: string) {
       return parseJsonResponse(await publicRequest(surveyPath(surveyId)), surveySchema)
     },
-    async start(surveyId: string, consent: { terms_consent: true; research_consent: boolean }) {
+    async start(surveyId: string, consent: { terms_consent: true; research_consent: boolean; team_snapshot_item_id?: string }) {
       return parseJsonResponse(await publicRequest(`${surveyPath(surveyId)}sessions/`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(consent),
       }), startedSessionSchema)

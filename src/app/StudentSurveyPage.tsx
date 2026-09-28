@@ -182,13 +182,16 @@ export function StudentSurveyPage({ api, environment, verified }: {
     retry: false,
   })
 
-  async function start(researchConsent: boolean) {
+  async function start(researchConsent: boolean, teamId?: string) {
     if (!verified || busy || !validId) return
     setBusy(true)
     setError('')
     setConflict(false)
     try {
-      const created = await activeApi.start(surveyId, { terms_consent: true, research_consent: researchConsent })
+      const created = await activeApi.start(surveyId, {
+        terms_consent: true, research_consent: researchConsent,
+        ...(teamId ? { team_snapshot_item_id: teamId } : {}),
+      })
       const credential = { sessionId: created.session_id, token: created.token }
       sessionStorage.setItem(storageKey, JSON.stringify(credential))
       setStored(credential)
@@ -300,6 +303,10 @@ export function StudentSurveyPage({ api, environment, verified }: {
   const survey = surveyQuery.data
   const prompt = session?.prompt
 
+  if (survey?.team_setup_required && !session) return <main className="flex min-h-dvh items-center justify-center px-5 text-center" role="status">
+    Team setup is pending. Please return after your instructor adds the team labels.
+  </main>
+
   if (surveyQuery.isPending || surveyQuery.isError || (!survey?.available && !session) || (stored && sessionQuery.isPending && !session)) {
     return <main className="flex min-h-dvh items-center justify-center px-5 text-center" role="status">
       {surveyQuery.isPending ? 'Loading survey…' : surveyQuery.isError ? 'This survey could not be loaded. Check the link or try again later.'
@@ -317,7 +324,7 @@ export function StudentSurveyPage({ api, environment, verified }: {
     termsHref={toAppHref(environment, 'legal/terms.html')} privacyHref={toAppHref(environment, 'legal/privacy.html')}
     rating={rating} onRatingChange={setRating} onSubmit={(event) => void submit(event)}
     onSkip={() => { if (session && prompt && prompt.phase !== 'complete') void sendTurn({ expected_version: session.turn_version, item_id: prompt.item_id, kind: 'skip' }) }}
-    onStart={(researchConsent) => void start(researchConsent)} onCopyResume={() => void copyResumeLink()} busy={busy} verified={verified} error={error}
+    onStart={(researchConsent, teamId) => void start(researchConsent, teamId)} onCopyResume={() => void copyResumeLink()} busy={busy} verified={verified} error={error}
     onDownloadDocument={() => void saveDraft()}
     conflictAction={conflict && <Button className="mt-2" onClick={() => void refreshSession()} type="button" variant="outline">Load latest question</Button>}
     debugDisclosure={debugAllowed && debugAccessQuery.data?.enabled === true && session && stored && <div className="mt-4 min-w-0" data-testid="inline-debug-disclosure">

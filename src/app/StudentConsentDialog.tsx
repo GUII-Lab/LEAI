@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 
-export function StudentConsentDialog({ onContinue, busy, verified, error, termsHref, privacyHref }: {
-  onContinue: (researchConsent: boolean) => void
+export function StudentConsentDialog({ onContinue, busy, verified, error, termsHref, privacyHref, teamChoices = [] }: {
+  onContinue: (researchConsent: boolean, teamId?: string) => void
   busy: boolean
   verified: boolean
   error: string
   termsHref: string
   privacyHref: string
+  teamChoices?: { id: string; label: string }[]
 }) {
   const [required, setRequired] = useState(false)
   const [research, setResearch] = useState(false)
+  const [teamId, setTeamId] = useState('')
   const firstCheckbox = useRef<HTMLInputElement>(null)
   useEffect(() => firstCheckbox.current?.focus(), [])
 
@@ -22,6 +24,13 @@ export function StudentConsentDialog({ onContinue, busy, verified, error, termsH
           at the end of the quarter.</p>
       </div>
       <div className="student-consent-checkboxes">
+        {teamChoices.length > 0 && <label className="student-consent-checkbox">
+          <span>Select your team. This choice groups your private feedback with that team.</span>
+          <select aria-label="Your team" onChange={(event) => setTeamId(event.target.value)} required value={teamId}>
+            <option value="">Choose a team</option>
+            {teamChoices.map((team) => <option key={team.id} value={team.id}>{team.label}</option>)}
+          </select>
+        </label>}
         <label className="student-consent-checkbox">
           <input checked={required} onChange={(event) => setRequired(event.target.checked)} ref={firstCheckbox} type="checkbox" />
           <span>I have read and agree to the <a href={termsHref} rel="noopener noreferrer" target="_blank">Terms of Use</a> and{' '}
@@ -39,7 +48,7 @@ export function StudentConsentDialog({ onContinue, busy, verified, error, termsH
       </div>
       <div className="student-consent-actions">
         {error && <p role="alert">{error}</p>}
-        <button disabled={!required || !verified || busy} onClick={() => onContinue(research)} type="button">
+        <button disabled={!required || !verified || busy || (teamChoices.length > 0 && !teamId)} onClick={() => onContinue(research, teamId || undefined)} type="button">
           {busy ? 'Starting…' : 'Continue'}
         </button>
       </div>
