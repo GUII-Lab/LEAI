@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event'
 import { App } from './App'
 
 const logoutSpy = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+const instructorMeSpy = vi.hoisted(() => vi.fn())
 
 vi.mock('@/config/environment', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/config/environment')>()
@@ -34,9 +35,7 @@ vi.mock('./EnvironmentGate', () => ({
 
 vi.mock('@/api/instructor-v1', () => ({
   createInstructorApi: () => ({
-    me: async () => ({ id: '22222222-2222-4222-8222-222222222222',
-      email: 'teacher@ucsc.edu', display_name: 'Teacher', must_change_password: false,
-      platform_role: 'member', institutions: [{ slug: 'ucsc', name: 'UC Santa Cruz', can_create_courses: true }] }),
+    me: instructorMeSpy,
     courses: async () => ({ courses: [{ course_id: '11111111-1111-4111-8111-111111111111', course_code: 'CMPM-80H',
       course_name: 'CMPM 80H', institution_slug: 'ucsc', lifecycle_state: 'active', role: 'researcher', allowed_actions: [] }] }),
     debugSettings: async () => ({ debug_enabled: false, settings_version: 1 }),
@@ -53,6 +52,10 @@ vi.mock('@/api/instructor-v1', () => ({
 
 beforeEach(() => {
   logoutSpy.mockClear()
+  instructorMeSpy.mockReset()
+  instructorMeSpy.mockResolvedValue({ id: '22222222-2222-4222-8222-222222222222',
+    email: 'teacher@ucsc.edu', display_name: 'Teacher', must_change_password: false,
+    platform_role: 'member', institutions: [{ slug: 'ucsc', name: 'UC Santa Cruz', can_create_courses: true }] })
   sessionStorage.setItem('leai:qa:instructor-token', 'test-session-token')
   window.history.replaceState({}, '', '/LEAI/qa/InstructorHome.html')
 })
@@ -89,6 +92,14 @@ it('renders the actual course workspace instead of an empty Instructor Home shel
   renderApp()
   expect(await screen.findByRole('heading', { name: 'Your courses' })).toBeInTheDocument()
   expect(await screen.findByRole('article', { name: 'CMPM 80H' })).toBeInTheDocument()
+})
+
+it('shows the not-found page without checking instructor authentication', async () => {
+  render(<QueryClientProvider client={new QueryClient()}><App activeItem="not-found" /></QueryClientProvider>)
+
+  expect(await screen.findByRole('heading', { name: 'Page Not Found' })).toBeInTheDocument()
+  expect(instructorMeSpy).not.toHaveBeenCalled()
+  expect(screen.queryByRole('navigation', { name: 'Course navigation' })).not.toBeInTheDocument()
 })
 
 it('keeps account and course navigation inside the QA application base', async () => {

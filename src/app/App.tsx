@@ -97,6 +97,8 @@ export function App({
     <EnvironmentGate environment={environment}>
       {activeItem === 'feedback' ? (
         <StudentSurvey environment={environment} />
+      ) : activeItem === 'not-found' ? (
+        renderWorkspace()
       ) : (
         <InstructorAuthGate environment={environment}>
           {isCourseRoute ? (
