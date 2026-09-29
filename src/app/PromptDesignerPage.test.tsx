@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { createInstructorApi } from '@/api/instructor-v1'
 import type { WizardDraft, WizardProtocol, WizardRevision, WizardSurvey } from '@/api/contracts/wizard'
 import { getEnvironment } from '@/config/environment'
@@ -66,6 +66,146 @@ function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(<TooltipProvider><QueryClientProvider client={client}><PromptDesignerPage api={api} environment={environment} verified /></QueryClientProvider></TooltipProvider>)
 }
+
+const pendingRequests: { promise: Promise<unknown>; reject: (cause: unknown) => void }[] = []
+afterEach(async () => {
+  const requests = pendingRequests.splice(0)
+  await act(async () => {
+    for (const request of requests) request.reject(new Error('Test request cleanup'))
+    await Promise.allSettled(requests.map((request) => request.promise))
+  })
+})
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (cause: unknown) => void
+  const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no })
+  pendingRequests.push({ promise, reject })
+  void promise.catch(() => {})
+  return { promise, resolve, reject }
+}
+
+async function resumeChat() {
+  vi.mocked(api.wizardDrafts).mockResolvedValue({ question_sets: [draft] })
+  const user = userEvent.setup({ delay: null })
+  renderPage()
+  await user.click(await screen.findByRole('button', { name: 'Continue previous session' }))
+  const input = await screen.findByRole('textbox', { name: 'Ask LEAI to edit this feedback draft' })
+  return { user, input, log: screen.getByRole('log', { name: 'Conversation' }), form: input.closest('form')! }
+}
+
+it('shows the submitted instruction before save/ACK, snapshots it once, and locks duplicate sends through reconciliation', async () => {
+  const save = deferred<Awaited<ReturnType<Api['saveWizardDraft']>>>()
+  const ack = deferred<{ job_id: string }>()
+  const refresh = deferred<Awaited<ReturnType<Api['wizardConversation']>>>()
+  const jobId = '550e8400-e29b-41d4-a716-446655440060'
+  const oldMessage = { id: '1', role: 'user' as const, content: 'Shorten it', created_at: timestamp }
+  vi.mocked(api.wizardConversation).mockResolvedValue({ messages: [oldMessage] })
+  vi.mocked(api.saveWizardDraft).mockReturnValue(save.promise)
+  vi.mocked(api.startWizardAi).mockReturnValue(ack.promise)
+  vi.mocked(api.job).mockResolvedValue({ id: jobId, status: 'completed', error_code: null, result: null })
+  const { user, input, log, form } = await resumeChat()
+  await user.click(screen.getByRole('textbox', { name: 'Feedback title' }))
+  await user.paste(' revised')
+  await user.click(input)
+  await user.paste('Shorten it')
+  act(() => { fireEvent.submit(form); fireEvent.submit(form) })
+  expect(within(log).getAllByText('Shorten it')).toHaveLength(2)
+  expect(input).toHaveValue('')
+  expect(input).toBeEnabled()
+  expect(screen.getByRole('button', { name: 'Sending message' })).toBeDisabled()
+  await user.click(input)
+  await user.paste('Next instruction')
+  fireEvent.submit(form)
+  await act(async () => save.resolve({ ...draft, draft_version: 2, changed: true }))
+  await waitFor(() => expect(api.startWizardAi).toHaveBeenCalledExactlyOnceWith(courseId, questionSetId, 'Shorten it', 2, expect.any(String)))
+  expect(input).toHaveValue('Next instruction')
+  fireEvent.submit(form)
+  vi.mocked(api.wizardConversation).mockResolvedValue({ messages: [oldMessage, { ...oldMessage, id: '2' }] })
+  await act(async () => ack.resolve({ job_id: jobId }))
+  await waitFor(() => expect(within(log).getAllByText('Shorten it')).toHaveLength(2))
+  expect(input).toHaveValue('Next instruction')
+  vi.mocked(api.wizardConversation).mockReturnValue(refresh.promise)
+  await waitFor(() => expect(api.job).toHaveBeenCalled(), { timeout: 3000 })
+  fireEvent.submit(form)
+  expect(api.startWizardAi).toHaveBeenCalledTimes(1)
+  expect(screen.getByRole('button', { name: 'Sending message' })).toBeDisabled()
+  await act(async () => refresh.resolve({ messages: [oldMessage, { ...oldMessage, id: '2' }, { id: '3', role: 'assistant', content: 'Updated.', created_at: timestamp }] }))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled())
+  expect(input).toHaveValue('Next instruction')
+  expect(within(log).getAllByText('Shorten it')).toHaveLength(2)
+}, 10000)
+
+it.each(['save', 'ACK'] as const)('keeps a failed optimistic instruction and newer draft after %s failure', async (stage) => {
+  const request = deferred<never>()
+  if (stage === 'save') vi.mocked(api.saveWizardDraft).mockReturnValue(request.promise)
+  else vi.mocked(api.startWizardAi).mockReturnValue(request.promise)
+  const { user, input, log } = await resumeChat()
+  if (stage === 'save') await user.type(screen.getByRole('textbox', { name: 'Feedback title' }), ' revised')
+  await user.type(input, 'Submitted instruction')
+  await user.click(screen.getByRole('button', { name: 'Send' }))
+  expect(within(log).getByText('Submitted instruction')).toBeInTheDocument()
+  expect(input).toHaveValue('')
+  await user.type(input, 'New draft')
+  await act(async () => request.reject(new Error('offline')))
+  expect(await within(log).findByText(/send not confirmed/i)).toBeInTheDocument()
+  expect(within(log).getByText('Submitted instruction')).toBeInTheDocument()
+  expect(input).toHaveValue('New draft')
+  expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled()
+})
+
+it.each(['ACK', 'failure'] as const)('ignores an old %s after closing and reopening the builder with a new send', async (outcome) => {
+  const oldAck = deferred<{ job_id: string }>()
+  const newAck = deferred<{ job_id: string }>()
+  const jobId = '550e8400-e29b-41d4-a716-446655440060'
+  vi.mocked(api.startWizardAi).mockReturnValueOnce(oldAck.promise).mockReturnValueOnce(newAck.promise)
+  const { user, input } = await resumeChat()
+  await user.click(input)
+  await user.paste('Old instruction')
+  await user.click(screen.getByRole('button', { name: 'Send' }))
+  await waitFor(() => expect(api.startWizardAi).toHaveBeenCalledOnce())
+  await user.click(screen.getByRole('button', { name: 'Close builder' }))
+  await user.click(await screen.findByRole('button', { name: 'Save and close' }))
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Feedback Builder' })).not.toBeInTheDocument())
+  await user.click(screen.getByRole('button', { name: 'Continue previous session' }))
+  const nextInput = await screen.findByRole('textbox', { name: 'Ask LEAI to edit this feedback draft' })
+  await user.click(nextInput)
+  await user.paste('Current instruction')
+  await user.click(screen.getByRole('button', { name: 'Send' }))
+  await waitFor(() => expect(api.startWizardAi).toHaveBeenCalledTimes(2))
+  await user.click(nextInput)
+  await user.paste('New draft')
+  await act(async () => {
+    if (outcome === 'ACK') oldAck.resolve({ job_id: jobId })
+    else oldAck.reject(new Error('Old request failed'))
+  })
+  expect(api.wizardConversation).toHaveBeenCalledTimes(2)
+  expect(screen.getByRole('button', { name: 'Sending message' })).toBeDisabled()
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  expect(nextInput).toHaveValue('New draft')
+  fireEvent.submit(nextInput.closest('form')!)
+  expect(api.startWizardAi).toHaveBeenCalledTimes(2)
+}, 10000)
+
+it('does not roll back the completed transcript when the ACK conversation read arrives late', async () => {
+  const ackRead = deferred<Awaited<ReturnType<Api['wizardConversation']>>>()
+  const jobId = '550e8400-e29b-41d4-a716-446655440060'
+  const submitted = { id: '1', role: 'user' as const, content: 'Shorten it', created_at: timestamp }
+  vi.mocked(api.startWizardAi).mockResolvedValue({ job_id: jobId })
+  vi.mocked(api.job).mockResolvedValue({ id: jobId, status: 'completed', error_code: null, result: null })
+  const { user, input, log } = await resumeChat()
+  vi.mocked(api.wizardConversation).mockReturnValueOnce(ackRead.promise).mockResolvedValue({ messages: [
+    submitted, { id: '2', role: 'assistant', content: 'Updated draft.', created_at: timestamp },
+  ] })
+  await user.type(input, 'Shorten it')
+  await user.click(screen.getByRole('button', { name: 'Send' }))
+  await user.type(input, 'Keep this newer draft')
+  expect(await within(log).findByText('Updated draft.', {}, { timeout: 3000 })).toBeInTheDocument()
+  await act(async () => ackRead.resolve({ messages: [submitted] }))
+  expect(within(log).getByText('Updated draft.')).toBeInTheDocument()
+  expect(within(log).getAllByText('Shorten it')).toHaveLength(1)
+  expect(input).toHaveValue('Keep this newer draft')
+})
 
 beforeEach(() => {
   window.localStorage.clear()

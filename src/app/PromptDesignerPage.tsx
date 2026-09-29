@@ -75,8 +75,12 @@ export function PromptDesignerPage({ api, environment, verified }: {
   const [body, setBody] = useState<WizardProtocol | null>(null)
   const [versions, setVersions] = useState<WizardVersion[]>([])
   const [conversation, setConversation] = useState<WizardConversationMessage[]>([])
+  const [localInstructions, setLocalInstructions] = useState<{
+    message: WizardConversationMessage; previousIds: string[]; failed: boolean
+  }[]>([])
   const [composer, setComposer] = useState('')
   const [aiJobId, setAiJobId] = useState('')
+  const [aiSending, setAiSending] = useState(false)
   const [revision, setRevision] = useState<WizardRevision | null>(null)
   const [previewOpened, setPreviewOpened] = useState(false)
   const [previewBusy, setPreviewBusy] = useState(false)
@@ -106,6 +110,8 @@ export function PromptDesignerPage({ api, environment, verified }: {
   const dirtyRef = useRef(false)
   const savingRef = useRef<Promise<void> | null>(null)
   const draftIdRef = useRef('')
+  const aiSendLockedRef = useRef(false)
+  const aiInstructionIdRef = useRef('')
   const templateSaveRequestRef = useRef('')
   const templateSaveKeyRef = useRef('')
   const publishRequestRef = useRef('')
@@ -199,8 +205,19 @@ export function PromptDesignerPage({ api, environment, verified }: {
     setPublishedSurvey(null)
     setPreviewOpened(false)
     setAiJobId('')
+    aiSendLockedRef.current = false
+    aiInstructionIdRef.current = ''
+    setAiSending(false)
+    setLocalInstructions([])
     setError('')
   }
+
+  const reconcileConversation = useCallback((messages: WizardConversationMessage[]) => {
+    setConversation(messages)
+    setLocalInstructions((current) => current.filter((local) => !messages.some((message) =>
+      message.role === 'user' && message.content === local.message.content && !local.previousIds.includes(message.id),
+    )))
+  }, [])
 
   const loadDraft = useCallback(async (id: string) => {
     const [loaded, history, chat] = await Promise.all([
@@ -218,10 +235,10 @@ export function PromptDesignerPage({ api, environment, verified }: {
     dirtyRef.current = false
     setBody(loaded.body)
     setVersions(history.versions)
-    setConversation(chat.messages)
+    reconcileConversation(chat.messages)
     setSaveStatus(elapsedSave(loaded.updated_at))
     return loaded
-  }, [api, courseId])
+  }, [api, courseId, reconcileConversation])
 
   const saveNow = useCallback(async function flushSave(): Promise<void> {
     if (savingRef.current) {
@@ -272,30 +289,38 @@ export function PromptDesignerPage({ api, environment, verified }: {
   useEffect(() => {
     if (!aiJobId || !draft || !builderOpen) return
     let active = true
+    let polling = false
     const timer = window.setInterval(() => {
+      if (polling) return
+      polling = true
       void api.job(courseId, aiJobId).then(async (job) => {
         if (!active || job.status === 'pending' || job.status === 'running') return
         window.clearInterval(timer)
-        setAiJobId('')
-        if (job.status === 'completed') {
-          if (!dirtyRef.current) await loadDraft(draft.id)
-          else setConversation((await api.wizardConversation(courseId, draft.id)).messages)
-          setNotice('LEAI updated the saved draft.')
-        } else {
-          const failureMessage = job.status === 'cancelled'
-            ? 'LEAI stopped this draft edit. Review the saved draft before trying again.'
-            : job.error_code === 'stale_draft'
-              ? 'The draft changed while LEAI was working. Your manual edits were preserved.'
-              : job.error_code === 'provider_outcome_unknown'
-                ? 'LEAI could not confirm whether its AI request finished. Review the saved draft before sending the instruction again.'
-                : 'LEAI could not update this draft. Please try again.'
-          setError(failureMessage)
-          setConversation((await api.wizardConversation(courseId, draft.id)).messages)
+        try {
+          if (job.status === 'completed') {
+            if (!dirtyRef.current) await loadDraft(draft.id)
+            else reconcileConversation((await api.wizardConversation(courseId, draft.id)).messages)
+            setNotice('LEAI updated the saved draft.')
+          } else {
+            const failureMessage = job.status === 'cancelled'
+              ? 'LEAI stopped this draft edit. Review the saved draft before trying again.'
+              : job.error_code === 'stale_draft'
+                ? 'The draft changed while LEAI was working. Your manual edits were preserved.'
+                : job.error_code === 'provider_outcome_unknown'
+                  ? 'LEAI could not confirm whether its AI request finished. Review the saved draft before sending the instruction again.'
+                  : 'LEAI could not update this draft. Please try again.'
+            setError(failureMessage)
+            reconcileConversation((await api.wizardConversation(courseId, draft.id)).messages)
+          }
+        } finally {
+          aiSendLockedRef.current = false
+          setAiSending(false)
+          setAiJobId('')
         }
-      }).catch(handleError)
+      }).catch(handleError).finally(() => { polling = false })
     }, 1200)
     return () => { active = false; window.clearInterval(timer) }
-  }, [aiJobId, api, builderOpen, courseId, draft, handleError, loadDraft])
+  }, [aiJobId, api, builderOpen, courseId, draft, handleError, loadDraft, reconcileConversation])
 
   const editBody = (next: WizardProtocol) => {
     bodyRef.current = next
@@ -334,16 +359,43 @@ export function PromptDesignerPage({ api, environment, verified }: {
     finally { setBusy(false) }
   }
 
-  async function sendAi() {
-    if (!draft || !composer.trim()) return
+  async function sendAi(consumeTranscript: () => void) {
+    const instruction = composer.trim()
+    if (!draft || !instruction || aiSendLockedRef.current) return
+    const submittedDraftId = draft.id
+    aiSendLockedRef.current = true
+    setAiSending(true)
+    const message: WizardConversationMessage = {
+      id: `local-${crypto.randomUUID()}`, role: 'user', content: instruction, created_at: new Date().toISOString(),
+    }
+    aiInstructionIdRef.current = message.id
+    const isCurrentInstruction = () => aiSendLockedRef.current
+      && aiInstructionIdRef.current === message.id && draftIdRef.current === submittedDraftId
+    setLocalInstructions((current) => [...current, { message, previousIds: conversation.map((row) => row.id), failed: false }])
+    consumeTranscript()
+    setComposer('')
     setError('')
     try {
       await saveNow()
-      const result = await api.startWizardAi(courseId, draft.id, composer.trim(), versionRef.current, crypto.randomUUID())
-      setComposer('')
+      if (!isCurrentInstruction()) return
+      const result = await api.startWizardAi(courseId, submittedDraftId, instruction, versionRef.current, crypto.randomUUID())
+      if (!isCurrentInstruction()) return
       setAiJobId(result.job_id)
-      setConversation((await api.wizardConversation(courseId, draft.id)).messages)
-    } catch (cause) { handleError(cause) }
+    } catch (cause) {
+      if (!isCurrentInstruction()) return
+      aiSendLockedRef.current = false
+      setAiSending(false)
+      setLocalInstructions((current) => current.map((local) => local.message.id === message.id ? { ...local, failed: true } : local))
+      handleError(cause)
+      return
+    }
+    // An ACK owns a running job even if this read fails; keep sending locked.
+    try {
+      const chat = await api.wizardConversation(courseId, submittedDraftId)
+      if (isCurrentInstruction()) reconcileConversation(chat.messages)
+    } catch (cause) {
+      if (isCurrentInstruction()) handleError(cause)
+    }
   }
 
   async function restoreVersion(version: WizardVersion) {
@@ -720,7 +772,8 @@ export function PromptDesignerPage({ api, environment, verified }: {
         </>}
       </div>}
       {step === 2 && body && <div className="grid min-w-0 gap-0 overflow-hidden rounded-xl border border-border bg-card xl:h-[min(38rem,calc(100dvh-18rem))] xl:min-h-[30rem] xl:grid-cols-[minmax(17rem,34%)_minmax(0,66%)]">
-        <AuthoringConversation busy={!!aiJobId} disabled={!draft} messages={conversation} onSend={() => { void sendAi() }}
+        <AuthoringConversation busy={aiSending} disabled={!draft} messages={[...conversation, ...localInstructions.map((local) => local.message)]}
+          failedMessageIds={localInstructions.filter((local) => local.failed).map((local) => local.message.id)} onSend={(consumeTranscript) => { void sendAi(consumeTranscript) }}
           onValueChange={setComposer} value={composer} />
         <div className="min-w-0 bg-card p-4 xl:h-full xl:overflow-y-auto xl:p-5"><ArtifactEditor audience={draft?.audience ?? audience} body={body} collectionStyle={draft?.collection_style ?? 'guided'} disabled={false} onChange={editBody} onRestore={(version) => { void restoreVersion(version) }}
           saveStatus={saveStatus} versions={versions} /></div>
