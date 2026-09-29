@@ -122,7 +122,19 @@ jobs:
             echo "LEAI_QA_BACKEND_SHA does not match the active Heroku QA backend build." >&2
             exit 1
           fi
-          git -C "$backend_dir" checkout --detach "$LEAI_QA_BACKEND_SHA"
+          git -C "$backend_dir" remote add heroku https://git.heroku.com/guiidata-leai-qa.git
+          git -C "$backend_dir" fetch --no-tags heroku main
+          if ! git -C "$backend_dir" diff --quiet "$LEAI_QA_BACKEND_SHA" refs/remotes/heroku/main -- \
+            . \
+            ':(exclude)frontend_dist' \
+            ':(exclude)db.sqlite3' \
+            ':(exclude)scripts/dryrun_openai_responses.py' \
+            ':(exclude)scripts/report_leai_schema.py'; then
+            echo "Current QA release source differs from the pinned backend; refusing to replace it." >&2
+            exit 1
+          fi
+          # Continue from the current QA-only Heroku history so the release is a fast-forward.
+          git -C "$backend_dir" checkout --detach refs/remotes/heroku/main
           rm -rf "$backend_dir/frontend_dist"
           mkdir -p "$backend_dir/frontend_dist"
           cp -a dist/heroku/qa/. "$backend_dir/frontend_dist/"
