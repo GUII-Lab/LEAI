@@ -90,18 +90,30 @@ test('conversational student cannot see Researcher-only debug state and restores
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390)
 })
 
-test('Likert reference records a rating before requesting free-text reflection', async ({ page }) => {
+test('Likert accepts a spoken-style rating through the regular text composer', async ({ page }) => {
   test.skip(!likertId, 'An isolated browser-test survey ID is required')
+  test.setTimeout(90_000)
   await page.goto(`${origin}/feedback.html?id=${likertId}`)
   await expect(page.getByRole('heading', { name: 'Structured Reflection — rate and reflect' })).toBeVisible()
   await acceptConsent(page)
-  await expect(page.getByText('I think about how to give the most appropriate information to the AI.')).toBeVisible()
-  await page.getByRole('radio', { name: 'Agree', exact: true }).check()
+  await expect(page.getByRole('log', { name: 'Conversation' })).toContainText('I think about how to give the most appropriate information to the AI.')
+  await expect(page.getByRole('radio')).toHaveCount(0)
+  await expect(page.getByRole('combobox')).toHaveCount(0)
+  await page.getByRole('textbox', { name: 'Message' }).fill('I would say four.')
+  const turnResponse = page.waitForResponse((response) => response.url().includes('/turns/') && response.request().method() === 'POST')
   await page.getByRole('button', { name: 'Send' }).click()
-  await expect(page.getByText('You selected Agree. What led you to choose that rating?')).toBeVisible()
+  const response = await turnResponse
+  expect(response.request().postDataJSON()).toMatchObject({ kind: 'text', text: 'I would say four.' })
+  expect(response.request().postDataJSON()).not.toHaveProperty('value')
+  const payload = await response.json()
+  expect(payload.results.P1.rating).toBe(4)
+  expect(payload.prompt).toMatchObject({ item_id: 'P1' })
+  expect(payload.results.P1.status).toBe('partial')
+  expect(payload.messages.at(-1)).toMatchObject({ role: 'assistant' })
+  expect(payload.messages.at(-1).content.trim().length).toBeGreaterThan(0)
   await page.getByRole('textbox', { name: 'Message' }).fill("I don't know")
   await page.getByRole('button', { name: 'Send' }).click()
-  await expect(page.getByText('I consider what information the AI needs to perform the task.')).toBeVisible()
+  await expect(page.getByRole('log', { name: 'Conversation' })).toContainText('I consider what information the AI needs to perform the task.')
 })
 
 test('an anonymous student can converse but cannot inspect Researcher-only debug state', async ({ page, browserName }, testInfo) => {
@@ -167,14 +179,30 @@ test('an incomplete answer gets a follow-up in the same conversation before P2',
 
 test('a Likert rating and real written explanation are recorded together', async ({ page, browserName }) => {
   test.skip(!likertId || browserName !== 'chromium', 'Run the real model turn once on the isolated local survey')
+  test.setTimeout(90_000)
   await page.goto(`${origin}/feedback.html?id=${likertId}`)
   await acceptConsent(page)
-  await page.getByRole('radio', { name: 'Agree', exact: true }).check()
+  const text = 'I would say four, because I decide what task context and examples to share, while leaving out private information.'
+  await expect(page.getByRole('radio')).toHaveCount(0)
+  await page.getByRole('textbox', { name: 'Message' }).fill(text)
+  const turnResponse = page.waitForResponse((response) => response.url().includes('/turns/') && response.request().method() === 'POST')
   await page.getByRole('button', { name: 'Send' }).click()
-  await page.getByRole('textbox', { name: 'Message' }).fill('I rated it Agree because I decide what task context and examples to share, while leaving out private information.')
-  await page.getByRole('button', { name: 'Send' }).click()
-  await expect(page.getByRole('log', { name: 'Conversation' })).toContainText('I rated it Agree', { timeout: 60_000 })
+  const response = await turnResponse
+  expect(response.request().postDataJSON()).toMatchObject({ kind: 'text', text })
+  expect(response.request().postDataJSON()).not.toHaveProperty('value')
+  const payload = await response.json()
+  expect(payload.results.P1.rating).toBe(4)
+  const studentMessages = payload.messages.filter((message: { role: string; content: string }) => message.role === 'student' && message.content === text)
+  expect(studentMessages).toHaveLength(1)
+  expect(payload.answer_map.P1).toContain(studentMessages[0].sequence)
+  await expect(page.getByRole('log', { name: 'Conversation' })).toContainText(text, { timeout: 60_000 })
   await expect(page.getByRole('log', { name: 'Conversation' }).locator('[data-chat-role="assistant"]').last().getByRole('button', { name: /debug state/i })).toHaveCount(0)
+  const restoredResponse = page.waitForResponse((response) => /\/sessions\/[^/]+\/$/.test(new URL(response.url()).pathname) && response.request().method() === 'GET')
+  await page.reload()
+  const restored = await (await restoredResponse).json()
+  expect(restored.results.P1.rating).toBe(4)
+  expect(restored.answer_map.P1).toContain(studentMessages[0].sequence)
+  await expect(page.getByRole('log', { name: 'Conversation' }).getByText(text, { exact: true })).toHaveCount(1)
 })
 
 test('all-question completion stays editable, a real correction remaps P1, and final download freezes it', async ({ page, browserName }, testInfo) => {

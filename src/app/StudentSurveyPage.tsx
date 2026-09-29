@@ -133,7 +133,6 @@ export function StudentSurveyPage({ api, environment, verified }: {
   const storageKey = qualifyBrowserKey(environment.name, `student:${surveyId}`)
   const [stored, setStored] = useState<StoredSession | null>(() => validId ? readStoredSession(storageKey) : null)
   const [current, setCurrent] = useState<StudentSession | null>(null)
-  const [rating, setRating] = useState<number | null>(null)
   const [text, setText] = useState('')
   const [error, setError] = useState('')
   const [conflict, setConflict] = useState(false)
@@ -207,13 +206,12 @@ export function StudentSurveyPage({ api, environment, verified }: {
     event.preventDefault()
     if (!verified || busy || !stored || !session || session.status !== 'active') return
     const prompt = session.prompt
-    const turn: StudentTurn = prompt.phase === 'complete'
-      ? { expected_version: session.turn_version, kind: 'text', text: text.trim() }
-      : prompt.phase === 'rating'
-      ? { expected_version: session.turn_version, item_id: prompt.item_id, kind: 'rating', value: rating ?? 0 }
-      : { expected_version: session.turn_version, item_id: prompt.item_id, kind: 'text', text: text.trim() }
-    if (turn.kind === 'rating' && (prompt.phase !== 'rating' || !prompt.choices?.some((choice) => choice.value === turn.value))) return
-    if (turn.kind === 'text' && !turn.text) return
+    const turn: StudentTurn = {
+      expected_version: session.turn_version,
+      ...(prompt.phase !== 'complete' ? { item_id: prompt.item_id } : {}),
+      kind: 'text', text: text.trim(),
+    }
+    if (!turn.text) return
     await sendTurn(turn)
   }
 
@@ -225,7 +223,6 @@ export function StudentSurveyPage({ api, environment, verified }: {
     try {
       const updated = await activeApi.turn(surveyId, stored.sessionId, stored.token, turn)
       setCurrent(updated)
-      setRating(null)
       setText('')
     } catch (cause) {
       if (cause instanceof ApiFailure && cause.kind === 'conflict') {
@@ -244,7 +241,6 @@ export function StudentSurveyPage({ api, environment, verified }: {
     try {
       setCurrent(await activeApi.session(surveyId, stored.sessionId, stored.token))
       setText('')
-      setRating(null)
       setConflict(false)
     } catch {
       setError('Could not restore your reflection. Please try again.')
@@ -298,7 +294,6 @@ export function StudentSurveyPage({ api, environment, verified }: {
 
   if (!validId) return <main className="mx-auto max-w-2xl px-4 py-10"><h1 className="mb-4 text-2xl font-semibold">Reflection</h1><p role="alert">This survey link is invalid.</p></main>
   const survey = surveyQuery.data
-  const prompt = session?.prompt
 
   if (survey?.team_setup_required && !session) return <main className="flex min-h-dvh items-center justify-center px-5 text-center" role="status">
     Team setup is pending. Please return after your instructor adds the team labels.
@@ -319,8 +314,7 @@ export function StudentSurveyPage({ api, environment, verified }: {
 
   return <StudentConversation survey={survey} session={session} text={text} onTextChange={setText}
     termsHref={toAppHref(environment, 'legal/terms.html')} privacyHref={toAppHref(environment, 'legal/privacy.html')}
-    rating={rating} onRatingChange={setRating} onSubmit={(event) => void submit(event)}
-    onSkip={() => { if (session && prompt && prompt.phase !== 'complete') void sendTurn({ expected_version: session.turn_version, item_id: prompt.item_id, kind: 'skip' }) }}
+    onSubmit={(event) => void submit(event)}
     onStart={(researchConsent, teamId) => void start(researchConsent, teamId)} onCopyResume={() => void copyResumeLink()} busy={busy} verified={verified} error={error}
     onDownloadDocument={() => void saveDraft()}
     conflictAction={conflict && <Button className="mt-2" onClick={() => void refreshSession()} type="button" variant="outline">Load latest question</Button>}

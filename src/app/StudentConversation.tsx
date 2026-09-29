@@ -9,16 +9,13 @@ import { useChatVoiceInput } from '@/components/chat/useChatVoiceInput'
 import { StudentConsentDialog } from './StudentConsentDialog'
 import './student-legacy.css'
 
-export function StudentConversation({ survey, session, text, onTextChange, rating, onRatingChange, onSubmit,
-  onSkip, onStart, onCopyResume, onDownloadDocument, busy, verified, error, conflictAction, debugDisclosure, termsHref, privacyHref }: {
+export function StudentConversation({ survey, session, text, onTextChange, onSubmit,
+  onStart, onCopyResume, onDownloadDocument, busy, verified, error, conflictAction, debugDisclosure, termsHref, privacyHref }: {
   survey?: StudentSurvey
   session: StudentSession | null
   text: string
   onTextChange: (value: string) => void
-  rating: number | null
-  onRatingChange: (value: number) => void
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
-  onSkip: () => void
   onStart: (researchConsent: boolean, teamId?: string) => void
   onCopyResume: () => void
   onDownloadDocument: () => void
@@ -44,7 +41,7 @@ export function StudentConversation({ survey, session, text, onTextChange, ratin
   const [downloadsPinned, setDownloadsPinned] = useState(false)
   const prompt = session?.prompt
   const voice = useChatVoiceInput({
-    value: text, onValueChange: onTextChange, disabled: busy || !verified || prompt?.phase === 'rating',
+    value: text, onValueChange: onTextChange, disabled: busy || !verified,
     contextKey: session?.session_id,
     stoppedMessage: 'Voice input stopped. You can still type your answer.',
     unavailableMessage: 'Voice input is unavailable. Please type your answer.',
@@ -170,18 +167,11 @@ export function StudentConversation({ survey, session, text, onTextChange, ratin
         </div>}
         {session?.status === 'completed' ? <p className="py-3 text-sm font-medium text-success">Reflection downloaded. This version is final.</p> : session && prompt ?
           <form onSubmit={onSubmit}>
-            {prompt.phase === 'rating' ? <fieldset className="mb-3 flex flex-wrap gap-2">
-              <legend className="mb-2 text-base font-medium">Choose a rating</legend>
-              {prompt.choices?.map((choice) => <label className="cursor-pointer rounded-md border border-border px-3 py-2 text-base has-[:checked]:border-primary has-[:checked]:bg-accent" key={choice.value}>
-                <input checked={rating === choice.value} className="mr-2 accent-primary" name="rating" onChange={() => onRatingChange(choice.value)} type="radio" value={choice.value} />{choice.label}
-              </label>)}
-            </fieldset> : null}
             <ChatComposer busy={busy} disabled={!verified} inputLabel="Message" onKeyDown={handleComposerKeyDown} onValueChange={onTextChange}
-              placeholder="Share your thoughts about the class..." sendDisabled={prompt.phase === 'rating' ? rating === null : !text.trim()}
+              placeholder="Share your thoughts about the class..." sendDisabled={!text.trim()}
               sendHint={{ content: <span>Enter sends. <kbd data-slot="kbd">⌘+Enter</kbd> or <kbd data-slot="kbd">Ctrl+Enter</kbd> adds a new line. Shift+Enter also works.</span>,
-                open: keyboardHintOpen, onOpenChange: setKeyboardHintOpen }} showInput={prompt.phase !== 'rating'} value={text}
-              voiceInput={prompt.phase !== 'rating' ? voice.voiceInput : undefined} />
-            {prompt.phase === 'rating' && <Button className="mt-2" disabled={!verified || busy} onClick={onSkip} size="sm" type="button" variant="ghost">Prefer not to answer</Button>}
+                open: keyboardHintOpen, onOpenChange: setKeyboardHintOpen }} value={text}
+              voiceInput={voice.voiceInput} />
           </form> : <ChatComposer disabled sendDisabled value="" onValueChange={() => undefined} placeholder="Share your thoughts about the class..."
             voiceInput={{ active: false, available: false, disabled: true, onToggle: () => undefined }} />}
         {session && (survey?.completed_response_download_enabled || survey?.completion_certificate_enabled) &&

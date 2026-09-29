@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, it, vi } from 'vitest'
@@ -101,8 +101,8 @@ it('uses Enter to send on desktop, shows the shared tooltip twice, and highlight
   expect(await screen.findByRole('tooltip')).toHaveTextContent('⌘+Enter')
 })
 
-it('keeps modified Enter as a newline on desktop and makes mobile Enter a newline', async () => {
-  const active = { ...baseSession, prompt: { item_id: 'P1', phase: 'answer' as const,
+it.each(['answer', 'rating'] as const)('keeps modified Enter and mobile Enter as newlines in phase %s', async (phase) => {
+  const active = { ...baseSession, prompt: { item_id: 'P1', phase,
     text: 'What information matters for your task?', wording: 'exact' as const, choices: null }, messages: [] }
   sessionStorage.setItem(`leai:local:student:${surveyId}`, JSON.stringify({ sessionId, token }))
   vi.mocked(api.session).mockResolvedValue(active)
@@ -266,7 +266,8 @@ it('shows a collapsible debug disclosure beneath the current assistant message, 
   expect(screen.getByText('rating', { selector: 'dd' })).toBeInTheDocument()
   await user.click(within(assistant).getByRole('button', { name: 'Hide debug state' }))
   expect(screen.queryByText('Recorded schema state')).not.toBeInTheDocument()
-  expect(screen.getByRole('radio', { name: /^Agree$/ })).toBeInTheDocument()
+  expect(screen.getByRole('textbox', { name: 'Message' })).toBeEnabled()
+  expect(screen.queryByRole('radio')).not.toBeInTheDocument()
 })
 
 it('does not expose debug state to a student who only has the anonymous session capability', async () => {
@@ -344,18 +345,89 @@ it('refreshes collected evidence and results after a student turn', async () => 
   expect(screen.getByText('I chose useful context.', { selector: 'blockquote' })).toBeInTheDocument()
 })
 
-it('presents the public introduction and an exact Likert statement, then asks for reflection', async () => {
+it.each([null, ratingPrompt.choices])('keeps Likert in the shared text composer without a numeric rating (choices: %j)', async (choices) => {
+  vi.mocked(api.start).mockResolvedValue({ ...baseSession, token, prompt: { ...ratingPrompt, choices } })
   vi.mocked(api.turn).mockResolvedValue({ ...baseSession, turn_version: 2, prompt: reflectionPrompt, results: { P1: { rating: 4, status: 'active', probes: 0 } } })
   const user = userEvent.setup()
   renderPage()
   expect(await screen.findByRole('dialog', { name: 'Before you begin' })).toBeInTheDocument()
   await acceptConsent(user)
   expect(await screen.findByText('I think about the work.')).toBeInTheDocument()
-  await user.click(screen.getByRole('radio', { name: 'Agree' }))
+  const composer = screen.getByTestId('chat-composer')
+  const message = within(composer).getByRole('textbox', { name: 'Message' })
+  expect(message).toBeVisible()
+  expect(message).toBeEnabled()
+  expect(screen.queryByRole('radio')).not.toBeInTheDocument()
+  expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /^Agree$/ })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Prefer not to answer' })).not.toBeInTheDocument()
+  expect(within(composer).getByRole('button', { name: 'Dictate' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
+  await user.type(message, '   ')
+  expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
+  await user.clear(message)
+  await user.type(message, 'I would say four, because I think through the task.')
   await user.click(screen.getByRole('button', { name: 'Send' }))
-  expect(api.turn).toHaveBeenCalledWith(surveyId, sessionId, token, { expected_version: 1, item_id: 'P1', kind: 'rating', value: 4 })
+  expect(api.turn).toHaveBeenCalledWith(surveyId, sessionId, token, {
+    expected_version: 1, item_id: 'P1', kind: 'text', text: 'I would say four, because I think through the task.',
+  })
   expect(await screen.findByText('Why?')).toBeInTheDocument()
-  expect(screen.getByRole('textbox', { name: 'Message' })).toBeInTheDocument()
+  expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('')
+})
+
+it.each(['Prefer not to answer', 'Somewhere between three and four', 'What does this scale mean?'])(
+  'sends rating-phase wording unchanged for backend interpretation: %s', async (text) => {
+    vi.mocked(api.turn).mockResolvedValue({ ...baseSession, turn_version: 2 })
+    const user = userEvent.setup()
+    renderPage()
+    await acceptConsent(user)
+    await user.type(screen.getByRole('textbox', { name: 'Message' }), text)
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(api.turn).toHaveBeenCalledWith(surveyId, sessionId, token, {
+      expected_version: 1, item_id: 'P1', kind: 'text', text,
+    }))
+  },
+)
+
+it('uses shared dictation during rating and submits its transcript as text', async () => {
+  const previous = Object.getOwnPropertyDescriptor(window, 'SpeechRecognition')
+  const recognition = {
+    start: vi.fn(), stop: vi.fn(),
+    onresult: null as null | ((event: { results: { isFinal: boolean; 0: { transcript: string } }[] }) => void),
+  }
+  Object.defineProperty(window, 'SpeechRecognition', { configurable: true, value: class {
+    constructor() { return recognition }
+  } })
+  vi.mocked(api.start).mockResolvedValue({ ...baseSession, token, prompt: { ...ratingPrompt, choices: null } })
+  vi.mocked(api.turn).mockResolvedValue({ ...baseSession, turn_version: 2, prompt: reflectionPrompt })
+  try {
+    const user = userEvent.setup()
+    renderPage()
+    await acceptConsent(user)
+    const dictate = screen.getByRole('button', { name: 'Dictate' })
+    expect(dictate).toBeEnabled()
+    await user.click(dictate)
+    expect(screen.getByRole('button', { name: 'Stop dictation' })).toBeEnabled()
+    act(() => recognition.onresult!({ results: [{ isFinal: true, 0: { transcript: 'Four because I planned ahead.' } }] }))
+    expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('Four because I planned ahead.')
+    await user.click(screen.getByRole('button', { name: 'Send' }))
+    expect(api.turn).toHaveBeenCalledWith(surveyId, sessionId, token, {
+      expected_version: 1, item_id: 'P1', kind: 'text', text: 'Four because I planned ahead.',
+    })
+  } finally {
+    if (previous) Object.defineProperty(window, 'SpeechRecognition', previous)
+    else Reflect.deleteProperty(window, 'SpeechRecognition')
+  }
+})
+
+it('keeps a resumed rating conversation read-only when environment verification fails', async () => {
+  sessionStorage.setItem(`leai:local:student:${surveyId}`, JSON.stringify({ sessionId, token }))
+  renderPage(false)
+  await screen.findByText(ratingPrompt.text)
+  expect(screen.getByRole('textbox', { name: 'Message' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Dictate' })).toBeDisabled()
+  expect(api.turn).not.toHaveBeenCalled()
 })
 
 it('restores a session with its scoped capability after remount', async () => {
@@ -406,8 +478,8 @@ it('never starts a session when the environment is read-only', async () => {
   expect(api.start).not.toHaveBeenCalled()
 })
 
-it('keeps the response for retry after a transient assessment failure', async () => {
-  vi.mocked(api.start).mockResolvedValue({ ...baseSession, token, prompt: reflectionPrompt })
+it.each([reflectionPrompt, ratingPrompt])('keeps the $phase response for retry after a transient assessment failure', async (prompt) => {
+  vi.mocked(api.start).mockResolvedValue({ ...baseSession, token, prompt })
   vi.mocked(api.turn).mockRejectedValueOnce(new Error('assessment unavailable')).mockResolvedValueOnce({
     ...baseSession, turn_version: 2, prompt: { phase: 'complete' }, status: 'completed',
     progress_label: 'Reflection complete',
