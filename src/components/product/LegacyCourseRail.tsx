@@ -31,7 +31,7 @@ export function LegacyCourseRail({ accountItems, activeItem, courseItems, course
       {items.map((item) => {
         const Icon = icons[item.id as keyof typeof icons] ?? LibraryBig
         return <a aria-current={item.id === activeItem ? 'page' : undefined}
-          className={`flex min-h-[46px] items-center gap-3 rounded-[7px] px-[14px] py-[11px] font-semibold transition-colors hover:bg-sidebar-hover focus-visible:bg-sidebar-hover ${mobile ? 'text-[16pt]' : 'text-base'} ${item.id === activeItem ? 'bg-sidebar-current text-sidebar-current-foreground hover:bg-sidebar-current focus-visible:bg-sidebar-current' : 'text-sidebar-muted'}`}
+          className={`flex min-h-[46px] items-center gap-3 rounded-[7px] pl-[14px] pr-0 py-[11px] font-semibold transition-colors hover:bg-sidebar-hover focus-visible:bg-sidebar-hover ${mobile ? 'text-[16pt]' : 'text-base'} ${item.id === activeItem ? 'bg-sidebar-current text-sidebar-current-foreground hover:bg-sidebar-current focus-visible:bg-sidebar-current' : 'text-sidebar-muted'}`}
           href={item.href} key={item.id}>
           <Icon aria-hidden="true" className="size-5 shrink-0" />
           <span>{item.label}</span>
