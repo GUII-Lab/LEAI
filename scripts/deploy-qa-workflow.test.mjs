@@ -6,13 +6,15 @@ import assert from 'node:assert/strict'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
-test('QA deployment verifies the pinned backend in QA history and pushes only to QA Heroku', async () => {
+test('QA deployment validates backend pins from GitHub main or local QA history and pushes only to QA', async () => {
   const workflow = await readFile(path.join(root, '.github/workflows/ci.yml'), 'utf8')
 
+  assert.match(workflow, /git -C "\$backend_dir" fetch --no-tags origin main:refs\/remotes\/origin\/main/)
   assert.match(workflow, /git -C "\$backend_dir" fetch --no-tags heroku main/)
-  assert.match(workflow, /git -C "\$backend_dir" merge-base --is-ancestor "\$LEAI_QA_BACKEND_SHA" refs\/remotes\/heroku\/main/)
+  assert.match(workflow, /merge-base --is-ancestor "\$LEAI_QA_BACKEND_SHA" refs\/remotes\/origin\/main/)
+  assert.match(workflow, /merge-base --is-ancestor "\$LEAI_QA_BACKEND_SHA" refs\/remotes\/heroku\/main/)
+  assert.match(workflow, /\[ "\$github_pin_ancestor" != true \] && \[ "\$heroku_pin_ancestor" != true \]/)
   assert.match(workflow, /https:\/\/git\.heroku\.com\/guiidata-leai-qa\.git HEAD:main/)
-  assert.doesNotMatch(workflow, /git -C "\$backend_dir" fetch --no-tags origin main/)
   assert.doesNotMatch(workflow, /git\s+-C\s+"\$backend_dir"\s+push\s+.*github\.com\/GUII-Lab\/guiidatapipelines/)
 })
 

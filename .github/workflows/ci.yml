@@ -106,6 +106,7 @@ jobs:
 
           backend_dir="$RUNNER_TEMP/leai-backend-release"
           git clone --no-checkout https://github.com/GUII-Lab/guiidatapipelines.git "$backend_dir"
+          git -C "$backend_dir" fetch --no-tags origin main:refs/remotes/origin/main
           heroku_build_id="$(curl --fail --silent --show-error \
             -H 'Accept: application/vnd.heroku+json; version=3' \
             -H "Authorization: Bearer $HEROKU_API_KEY" \
@@ -122,8 +123,16 @@ jobs:
 
           git -C "$backend_dir" remote add heroku https://git.heroku.com/guiidata-leai-qa.git
           HOME="$heroku_home" GIT_TERMINAL_PROMPT=0 git -C "$backend_dir" fetch --no-tags heroku main
-          if ! git -C "$backend_dir" merge-base --is-ancestor "$LEAI_QA_BACKEND_SHA" refs/remotes/heroku/main; then
-            echo "LEAI_QA_BACKEND_SHA is not in the current Heroku QA release history." >&2
+          github_pin_ancestor=false
+          if git -C "$backend_dir" merge-base --is-ancestor "$LEAI_QA_BACKEND_SHA" refs/remotes/origin/main; then
+            github_pin_ancestor=true
+          fi
+          heroku_pin_ancestor=false
+          if git -C "$backend_dir" merge-base --is-ancestor "$LEAI_QA_BACKEND_SHA" refs/remotes/heroku/main; then
+            heroku_pin_ancestor=true
+          fi
+          if [ "$github_pin_ancestor" != true ] && [ "$heroku_pin_ancestor" != true ]; then
+            echo "LEAI_QA_BACKEND_SHA is not in GitHub backend main or the current Heroku QA release history." >&2
             exit 1
           fi
           if ! git -C "$backend_dir" diff --quiet "$LEAI_QA_BACKEND_SHA" refs/remotes/heroku/main -- \
