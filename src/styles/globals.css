@@ -240,6 +240,7 @@ body {
 }
 
 .legacy-feedback-chat-ui.legacy-instructor-ui .legacy-chat-main {
+  position: relative;
   display: flex;
   min-height: 0;
   flex: 1;
@@ -269,11 +270,21 @@ body {
 
 @media (max-width: 767px) {
   .legacy-feedback-chat-ui.legacy-instructor-ui .legacy-chat-main > header {
-    padding: 14px 16px 12px;
+    padding: 14px 16px 12px 58px;
   }
 
   .legacy-feedback-chat-ui.legacy-instructor-ui .legacy-chat-main > header h1 {
     font-size: 1.15rem;
+  }
+
+  .legacy-feedback-chat-ui .legacy-chat-sessions-toggle {
+    position: absolute;
+    top: 14px;
+    left: 16px;
+    z-index: 1;
+    width: 28px;
+    height: 28px;
+    color: var(--muted-foreground);
   }
 }
 

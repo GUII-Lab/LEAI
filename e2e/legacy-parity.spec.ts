@@ -126,7 +126,7 @@ for (const width of [390, 820, 1022, 1440]) {
     await expect(chatComposer.getByRole('button', { name: 'Send' })).toHaveCSS('background-color', 'rgb(0, 100, 147)')
     await expect(chatComposer.getByRole('button', { name: 'Dictate' })).toHaveCSS('background-color', 'rgb(0, 100, 147)')
     if (width === 390 || width === 1440) await shot('chat-composer-ready')
-    if (width < 1024) {
+    if (width < 768) {
       await page.getByRole('button', { name: 'Show sessions' }).click()
       await expect(page.getByRole('dialog', { name: 'Chats' }).getByRole('button', { name: 'New chat' })).toBeVisible()
       await page.waitForTimeout(250)
@@ -135,6 +135,9 @@ for (const width of [390, 820, 1022, 1440]) {
       await expect(page.getByRole('alertdialog', { name: 'Archive this Chat?' })).toBeVisible()
       if (width === 390) { await page.waitForTimeout(200); await shot('chat-archive-dialog') }
       await page.getByRole('button', { name: 'Cancel' }).click()
+    } else if (width < 1024) {
+      await expect(page.getByRole('button', { name: 'Show sessions' })).toBeHidden()
+      await expect(page.getByRole('region', { name: 'Feedback Chat workspace' }).getByRole('region', { name: 'Chat sessions' }).getByRole('button', { name: 'New chat' })).toBeVisible()
     }
     await page.getByRole('button', { name: /feedback source.*Change/i }).click()
     await expect(page.getByRole('dialog', { name: 'Choose chat context' })).toBeVisible()

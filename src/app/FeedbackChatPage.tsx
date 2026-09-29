@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { ChevronDown, MessagesSquare, SlidersHorizontal } from 'lucide-react'
+import { ChevronDown, MessagesSquare, PanelLeftOpen, SlidersHorizontal } from 'lucide-react'
 import { ChatComposer } from '@/components/chat/ChatComposer'
 import { ChatMessage } from '@/components/chat/ChatMessage'
 import { ChatTranscript } from '@/components/chat/ChatTranscript'
@@ -393,10 +393,10 @@ export function FeedbackChatPage({ api, environment, verified }: {
     {visibleError && <p className="text-base text-destructive" role="alert">{visibleError}</p>}
     {notice && <p className="text-sm text-muted-foreground" role="status">{notice}</p>}
     {firstLoad ? <p className="text-base" role="status">Loading courses…</p> : courseQuery.isError ? <Button onClick={() => void courseQuery.refetch()} type="button" variant="outline">Retry loading courses</Button> : !courses.length ? <p className="text-base text-muted-foreground">No active courses are available for this account.</p> : !canUse ? <p className="text-base text-muted-foreground">You do not have permission to use Feedback Chat for this course.</p> : (<>
-      <Button className="lg:hidden" onClick={() => setSessionsOpen(true)} type="button" variant="outline"><MessagesSquare aria-hidden="true" className="size-4" />Show sessions</Button>
+      <Button aria-label="Show sessions" className="legacy-chat-sessions-toggle md:hidden" onClick={() => setSessionsOpen(true)} size="icon" type="button" variant="ghost"><PanelLeftOpen aria-hidden="true" className="size-5" /></Button>
       <Sheet onOpenChange={setSessionsOpen} open={sessionsOpen}><SheetContent className="w-[min(20rem,88vw)] gap-0 bg-muted p-0" side="left"><SheetHeader className="border-b border-border bg-card"><SheetTitle>Chats</SheetTitle><SheetDescription>Select or create a Feedback Chat session.</SheetDescription></SheetHeader>{sessionList(true)}</SheetContent></Sheet>
-      <section aria-label="Feedback Chat workspace" className="grid min-h-0 min-w-0 flex-1 overflow-hidden bg-card lg:grid-cols-[13.75rem_minmax(0,1fr)]">
-        <div className="hidden min-h-0 min-w-0 border-r border-border bg-muted lg:block">
+      <section aria-label="Feedback Chat workspace" className="grid min-h-0 min-w-0 flex-1 overflow-hidden bg-card md:grid-cols-[11.25rem_minmax(0,1fr)] lg:grid-cols-[13.75rem_minmax(0,1fr)]">
+        <div className="hidden min-h-0 min-w-0 border-r border-border bg-muted md:block">
           {sessionList(false)}
         </div>
         <div className="flex min-h-0 min-w-0 flex-col">
@@ -420,7 +420,7 @@ export function FeedbackChatPage({ api, environment, verified }: {
               </div>
               <Card className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-none border-0 shadow-none">
                 <CardContent className="flex min-h-0 min-w-0 flex-1 flex-col gap-0 p-0">
-                  <div className="min-h-0 flex-1 overflow-y-auto">
+                  <div className="min-h-0 flex-1 overflow-y-auto bg-[#f8fafb]">
                     <ChatTranscript className="student-transcript mx-auto flex w-full max-w-[832px] flex-col gap-7 px-5 py-10 sm:gap-8 sm:px-0 sm:py-12">
                       {chat.messages.length === 0 && <div className="flex flex-col items-center gap-3 py-16 text-center"><MessagesSquare aria-hidden="true" className="size-12 text-border" /><h3 className="font-semibold">Ask about your survey data</h3><p className="text-base text-muted-foreground">Choose a feedback source, then ask your first question.</p></div>}
                       {chat.messages.map((message) => <ChatMessage author={message.role === 'assistant' ? 'Feedback Chat' : 'Instructor'} className={message.role === 'assistant' ? 'student-assistant-message' : 'student-user-message'} key={message.id} metaClassName="student-message-meta" role={message.role} timestamp={message.created_at}>
