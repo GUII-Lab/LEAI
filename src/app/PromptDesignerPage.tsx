@@ -19,6 +19,7 @@ import { qualifyBrowserKey, toAppHref, type PublicEnvironment } from '@/config/e
 import { ArtifactEditor } from './prompt-designer/ArtifactEditor'
 import { AuthoringConversation } from './prompt-designer/AuthoringConversation'
 import { BuilderFrame } from './prompt-designer/BuilderFrame'
+import { WizardStepHeading } from './prompt-designer/WizardStepHeading'
 import { PreviewStep } from './prompt-designer/PreviewStep'
 import { WizardChoiceCard } from './prompt-designer/WizardChoiceCard'
 import type { WizardStep } from './prompt-designer/WorkflowStepper'
@@ -361,6 +362,7 @@ export function PromptDesignerPage({ api, environment, verified }: {
     try {
       await saveNow()
       const frozen = await api.freezeWizardDraft(courseId, draft.id, versionRef.current)
+      if (!revision || publishLabel === revision.body.title) setPublishLabel(frozen.revision.body.title)
       setRevision(frozen.revision)
       setPreviewOpened(false)
       setStep(3)
@@ -712,18 +714,19 @@ export function PromptDesignerPage({ api, environment, verified }: {
         <p className="mt-3 text-base text-muted-foreground"><span className="font-medium text-foreground">{publishedSurvey.label}</span> is published. Return to the survey list to review the new card and copy its link.</p>
       </div>}
       {step === 4 && revision && !publishedSurvey && <div className="mx-auto max-w-5xl space-y-5">
-        <div><h3 className="text-xl font-semibold">Publish feedback</h3>
-          <p className="mt-1 text-base text-muted-foreground">Publish this exact revision. Its questions will remain unchanged for students.</p></div>
-        <div className="grid gap-5 md:grid-cols-[minmax(0,1.4fr)_minmax(17.5rem,0.8fr)]"><div className="space-y-4 rounded-xl border border-border bg-card p-5">
-        <label className="block space-y-2"><span className="font-medium">Survey label</span>
+        <WizardStepHeading eyebrow="Final step" title="Publish this feedback">
+          <p>Blank dates mean available now with no automatic close.</p>
+        </WizardStepHeading>
+        <div className="grid gap-[18px] min-[821px]:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)]"><div className="min-w-0 space-y-4 rounded-xl border border-border bg-card p-[18px] md:p-[22px]">
+        <label className="block space-y-2"><span className="text-[11px] font-extrabold tracking-wider text-muted-foreground uppercase">Feedback label</span>
           <Input maxLength={200} onChange={(event) => setPublishLabel(event.target.value)} value={publishLabel} /></label>
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block space-y-2"><span className="font-medium">Opens at (optional)</span>
+          <label className="block space-y-2"><span className="text-[11px] font-extrabold tracking-wider text-muted-foreground uppercase">Opens (optional)</span>
             <Input onChange={(event) => setOpensAt(event.target.value)} type="datetime-local" value={opensAt} /></label>
-          <label className="block space-y-2"><span className="font-medium">Closes at (optional)</span>
+          <label className="block space-y-2"><span className="text-[11px] font-extrabold tracking-wider text-muted-foreground uppercase">Closes (optional)</span>
             <Input onChange={(event) => setClosesAt(event.target.value)} type="datetime-local" value={closesAt} /></label>
         </div>
-        </div><aside className="rounded-xl border border-border bg-card p-5"><p className="text-sm font-bold tracking-widest text-primary uppercase">Publication summary</p><dl className="mt-3 divide-y divide-border text-base"><div className="py-3"><dt className="text-sm font-bold text-muted-foreground uppercase">Audience</dt><dd>{audience === 'team' ? 'Team members' : 'Individual students'}</dd></div><div className="py-3"><dt className="text-sm font-bold text-muted-foreground uppercase">Format</dt><dd>{style === 'open' ? 'Open conversation' : 'Guided feedback'}</dd></div><div className="py-3"><dt className="text-sm font-bold text-muted-foreground uppercase">Preview</dt><dd>{revision.preview_decision}</dd></div><div className="py-3"><dt className="text-sm font-bold text-muted-foreground uppercase">Outputs</dt><dd>Certificate {certificateEnabled ? 'on' : 'off'} · response form {downloadEnabled ? 'on' : 'off'}</dd></div></dl></aside></div>
+        </div><aside className="min-w-0 rounded-xl border border-border bg-card p-[18px] md:p-[22px]"><p className="text-sm font-bold tracking-widest text-primary uppercase">Publication summary</p><dl className="mt-3 divide-y divide-border text-base"><div className="py-3"><dt className="text-sm font-bold text-muted-foreground uppercase">Audience</dt><dd>{audience === 'team' ? 'Team members' : 'Individual students'}</dd></div><div className="py-3"><dt className="text-sm font-bold text-muted-foreground uppercase">Format</dt><dd>{style === 'open' ? 'Open conversation' : 'Guided feedback'}</dd></div><div className="py-3"><dt className="text-sm font-bold text-muted-foreground uppercase">Preview</dt><dd>{revision.preview_decision === 'completed' ? 'Completed' : 'Skipped'}</dd></div><div className="py-3"><dt className="text-sm font-bold text-muted-foreground uppercase">Outputs</dt><dd>Certificate {certificateEnabled ? 'on' : 'off'} · response form {downloadEnabled ? 'on' : 'off'}</dd></div></dl></aside></div>
         {audience === 'team' && <p className="text-sm text-muted-foreground">You can publish now and set up teams from the survey card before students begin.</p>}
         <Dialog open={templateDialogOpen} onOpenChange={(open) => {
           setTemplateDialogOpen(open)
