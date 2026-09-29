@@ -164,6 +164,16 @@ jobs:
           NODE
 
           git -C "$backend_dir" add -f frontend_dist/
+          artifact_diff_status=0
+          git -C "$backend_dir" diff --cached --quiet || artifact_diff_status=$?
+          if [ "$artifact_diff_status" -eq 0 ]; then
+            echo "QA already contains this verified frontend artifact; continuing to live smoke checks."
+            exit 0
+          fi
+          if [ "$artifact_diff_status" -ne 1 ]; then
+            echo "Unable to compare the staged QA artifact." >&2
+            exit "$artifact_diff_status"
+          fi
           git -C "$backend_dir" config user.name "github-actions[bot]"
           git -C "$backend_dir" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git -C "$backend_dir" commit -m "build: package LEAI QA frontend ${GITHUB_SHA}"
