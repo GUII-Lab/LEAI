@@ -91,6 +91,25 @@ for (const width of [390, 820, 1022, 1440]) {
     await expect(page.getByRole('heading', { name: 'Who are you collecting feedback from?' })).toBeVisible()
     await expect(page.getByRole('radio', { name: /Individual feedback/ })).not.toBeChecked()
     await expect(page.getByRole('radio', { name: /Team feedback/ })).not.toBeChecked()
+    const assertChoiceCards = async (name: string) => {
+      const choices = page.getByRole('radiogroup', { name })
+      const cards = choices.locator('label')
+      const first = cards.first()
+      await expect(first).toHaveCSS('padding-top', '24px')
+      await expect(first).toHaveCSS('border-top-width', '2px')
+      await expect(first.locator('[aria-hidden="true"]')).toHaveCSS('width', '42px')
+      await expect(first.locator('[id$="-description"]')).toHaveCSS('font-size', '14px')
+      await expect(first.getByRole('listitem')).toHaveCount(3)
+      const boxes = await cards.evaluateAll(elements => elements.map(element => {
+        const box = element.getBoundingClientRect()
+        return { x: box.x, y: box.y, height: box.height }
+      }))
+      expect(boxes.every(box => box.height >= 210)).toBe(true)
+      if (width <= 900) expect(boxes[1].y).toBeGreaterThan(boxes[0].y)
+      else { expect(boxes[1].y).toBe(boxes[0].y); expect(boxes[1].x).toBeGreaterThan(boxes[0].x) }
+    }
+    await assertChoiceCards('Feedback audience')
+    await expect(page.getByText('One name-hidden session is bound to one self-selected team', { exact: true })).toBeVisible()
     if (width === 390) {
       const steps = page.getByRole('list', { name: 'Feedback Builder steps' })
       for (const name of ['Audience', 'Format', 'Build', 'Preview', 'Publish']) await expect(steps.getByText(name, { exact: true })).toBeVisible()
@@ -105,6 +124,9 @@ for (const width of [390, 820, 1022, 1440]) {
     if (width === 390 || width === 1440) await shot('prompt-audience')
     await page.getByText('Individual feedback', { exact: true }).click()
     await expect(page.getByRole('heading', { name: 'How should the conversation work?' })).toBeVisible()
+    await assertChoiceCards('Feedback format')
+    await expect(page.getByRole('radio', { name: 'Guided feedback', exact: true })).not.toBeChecked()
+    await expect(page.getByRole('radio', { name: 'Open conversation', exact: true })).not.toBeChecked()
     await page.waitForTimeout(250)
     await fit()
     if (width === 390 || width === 1440) await shot('prompt-format')

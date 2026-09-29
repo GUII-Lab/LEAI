@@ -713,11 +713,12 @@ export function PromptDesignerPage({ api, environment, verified }: {
         <WizardStepHeading eyebrow="Step 1" title="Who are you collecting feedback from?">
           <p>Choose the purpose. Neither option is preferred over the other.</p>
         </WizardStepHeading>
-        <div aria-label="Feedback audience" className="grid gap-[18px] sm:grid-cols-2" role="radiogroup">
+        <div aria-label="Feedback audience" className="grid gap-[18px] min-[901px]:grid-cols-2" role="radiogroup">
           {(['individual', 'team'] as const).map((value) => <WizardChoiceCard description={value === 'individual' ? 'Collect each student’s own learning experience, needs, and suggestions.' : 'Collect private feedback about collaboration inside the team each student selects.'}
+            details={value === 'individual' ? ['Names are not collected with answers', 'Class-level patterns for the instructor', 'Choose guided questions or an open conversation next'] : ["Designed for feedback within the student's own team", 'No cross-group target, comparison, ranking, or scoring feature', 'One name-hidden session is bound to one self-selected team']}
             disabled={!!draft} groupName="wizard-audience" key={value} onSelect={() => {
               setAudience(value); setAudienceChoice(value); setTemplateId(''); setStyle('guided'); setStyleChosen(value === 'team'); setStep(1)
-            }} selected={audienceChoice === value} title={value === 'individual' ? 'Individual feedback' : 'Team feedback'} value={value === 'individual' ? 'I' : 'T'} />)}
+            }} selected={audienceChoice === value} title={value === 'individual' ? 'Individual feedback' : 'Team feedback'} value={value === 'individual' ? '1' : 'T'} />)}
         </div>
         <div className="text-center"><Button onClick={() => setHowOpen(!howOpen)} type="button" variant="link">How LEAI works</Button></div>
         {howOpen && <div className="rounded-xl border border-border bg-card p-5">
@@ -730,10 +731,11 @@ export function PromptDesignerPage({ api, environment, verified }: {
           <WizardStepHeading eyebrow="Step 2" title="How should the conversation work?">
             <p>Both paths open the same editable workspace.</p>
           </WizardStepHeading>
-          <div aria-label="Feedback format" className="grid gap-[18px] sm:grid-cols-2" role="radiogroup">
+          <div aria-label="Feedback format" className="grid gap-[18px] min-[901px]:grid-cols-2" role="radiogroup">
             {(['guided', 'open'] as const).map((value) => <WizardChoiceCard description={value === 'guided' ? 'Every student encounters a planned set of questions and optional follow-ups.' : 'Set one opening question and a listening goal, then follow what the student raises.'}
+              details={value === 'guided' ? ['Easier to compare across students or weeks', 'AI may ask one focused follow-up', 'You can build manually or collaborate with AI'] : ['Useful for discovering unexpected concerns', 'Less consistent across students and weeks', 'Harder to compare and summarize reliably']}
               disabled={!!draft} groupName="wizard-style" key={value} onSelect={() => { setStyle(value); setStyleChosen(true); setTemplateId(''); setSource(value === 'open' ? 'scratch' : 'leai') }} selected={false}
-              title={value === 'guided' ? 'Guided feedback' : 'Open conversation'} value={value === 'guided' ? 'G' : 'O'} />)}
+              title={value === 'guided' ? 'Guided feedback' : 'Open conversation'} value={value === 'guided' ? '✓' : '…'} />)}
           </div>
         </> : <>
         <WizardStepHeading eyebrow="Starting point" title={style === 'open' ? 'Start your open conversation' : 'Choose a starting point'}>
