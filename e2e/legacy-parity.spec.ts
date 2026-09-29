@@ -6,12 +6,16 @@ const courseId = '550e8400-e29b-41d4-a716-446655440000'
 const occurrenceId = '550e8400-e29b-41d4-a716-446655440010'
 const chatId = '550e8400-e29b-41d4-a716-446655440020'
 const responseId = '550e8400-e29b-41d4-a716-446655440030'
+const wizardDraftId = '550e8400-e29b-41d4-a716-446655440060'
 const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' }
 const course = { course_id: courseId, course_code: 'cmpm-80h', course_name: 'Game Design', institution_slug: 'ucsc', lifecycle_state: 'active', role: 'owner', allowed_actions: ['course.manage', 'feedback.author', 'feedback.publish', 'analysis.use', 'responses.view'] }
 const metrics = { response_count: 1, student_turn_count: 2, pdf_response_count: 0, average_words: 12, participation: { state: 'unavailable', reason: 'eligible_denominator_missing' }, turn_distribution: { state: 'unavailable', reason: 'insufficient_occurrences' }, question_health: { state: 'unavailable', reason: 'exact_structured_identifiers_unavailable' } }
 const overview = { course: { id: courseId, name: 'Game Design' }, selected_occurrence_ids: [occurrenceId], occurrences: [{ id: occurrenceId, label: 'Week 1 feedback', mode: 'general', audience: 'individual', collection_style: 'guided', completion_certificate_enabled: false, schema_family_id: occurrenceId, created_at: '2026-09-27T12:00:00Z', metrics }], summary: metrics, team_surveys: [] }
 const response = { kind: 'chat', response_id: responseId, label: 'R1', survey_label: 'Week 1 feedback', created_at: '2026-09-27T12:20:00Z', nudged: false, response_href: '#', transcript: [{ message_id: '21', content: 'The weekly instructions were clear.', timestamp: '2026-09-27T12:20:00Z' }], answers: [], occurrence_id: occurrenceId, team_snapshot_id: null, team_snapshot_item_id: null, team_label: null, team_configuration_label: null, source: 'student' }
 const chat = { id: chatId, title: 'Week 1 feedback', prompt_override: null, archived: false, updated_at: '2026-09-27T12:30:00Z', sources: [{ id: occurrenceId, label: 'Week 1 feedback', revision: 1 }], messages: [{ id: '10', sequence: 1, role: 'user', content: 'What should change?', created_at: '2026-09-27T12:30:00Z', citations: [] }, { id: '11', sequence: 2, role: 'assistant', content: 'Students want clearer weekly steps. [1]', created_at: '2026-09-27T12:31:00Z', citations: [{ id: '9', citation_number: 1, claim_key: 'clarity', response_id: responseId, response_message_id: 21, occurrence_id: occurrenceId, week_label: 'Week 1', survey_label: 'Week 1 feedback', question_label: null, evidence_quote: 'The weekly instructions were clear.' }] }] }
+const wizardDraft = { id: wizardDraftId, title: 'Weekly reflection', audience: 'individual', collection_style: 'guided', draft_version: 1,
+  body: { version: 1, title: 'Weekly reflection', intro: 'Tell us about this week.', scales: {}, sections: [{ id: 's1', title: 'Learning', items: [{ id: 'q1', prompt: 'What stood out this week?', wording: 'adaptive', response: { kind: 'text' }, reflection_goal: 'Understand a concrete moment.', coverage_targets: [], example_probes: [], max_additional_probes: 1 }] }] },
+  updated_at: '2026-09-28T12:00:00Z', resumable: true }
 
 test.beforeEach(async ({ page }) => {
   await page.route('**/datapipeline/api/v1/**', async (route) => {
@@ -28,7 +32,10 @@ test.beforeEach(async ({ page }) => {
     else if (path.endsWith('/analysis/chats/')) json = { chats: [{ id: chatId, title: chat.title, updated_at: chat.updated_at }] }
     else if (path.endsWith(`/analysis/chats/${chatId}/`)) json = chat
     else if (path.endsWith('/question-set-templates/')) json = { templates: [{ id: 'weekly-reflection', name: 'Weekly reflection', description: 'A weekly check-in.', audience: 'individual', collection_style: 'guided', source: 'leai' }] }
-    else if (path.endsWith('/question-sets/')) json = { question_sets: [] }
+    else if (path.endsWith('/question-sets/')) json = route.request().method() === 'POST' ? wizardDraft : { question_sets: [] }
+    else if (path.endsWith(`/question-sets/${wizardDraftId}/draft/`)) json = wizardDraft
+    else if (path.endsWith(`/question-sets/${wizardDraftId}/versions/`)) json = { versions: [] }
+    else if (path.endsWith(`/question-sets/${wizardDraftId}/conversation/`)) json = { messages: [] }
     else if (path.endsWith('/surveys/')) json = { surveys: [] }
     else return route.fulfill({ status: 404, headers, json: { detail: 'No visual test fixture for this path.' } })
     await route.fulfill({ headers, json })
@@ -76,6 +83,17 @@ for (const width of [390, 820, 1022, 1440]) {
     await expect(page.getByRole('button', { name: 'Open citation 1' })).toBeVisible()
     await fit()
     if (width === 390 || width === 1440) await shot('chat-workspace')
+    const chatComposer = page.getByTestId('chat-composer')
+    const chatInput = chatComposer.getByRole('textbox', { name: 'Message' })
+    await expect(chatInput).toHaveCSS('border-top-width', '0px')
+    await expect(chatComposer).toHaveCSS('border-top-width', '1px')
+    await expect(chatComposer.getByRole('button', { name: 'Dictate' })).toBeVisible()
+    await chatInput.fill('What themes are emerging?')
+    await expect(chatComposer.getByRole('button', { name: 'Send' })).toBeEnabled()
+    await expect(chatComposer.getByRole('button', { name: 'Send' })).toHaveCSS('opacity', '1')
+    await expect(chatComposer.getByRole('button', { name: 'Send' })).toHaveCSS('background-color', 'rgb(0, 100, 147)')
+    await expect(chatComposer.getByRole('button', { name: 'Dictate' })).toHaveCSS('background-color', 'rgb(0, 100, 147)')
+    if (width === 390 || width === 1440) await shot('chat-composer-ready')
     if (width < 1024) {
       await page.getByRole('button', { name: 'Show sessions' }).click()
       await expect(page.getByRole('dialog', { name: 'Chats' }).getByRole('button', { name: 'New chat' })).toBeVisible()
@@ -120,6 +138,44 @@ for (const width of [390, 820, 1022, 1440]) {
   })
 }
 
+test('Wizard uses the same student composer with its teal theme', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/PromptDesigner.html')
+  await page.getByRole('button', { name: 'Create new feedback' }).click()
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
+  await page.getByRole('button', { name: /Weekly reflection/ }).click()
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
+  const composer = page.getByRole('region', { name: 'AI collaboration' }).getByTestId('chat-composer')
+  const input = composer.getByRole('textbox', { name: 'Ask LEAI to edit this feedback draft' })
+  await expect(input).toBeVisible()
+  await expect(input).toHaveCSS('border-top-width', '0px')
+  await expect(composer).toHaveCSS('border-top-width', '1px')
+  await expect(composer.getByRole('button', { name: 'Dictate' })).toBeVisible()
+  await input.fill('Make the opening question shorter.')
+  await expect(composer.getByRole('button', { name: 'Send' })).toBeEnabled()
+  await expect(composer.getByRole('button', { name: 'Send' })).toHaveCSS('opacity', '1')
+  await expect(composer.getByRole('button', { name: 'Send' })).toHaveCSS('background-color', 'rgb(0, 127, 128)')
+  await expect(composer.getByRole('button', { name: 'Dictate' })).toHaveCSS('background-color', 'rgb(0, 127, 128)')
+  if (testInfo.project.name === 'chromium') {
+    const desktop = join(process.cwd(), '.web-verify', 'screenshots', 'legacy-parity-wizard-composer-1440-chromium.png')
+    await page.screenshot({ path: desktop, fullPage: true })
+    await testInfo.attach('wizard-composer-desktop', { path: desktop, contentType: 'image/png' })
+  }
+  await page.setViewportSize({ width: 390, height: 900 })
+  await expect(composer.getByRole('button', { name: 'Dictate' })).toBeVisible()
+  await expect(composer.getByRole('button', { name: 'Send' })).toBeVisible()
+  await expect.poll(async () => {
+    const box = await composer.boundingBox()
+    return Boolean(box && box.x >= 0 && box.x + box.width <= 390)
+  }).toBe(true)
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  if (testInfo.project.name === 'chromium') {
+    const mobile = join(process.cwd(), '.web-verify', 'screenshots', 'legacy-parity-wizard-composer-390-chromium.png')
+    await page.screenshot({ path: mobile, fullPage: true })
+    await testInfo.attach('wizard-composer-mobile', { path: mobile, contentType: 'image/png' })
+  }
+})
+
 test('student preview runs and completes in its own page', async ({ page }, testInfo) => {
   const revisionId = '550e8400-e29b-41d4-a716-446655440040'
   const previewId = '550e8400-e29b-41d4-a716-446655440050'
@@ -157,6 +213,9 @@ test('student preview runs and completes in its own page', async ({ page }, test
   await page.setViewportSize({ width: 390, height: 900 })
   await page.goto(`/WizardPreview.html?revision=${revisionId}`)
   await expect(page.getByRole('heading', { name: 'Weekly reflection' })).toBeVisible()
+  const composer = page.getByTestId('chat-composer')
+  await expect(composer.getByRole('button', { name: 'Dictate' })).toBeVisible()
+  await expect(composer.getByRole('textbox', { name: 'Preview answer' })).toHaveCSS('border-top-width', '0px')
   await page.getByRole('textbox', { name: 'Preview answer' }).fill('The workshop helped.')
   await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.getByText('The workshop helped.')).toBeVisible()

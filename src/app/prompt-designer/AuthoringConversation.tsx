@@ -3,6 +3,7 @@ import type { WizardConversationMessage } from '@/api/contracts/wizard'
 import { ChatComposer } from '@/components/chat/ChatComposer'
 import { ChatMessage } from '@/components/chat/ChatMessage'
 import { ChatTranscript } from '@/components/chat/ChatTranscript'
+import { useChatVoiceInput } from '@/components/chat/useChatVoiceInput'
 import { InfoPopover } from '@/components/product/InfoPopover'
 import '@/app/student-legacy.css'
 
@@ -16,6 +17,7 @@ export function AuthoringConversation({ messages, value, onValueChange, onSend, 
 }) {
   const [keyboardHintOpen, setKeyboardHintOpen] = useState(false)
   const keyboardHintTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const voice = useChatVoiceInput({ value, onValueChange, disabled: disabled || busy })
   useEffect(() => () => {
     if (keyboardHintTimeout.current) clearTimeout(keyboardHintTimeout.current)
   }, [])
@@ -75,7 +77,8 @@ export function AuthoringConversation({ messages, value, onValueChange, onSend, 
           maxLength={3000} onKeyDown={handleComposerKeyDown} onValueChange={onValueChange} placeholder="Ask for a change to the draft…"
           sendHint={{ content: <span>Enter sends. <kbd data-slot="kbd">⌘+Enter</kbd> or <kbd data-slot="kbd">Ctrl+Enter</kbd> adds a new line. Shift+Enter also works.</span>,
             open: keyboardHintOpen, onOpenChange: setKeyboardHintOpen }}
-          sendDisabled={!value.trim()} value={value} />
+          sendDisabled={!value.trim()} value={value} voiceInput={voice.voiceInput} />
+        {voice.error && <p className="mt-2 text-sm text-destructive" role="alert">{voice.error}</p>}
         <div className="mt-2 flex items-center justify-end gap-2 text-sm text-muted-foreground">AI collaborator <InfoPopover label="What AI can use" variant="builder">LEAI can use this draft, authorized templates, and course context. It cannot access student rosters, grades, or other courses.</InfoPopover></div>
       </div>
     </form>

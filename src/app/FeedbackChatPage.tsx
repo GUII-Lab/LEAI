@@ -20,6 +20,7 @@ import { ChevronDown, MessagesSquare, SlidersHorizontal } from 'lucide-react'
 import { ChatComposer } from '@/components/chat/ChatComposer'
 import { ChatMessage } from '@/components/chat/ChatMessage'
 import { ChatTranscript } from '@/components/chat/ChatTranscript'
+import { useChatVoiceInput } from '@/components/chat/useChatVoiceInput'
 import { ChatCitation, type ChatCitationSource } from './feedback-chat/ChatCitation'
 import { ChatSessionList } from './feedback-chat/ChatSessionList'
 import { qualifyBrowserKey, toAppHref, type PublicEnvironment } from '@/config/environment'
@@ -375,6 +376,8 @@ export function FeedbackChatPage({ api, environment, verified }: {
   }
   const job = jobQuery.data
   const busy = turnMutation.isPending || job?.status === 'pending' || job?.status === 'running'
+  const voice = useChatVoiceInput({ value: composerText, onValueChange: setComposerText,
+    disabled: !verified || !canUse || !chat?.sources.length || busy, contextKey: activeChatId })
   const latestUserMessage = [...(chat?.messages ?? [])].reverse().find((message) => message.role === 'user')
   const availableSources = occurrencesQuery.data?.occurrences ?? []
   const sessionList = (mobile: boolean) => <ChatSessionList sessions={summaries} selectedSessionId={activeChatId || null} status={chatsQuery.isPending ? 'loading' : chatsQuery.isError ? 'error' : 'ready'} onCreateSession={() => { if (mobile) setSessionsOpen(false); createChatMutation.mutate() }} onSelectSession={(id) => { setSelectedChatId(id); setError(''); if (mobile) setSessionsOpen(false) }} onRenameSession={saveRename} onArchiveSession={(id) => { if (mobile) setSessionsOpen(false); archiveChat(id) }} onRetry={() => void chatsQuery.refetch()} />
@@ -436,9 +439,10 @@ export function FeedbackChatPage({ api, environment, verified }: {
                     <div className="flex flex-wrap gap-2" aria-label="Suggested questions">{['What themes are emerging?', 'What could be clearer for students?'].map((prompt) => <Button key={prompt} onClick={() => setComposerText(prompt)} type="button" variant="outline">{prompt}</Button>)}</div>
                     <div className="legacy-student">
                       <form onSubmit={submit}>
-                        <ChatComposer busy={busy} className="bg-background" disabled={!chat.sources.length || busy} maxLength={3000} onKeyDown={composerKeyDown} onValueChange={setComposerText} placeholder={chat.sources.length ? 'Ask about the selected feedback sources…' : 'Add a feedback source to begin'} sendDisabled={!composerText.trim() || !chat.sources.length} value={composerText} />
+                        <ChatComposer busy={busy} className="bg-background" disabled={!chat.sources.length || busy} maxLength={3000} onKeyDown={composerKeyDown} onValueChange={setComposerText} placeholder={chat.sources.length ? 'Ask about the selected feedback sources…' : 'Add a feedback source to begin'} sendDisabled={!composerText.trim() || !chat.sources.length} value={composerText} voiceInput={voice.voiceInput} />
                       </form>
                     </div>
+                    {voice.error && <p className="text-sm text-destructive" role="alert">{voice.error}</p>}
                     <div className="flex items-center justify-between text-sm text-muted-foreground"><Button className="h-auto gap-1 p-0 text-sm" onClick={() => setPromptOpen(true)} type="button" variant="link"><SlidersHorizontal aria-hidden="true" className="size-4" />Chat instructions</Button><span>Shift+Enter for newline</span></div>
                   </div>
                 </CardContent>

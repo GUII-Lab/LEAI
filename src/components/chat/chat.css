@@ -1,3 +1,11 @@
+.chat-composer textarea.chat-composer-input,
+.chat-composer textarea.chat-composer-input:focus {
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
 .chat-composer .chat-composer-send[data-variant="ghost"],
 .chat-composer .chat-composer-voice[data-variant="ghost"] {
   background-color: var(--chat-control-background, var(--primary));

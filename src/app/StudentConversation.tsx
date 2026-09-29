@@ -5,27 +5,9 @@ import { Button } from '@/components/ui/button'
 import { ChatComposer } from '@/components/chat/ChatComposer'
 import { ChatMessage } from '@/components/chat/ChatMessage'
 import { ChatTranscript } from '@/components/chat/ChatTranscript'
+import { useChatVoiceInput } from '@/components/chat/useChatVoiceInput'
 import { StudentConsentDialog } from './StudentConsentDialog'
 import './student-legacy.css'
-
-type RecognitionResult = { isFinal: boolean; 0: { transcript: string } }
-type RecognitionEvent = { resultIndex: number; results: ArrayLike<RecognitionResult> }
-type Recognition = {
-  continuous: boolean
-  interimResults: boolean
-  lang: string
-  onresult: ((event: RecognitionEvent) => void) | null
-  onerror: (() => void) | null
-  onend: (() => void) | null
-  start: () => void
-  stop: () => void
-}
-type RecognitionConstructor = new () => Recognition
-
-function recognitionConstructor(): RecognitionConstructor | undefined {
-  const browser = window as Window & { SpeechRecognition?: RecognitionConstructor; webkitSpeechRecognition?: RecognitionConstructor }
-  return browser.SpeechRecognition ?? browser.webkitSpeechRecognition
-}
 
 export function StudentConversation({ survey, session, text, onTextChange, rating, onRatingChange, onSubmit,
   onSkip, onStart, onCopyResume, onDownloadDocument, busy, verified, error, conflictAction, debugDisclosure, termsHref, privacyHref }: {
@@ -49,13 +31,9 @@ export function StudentConversation({ survey, session, text, onTextChange, ratin
   privacyHref: string
 }) {
   const transcriptEnd = useRef<HTMLLIElement>(null)
-  const recognition = useRef<Recognition | null>(null)
-  const speechBase = useRef('')
   const previousLatestAssistantId = useRef<number | null>(null)
   const keyboardHintTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   const arrivalTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [listening, setListening] = useState(false)
-  const [voiceError, setVoiceError] = useState('')
   const [keyboardHintOpen, setKeyboardHintOpen] = useState(false)
   const [highlightedAssistantId, setHighlightedAssistantId] = useState<number | null>(null)
   const [headerPointerInside, setHeaderPointerInside] = useState(false)
@@ -65,6 +43,12 @@ export function StudentConversation({ survey, session, text, onTextChange, ratin
   const [downloadsFocused, setDownloadsFocused] = useState(false)
   const [downloadsPinned, setDownloadsPinned] = useState(false)
   const prompt = session?.prompt
+  const voice = useChatVoiceInput({
+    value: text, onValueChange: onTextChange, disabled: busy || !verified || prompt?.phase === 'rating',
+    contextKey: session?.session_id,
+    stoppedMessage: 'Voice input stopped. You can still type your answer.',
+    unavailableMessage: 'Voice input is unavailable. Please type your answer.',
+  })
   const messages = session?.messages ?? []
   const hasStudentResponse = messages.some((message) => message.role === 'student')
   const headerExpanded = !hasStudentResponse || headerPointerInside || headerFocused || headerPinned
@@ -73,39 +57,9 @@ export function StudentConversation({ survey, session, text, onTextChange, ratin
     if (session && messages.length) transcriptEnd.current?.scrollIntoView?.({ block: 'end' })
   }, [session, messages.length])
   useEffect(() => () => {
-    recognition.current?.stop()
     if (keyboardHintTimeout.current) clearTimeout(keyboardHintTimeout.current)
     if (arrivalTimeout.current) clearTimeout(arrivalTimeout.current)
   }, [])
-
-  function toggleVoice() {
-    if (listening) {
-      recognition.current?.stop()
-      return
-    }
-    const Recognition = recognitionConstructor()
-    if (!Recognition) return
-    setVoiceError('')
-    speechBase.current = text.trim()
-    const instance = new Recognition()
-    instance.continuous = true
-    instance.interimResults = true
-    instance.lang = navigator.language || 'en-US'
-    instance.onresult = (event) => {
-      let finalText = ''
-      let interimText = ''
-      for (let index = 0; index < event.results.length; index += 1) {
-        const result = event.results[index]
-        if (result.isFinal) finalText += result[0].transcript
-        else interimText += result[0].transcript
-      }
-      onTextChange([speechBase.current, finalText, interimText].filter(Boolean).join(' ').slice(0, 3000))
-    }
-    instance.onerror = () => { setVoiceError('Voice input stopped. You can still type your answer.'); setListening(false) }
-    instance.onend = () => setListening(false)
-    recognition.current = instance
-    try { instance.start(); setListening(true) } catch { setVoiceError('Voice input is unavailable. Please type your answer.') }
-  }
 
   function showKeyboardHint() {
     const key = 'leai:student-enter-hint-count'
@@ -226,8 +180,7 @@ export function StudentConversation({ survey, session, text, onTextChange, ratin
               placeholder="Share your thoughts about the class..." sendDisabled={prompt.phase === 'rating' ? rating === null : !text.trim()}
               sendHint={{ content: <span>Enter sends. <kbd data-slot="kbd">⌘+Enter</kbd> or <kbd data-slot="kbd">Ctrl+Enter</kbd> adds a new line. Shift+Enter also works.</span>,
                 open: keyboardHintOpen, onOpenChange: setKeyboardHintOpen }} showInput={prompt.phase !== 'rating'} value={text}
-              voiceInput={prompt.phase !== 'rating' ? { active: listening, available: Boolean(recognitionConstructor()), disabled: busy,
-                onToggle: toggleVoice, unsupportedMessage: 'Voice input is not supported in this browser' } : undefined} />
+              voiceInput={prompt.phase !== 'rating' ? voice.voiceInput : undefined} />
             {prompt.phase === 'rating' && <Button className="mt-2" disabled={!verified || busy} onClick={onSkip} size="sm" type="button" variant="ghost">Prefer not to answer</Button>}
           </form> : <ChatComposer disabled sendDisabled value="" onValueChange={() => undefined} placeholder="Share your thoughts about the class..."
             voiceInput={{ active: false, available: false, disabled: true, onToggle: () => undefined }} />}
@@ -253,7 +206,7 @@ export function StudentConversation({ survey, session, text, onTextChange, ratin
             </button>}
           </div>
           </div>}
-        {(error || voiceError) && <p className="mt-2 text-sm text-destructive" role="alert">{error || voiceError}</p>}
+        {(error || voice.error) && <p className="mt-2 text-sm text-destructive" role="alert">{error || voice.error}</p>}
         {conflictAction}
         {!verified && <p className="text-sm text-muted-foreground" role="status">Waiting for secure connection before accepting responses.</p>}
       </div>

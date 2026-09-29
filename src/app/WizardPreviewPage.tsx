@@ -4,6 +4,7 @@ import type { WizardPreview } from '@/api/contracts/wizard'
 import { ChatComposer } from '@/components/chat/ChatComposer'
 import { ChatMessage } from '@/components/chat/ChatMessage'
 import { ChatTranscript } from '@/components/chat/ChatTranscript'
+import { useChatVoiceInput } from '@/components/chat/useChatVoiceInput'
 import { Button } from '@/components/ui/button'
 import { qualifyBrowserKey, toAppHref, type PublicEnvironment } from '@/config/environment'
 
@@ -31,6 +32,8 @@ export function WizardPreviewPage({ api, environment }: { api: Api; environment:
   const items = preview?.revision.body.sections.flatMap((section) => section.items) ?? []
   const answeredCount = preview?.messages.filter((message) => message.role === 'student').length ?? 0
   const next = items[answeredCount]
+  const voice = useChatVoiceInput({ value, onValueChange: setValue,
+    disabled: busy || !next || preview?.revision.preview_decision === 'completed', contextKey: preview?.preview_id })
 
   async function answer(event: FormEvent) {
     event.preventDefault()
@@ -83,7 +86,8 @@ export function WizardPreviewPage({ api, environment }: { api: Api; environment:
                 ? <p role="status" className="mt-5 rounded-lg bg-success/10 p-4 font-medium text-success">Preview complete. Return to the Builder to publish this version.</p>
                 : next ? <form className="mt-4" onSubmit={(event) => { void answer(event) }}>
                   <ChatComposer busy={busy} disabled={busy} inputLabel="Preview answer" onValueChange={setValue}
-                    placeholder="Reply as a student to try this question…" sendDisabled={!value.trim()} value={value} />
+                    placeholder="Reply as a student to try this question…" sendDisabled={!value.trim()} value={value} voiceInput={voice.voiceInput} />
+                  {voice.error && <p className="mt-2 text-sm text-destructive" role="alert">{voice.error}</p>}
                 </form> : <div className="mt-5 space-y-3 border-t border-border pt-4">
                   <p>All {items.length} questions were answered in this isolated preview.</p>
                   <Button disabled={busy} onClick={() => { void complete() }} type="button">Complete preview</Button>
