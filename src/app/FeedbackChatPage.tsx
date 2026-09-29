@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { CanonicalCourse } from '@/api/contracts/instructor'
 import { AuthenticationRequiredError, InstructorApiError } from '@/api/instructor-v1'
@@ -20,12 +20,14 @@ import { ChevronDown, MessagesSquare, PanelLeftOpen, SlidersHorizontal } from 'l
 import { ChatComposer } from '@/components/chat/ChatComposer'
 import { ChatMessage } from '@/components/chat/ChatMessage'
 import { ChatTranscript } from '@/components/chat/ChatTranscript'
+import { ChatThinkingMessage } from '@/components/chat/ChatThinkingMessage'
 import { useChatVoiceInput } from '@/components/chat/useChatVoiceInput'
 import { ChatCitation, type ChatCitationSource } from './feedback-chat/ChatCitation'
 import { ChatSessionList } from './feedback-chat/ChatSessionList'
 import { qualifyBrowserKey, toAppHref, type PublicEnvironment } from '@/config/environment'
 
 type Id = string
+type TurnAttempt = { courseId: string; chatId: string; text: string; retryMessageId?: string; key: string; afterSequence: number; createdAt: string }
 const emptyChats: FeedbackChatSummary[] = []
 export type FeedbackChatApi = {
   courses(signal?: AbortSignal): Promise<{ courses: CanonicalCourse[] }>
@@ -130,12 +132,17 @@ export function FeedbackChatPage({ api, environment, verified }: {
   const [renameOpen, setRenameOpen] = useState(false)
   const [titleDraft, setTitleDraft] = useState('')
   const [archiveTarget, setArchiveTarget] = useState('')
-  const [activeJobId, setActiveJobId] = useState('')
+  const [trackedJob, setTrackedJob] = useState<{ courseId: string; chatId: string; id: string } | null>(null)
+  const activeContext = useRef({ courseId: '', chatId: '' })
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const deepLinkApplied = useRef(false)
   const promptDraftChatId = useRef('')
-  const turnAttempt = useRef<{ courseId: string; chatId: string; text: string; retryMessageId?: string; key: string } | null>(null)
+  const turnAttempt = useRef<TurnAttempt | null>(null)
+  const submitting = useRef(false)
+  const transcriptEnd = useRef<HTMLLIElement>(null)
+  const [optimisticTurns, setOptimisticTurns] = useState<TurnAttempt[]>([])
+  const [deliveryFailed, setDeliveryFailed] = useState(false)
   const clearSession = useCallback((message = '') => {
     void queryClient.cancelQueries()
     queryClient.clear()
@@ -143,7 +150,7 @@ export function FeedbackChatPage({ api, environment, verified }: {
     sessionStorage.removeItem(courseKey)
     setSignedOut(true)
     setSelectedChatId('')
-    setActiveJobId('')
+    setTrackedJob(null)
     setError(message)
     window.location.replace(loginHref(environment, window.location.pathname + window.location.search))
   }, [courseKey, environment, queryClient, tokenKey])
@@ -178,6 +185,8 @@ export function FeedbackChatPage({ api, environment, verified }: {
   const summaries = chatsQuery.data?.chats ?? emptyChats
   const selectedChatSummary = summaries.find((chat) => chat.id === selectedChatId)
   const activeChatId = selectedChatSummary?.id ?? (selectedChatId ? '' : summaries[0]?.id ?? '')
+  activeContext.current = { courseId: activeCourseId, chatId: activeChatId }
+  const activeJobId = trackedJob?.courseId === activeCourseId && trackedJob.chatId === activeChatId ? trackedJob.id : ''
   const chatQuery = useQuery({
     queryKey: ['feedback-chat', environment.name, activeCourseId, activeChatId],
     queryFn: async ({ signal }) => protectedRequest(() => api.chat(activeCourseId, activeChatId, signal)),
@@ -242,26 +251,29 @@ export function FeedbackChatPage({ api, environment, verified }: {
     onError: (cause) => handleMutationError(cause),
   })
   const turnMutation = useMutation({
-    mutationFn: ({ text, retryMessageId }: { text: string; retryMessageId?: string }) => {
-      const attempt = turnAttempt.current
-      if (!attempt || attempt.courseId !== activeCourseId || attempt.chatId !== activeChatId || attempt.text !== text || attempt.retryMessageId !== retryMessageId) {
-        throw new Error('Feedback Chat turn attempt is missing or changed.')
-      }
-      return api.createTurn(activeCourseId, activeChatId, { content: text, ...(retryMessageId ? { retry_message_id: retryMessageId } : {}) }, attempt.key)
-    },
-    onSuccess: async (result) => {
+    mutationFn: (attempt: TurnAttempt) => api.createTurn(attempt.courseId, attempt.chatId,
+      { content: attempt.text, ...(attempt.retryMessageId ? { retry_message_id: attempt.retryMessageId } : {}) }, attempt.key),
+    onSuccess: async (result, attempt) => {
       turnAttempt.current = null
-      setActiveJobId(result.job_id)
-      if (storedJobKey) sessionStorage.setItem(storedJobKey, result.job_id)
-      setComposerText('')
-      setError('')
-      setNotice('')
+      sessionStorage.setItem(qualifyBrowserKey(environment.name, `feedback-chat-job:${attempt.chatId}`), result.job_id)
+      if (activeContext.current.courseId === attempt.courseId && activeContext.current.chatId === attempt.chatId) {
+        setTrackedJob({ courseId: attempt.courseId, chatId: attempt.chatId, id: result.job_id })
+        setError('')
+        setNotice('')
+      }
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['feedback-chat', environment.name, activeCourseId, activeChatId] }),
-        queryClient.invalidateQueries({ queryKey: ['feedback-chats', environment.name, activeCourseId] }),
+        queryClient.invalidateQueries({ queryKey: ['feedback-chat', environment.name, attempt.courseId, attempt.chatId] }),
+        queryClient.invalidateQueries({ queryKey: ['feedback-chats', environment.name, attempt.courseId] }),
       ])
     },
-    onError: (cause) => handleMutationError(cause),
+    onError: (cause) => {
+      setDeliveryFailed(true)
+      handleMutationError(cause)
+      if (!(cause instanceof AuthenticationRequiredError) && !(cause instanceof InstructorApiError)) {
+        setError('Delivery was not confirmed. The request could not be completed. Retry delivery to check the same request; your next draft is safe.')
+      }
+    },
+    onSettled: () => { submitting.current = false },
   })
 
   function handleMutationError(cause: unknown) {
@@ -278,9 +290,9 @@ export function FeedbackChatPage({ api, environment, verified }: {
   }, [chatsQuery.data, selectedChatId, summaries])
 
   useEffect(() => {
-    if (!activeChatId || !storedJobKey) return
-    setActiveJobId(sessionStorage.getItem(storedJobKey) ?? '')
-  }, [activeChatId, storedJobKey])
+    const id = storedJobKey ? sessionStorage.getItem(storedJobKey) : null
+    setTrackedJob(id ? { courseId: activeCourseId, chatId: activeChatId, id } : null)
+  }, [activeChatId, activeCourseId, storedJobKey])
 
   useEffect(() => {
     if (!chat || promptDraftChatId.current === chat.id) return
@@ -302,7 +314,7 @@ export function FeedbackChatPage({ api, environment, verified }: {
     if (status === 'completed') {
       void queryClient.invalidateQueries({ queryKey: ['feedback-chat', environment.name, activeCourseId, activeChatId] })
       if (storedJobKey) sessionStorage.removeItem(storedJobKey)
-      setActiveJobId('')
+      setTrackedJob(null)
       setNotice('Answer complete.')
     }
     if (status === 'failed') setError(jobQuery.data?.error_code === 'provider_outcome_unknown'
@@ -311,9 +323,9 @@ export function FeedbackChatPage({ api, environment, verified }: {
     if (status === 'cancelled') setError('This answer was cancelled by an administrator. Review the Chat before retrying.')
   }, [activeChatId, activeCourseId, environment.name, jobQuery.data?.error_code, jobQuery.data?.status, queryClient, storedJobKey])
 
-  function send(text = composerText, retryMessageId?: string) {
+  function send(text = composerText, retryMessageId?: string, retryDelivery = false) {
     const value = text.trim()
-    if (!activeCourseId || !activeChatId || !value || value.length > 3000 || turnMutation.isPending) return
+    if (!activeCourseId || !activeChatId || !chat?.sources.length || !value || value.length > 3000 || submitting.current || busy) return
     const previousAttempt = turnAttempt.current
     const sameAttempt = previousAttempt?.courseId === activeCourseId
       && previousAttempt.chatId === activeChatId
@@ -326,19 +338,25 @@ export function FeedbackChatPage({ api, environment, verified }: {
         text: value,
         retryMessageId,
         key: crypto.randomUUID(),
+        afterSequence: Math.max(0, ...(chat?.messages ?? []).map((message) => message.sequence)),
+        createdAt: new Date().toISOString(),
       }
     }
-    turnMutation.mutate({ text: value, retryMessageId })
+    const attempt = turnAttempt.current!
+    submitting.current = true
+    setDeliveryFailed(false)
+    setError('')
+    setNotice('')
+    if (!retryMessageId) setOptimisticTurns((turns) => turns.some((turn) => turn.key === attempt.key) ? turns : [...turns, attempt])
+    if (!retryMessageId && !retryDelivery) {
+      voice.resetTranscript()
+      setComposerText('')
+    }
+    turnMutation.mutate(attempt)
   }
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     send()
-  }
-  function composerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-      event.preventDefault()
-      send()
-    }
   }
   function addSelectedSource() {
     const ids = scopeSelection.filter((id) => !chat?.sources.some((source) => source.id === id)).slice(0, maxNewSources)
@@ -378,10 +396,21 @@ export function FeedbackChatPage({ api, environment, verified }: {
     setArchiveTarget(chatId)
   }
   const job = jobQuery.data
-  const busy = turnMutation.isPending || job?.status === 'pending' || job?.status === 'running'
+  const busy = turnMutation.isPending || Boolean(activeJobId && !['completed', 'failed', 'cancelled'].includes(job?.status ?? ''))
   const voice = useChatVoiceInput({ value: composerText, onValueChange: setComposerText,
-    disabled: !verified || !canUse || !chat?.sources.length || busy, contextKey: activeChatId })
+    disabled: !verified || !canUse || !chat?.sources.length, contextKey: activeChatId })
+  const pendingTurns = optimisticTurns.filter((turn) => turn.courseId === activeCourseId && turn.chatId === activeChatId
+    && !chat?.messages.some((message) => message.role === 'user' && message.sequence > turn.afterSequence && message.content === turn.text))
   const latestUserMessage = [...(chat?.messages ?? [])].reverse().find((message) => message.role === 'user')
+  const currentAttempt = turnMutation.variables?.courseId === activeCourseId && turnMutation.variables.chatId === activeChatId
+    ? turnMutation.variables : undefined
+  const hasPersistedAnswer = pendingTurns.length === 0 && chat?.messages.some((message) => message.role === 'assistant'
+    && message.sequence > (currentAttempt?.afterSequence ?? latestUserMessage?.sequence ?? Infinity))
+  const thinking = !hasPersistedAnswer && (Boolean(currentAttempt && turnMutation.isPending)
+    || Boolean(activeJobId && !['completed', 'failed', 'cancelled'].includes(job?.status ?? '')))
+  useEffect(() => {
+    if (chat && (chat.messages.length || pendingTurns.length || thinking)) transcriptEnd.current?.scrollIntoView?.({ block: 'end' })
+  }, [chat?.id, chat?.messages, optimisticTurns, pendingTurns.length, busy, thinking])
   const availableSources = occurrencesQuery.data?.occurrences ?? []
   const sessionList = (mobile: boolean) => <ChatSessionList sessions={summaries} selectedSessionId={activeChatId || null} status={chatsQuery.isPending ? 'loading' : chatsQuery.isError ? 'error' : 'ready'} onCreateSession={() => { if (mobile) setSessionsOpen(false); createChatMutation.mutate() }} onSelectSession={(id) => { setSelectedChatId(id); setError(''); if (mobile) setSessionsOpen(false) }} onRenameSession={saveRename} onArchiveSession={(id) => { if (mobile) setSessionsOpen(false); archiveChat(id) }} onRetry={() => void chatsQuery.refetch()} />
 
@@ -421,9 +450,9 @@ export function FeedbackChatPage({ api, environment, verified }: {
               <Card className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-none border-0 shadow-none">
                 <CardContent className="flex min-h-0 min-w-0 flex-1 flex-col gap-0 p-0">
                   <div className="min-h-0 flex-1 overflow-y-auto bg-[#f8fafb]">
-                    <ChatTranscript className="student-transcript mx-auto flex w-full max-w-[832px] flex-col gap-7 px-5 py-10 sm:gap-8 sm:px-0 sm:py-12">
-                      {chat.messages.length === 0 && <div className="flex flex-col items-center gap-3 py-16 text-center"><MessagesSquare aria-hidden="true" className="size-12 text-border" /><h3 className="font-semibold">Ask about your survey data</h3><p className="text-base text-muted-foreground">Choose a feedback source, then ask your first question.</p></div>}
-                      {chat.messages.map((message) => <ChatMessage author={message.role === 'assistant' ? 'Feedback Chat' : 'Instructor'} className={message.role === 'assistant' ? 'student-assistant-message' : 'student-user-message'} key={message.id} metaClassName="student-message-meta" role={message.role} timestamp={message.created_at}>
+                    <ChatTranscript endAnchorRef={transcriptEnd} className="student-transcript mx-auto flex w-full max-w-[832px] flex-col gap-7 px-5 py-10 sm:gap-8 sm:px-0 sm:py-12">
+                      {chat.messages.length === 0 && pendingTurns.length === 0 && <div className="flex flex-col items-center gap-3 py-16 text-center"><MessagesSquare aria-hidden="true" className="size-12 text-border" /><h3 className="font-semibold">Ask about your survey data</h3><p className="text-base text-muted-foreground">Choose a feedback source, then ask your first question.</p></div>}
+                      {chat.messages.map((message) => <ChatMessage author={message.role === 'assistant' ? 'LEAI' : 'Instructor'} className={message.role === 'assistant' ? 'student-assistant-message' : 'student-user-message'} key={message.id} metaClassName="student-message-meta" role={message.role} timestamp={message.created_at}>
                         <div className="w-full space-y-3 text-base leading-7">
                           {message.role === 'assistant'
                             ? <div className="ml-1 border-l border-border/60 py-0.5 pl-7">{renderAssistantMarkdown(message.content, message.citations, openCitation)}</div>
@@ -431,9 +460,14 @@ export function FeedbackChatPage({ api, environment, verified }: {
                           {message.citations.some((citation) => !message.content.includes(`[${citation.citation_number}]`)) && <div className="flex flex-wrap items-center gap-1 border-t border-border pt-2"><span className="text-sm text-muted-foreground">Evidence:</span>{message.citations.filter((citation) => !message.content.includes(`[${citation.citation_number}]`)).map((citation) => <ChatCitation citation={asCitationSource(citation)} key={citation.id} onOpenSource={openCitation} />)}</div>}
                         </div>
                       </ChatMessage>)}
+                      {pendingTurns.map((turn) => <ChatMessage author="Instructor" className="student-user-message" key={turn.key} metaClassName="student-message-meta" role="user" timestamp={turn.createdAt}>
+                        <p className="ml-auto w-full max-w-[83%] whitespace-pre-wrap break-words rounded bg-muted px-5 py-4 text-base leading-7">{turn.text}</p>
+                        <span className="text-sm text-muted-foreground">{deliveryFailed && turn.key === turnAttempt.current?.key ? 'Delivery not confirmed' : turnMutation.isPending ? 'Sending…' : 'Awaiting saved conversation'}</span>
+                      </ChatMessage>)}
+                      {thinking && <ChatThinkingMessage />}
                     </ChatTranscript>
                     <div className="mx-auto flex w-full max-w-[832px] flex-wrap items-center gap-2 px-5 pb-4 sm:px-8">
-                      {busy && <p className="text-sm text-muted-foreground" role="status">Working on your answer…</p>}
+                      {deliveryFailed && turnAttempt.current?.chatId === activeChatId && <Button disabled={busy} onClick={() => { const attempt = turnAttempt.current; if (attempt) send(attempt.text, attempt.retryMessageId, true) }} type="button" variant="outline">Retry delivery</Button>}
                       {(job?.status === 'failed' || job?.status === 'cancelled') && latestUserMessage && <Button disabled={turnMutation.isPending} onClick={() => send(latestUserMessage.content, latestUserMessage.id)} type="button" variant="outline">Retry last question</Button>}
                       {chat.messages.length > 0 && latestUserMessage && job?.status !== 'failed' && job?.status !== 'cancelled' && <Button className="text-base" disabled={busy} onClick={() => send(latestUserMessage.content, latestUserMessage.id)} type="button" variant="link">Replay last question</Button>}
                     </div>
@@ -442,11 +476,11 @@ export function FeedbackChatPage({ api, environment, verified }: {
                     <div className="flex flex-wrap gap-2" aria-label="Suggested questions">{['What themes are emerging?', 'What could be clearer for students?'].map((prompt) => <Button key={prompt} onClick={() => setComposerText(prompt)} type="button" variant="outline">{prompt}</Button>)}</div>
                     <div className="legacy-student">
                       <form onSubmit={submit}>
-                        <ChatComposer busy={busy} className="bg-background" disabled={!chat.sources.length || busy} maxLength={3000} onKeyDown={composerKeyDown} onValueChange={setComposerText} placeholder={chat.sources.length ? 'Ask about the selected feedback sources…' : 'Add a feedback source to begin'} sendDisabled={!composerText.trim() || !chat.sources.length} value={composerText} voiceInput={voice.voiceInput} />
+                        <ChatComposer busy={busy} className="bg-background" disabled={!chat.sources.length} maxLength={3000} onValueChange={setComposerText} placeholder={chat.sources.length ? 'Ask about the selected feedback sources…' : 'Add a feedback source to begin'} sendDisabled={!composerText.trim() || !chat.sources.length} value={composerText} voiceInput={voice.voiceInput} />
                       </form>
                     </div>
                     {voice.error && <p className="text-sm text-destructive" role="alert">{voice.error}</p>}
-                    <div className="flex items-center justify-between text-sm text-muted-foreground"><Button className="h-auto gap-1 p-0 text-sm" onClick={() => setPromptOpen(true)} type="button" variant="link"><SlidersHorizontal aria-hidden="true" className="size-4" />Chat instructions</Button><span>Shift+Enter for newline</span></div>
+                    <div className="flex items-center justify-between text-sm text-muted-foreground"><Button className="h-auto gap-1 p-0 text-sm" onClick={() => setPromptOpen(true)} type="button" variant="link"><SlidersHorizontal aria-hidden="true" className="size-4" />Chat instructions</Button><span className="hidden sm:inline">Cmd/Ctrl+Enter for newline</span></div>
                   </div>
                 </CardContent>
               </Card>

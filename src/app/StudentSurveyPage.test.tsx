@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { getEnvironment } from '@/config/environment'
-import { createStudentApi } from '@/api/student'
+import { createStudentApi, type StudentSession } from '@/api/student'
 import { ApiFailure } from '@/api/contracts/errors'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { StudentSurveyPage } from './StudentSurveyPage'
@@ -67,6 +67,197 @@ function enableResearcherDebug() {
   sessionStorage.setItem('leai:local:instructor-token', researcherToken)
   vi.mocked(api.debugAccess).mockResolvedValue({ enabled: true })
 }
+
+function deferredTurn() {
+  let resolve!: (session: StudentSession) => void
+  let reject!: (error: Error) => void
+  const promise = new Promise<StudentSession>((yes, no) => { resolve = yes; reject = no })
+  vi.mocked(api.turn).mockReturnValueOnce(promise)
+  return { resolve, reject }
+}
+
+it('shows the submitted answer and LEAI thinking before delivery, preserving the next draft on success', async () => {
+  const pending = deferredTurn()
+  const user = userEvent.setup()
+  renderPage()
+  await acceptConsent(user)
+  const input = screen.getByRole('textbox', { name: 'Message' })
+  await user.type(input, 'First answer.')
+  await user.click(screen.getByRole('button', { name: 'Send' }))
+  const log = screen.getByRole('log', { name: 'Conversation' })
+  expect(within(log).getByText('First answer.')).toBeVisible()
+  const thinking = within(log).getByRole('status', { name: 'LEAI is responding' })
+  expect(thinking).toBeVisible()
+  expect(thinking.closest('[data-chat-role="assistant"]')).toHaveTextContent('LEAI')
+  expect(thinking.querySelectorAll('.chat-thinking-dots > span')).toHaveLength(3)
+  expect(input).toHaveValue('')
+  expect(input).toBeEnabled()
+  await user.type(input, 'Next draft.')
+  expect(screen.getByRole('button', { name: 'Sending message' })).toBeDisabled()
+  await user.keyboard('{Enter}')
+  fireEvent.submit(input.closest('form')!)
+  expect(api.turn).toHaveBeenCalledTimes(1)
+  await act(async () => pending.resolve({ ...baseSession, turn_version: 2, messages: [
+    { id: 3, sequence: 3, role: 'student', content: 'First answer.', attribution: {} },
+    { id: 4, sequence: 4, role: 'assistant', content: 'Next question.', attribution: {} },
+  ] }))
+  expect(input).toHaveValue('Next draft.')
+  expect(within(log).getAllByText('First answer.')).toHaveLength(1)
+  expect(within(log).queryByRole('status')).not.toBeInTheDocument()
+})
+
+it.each(['delivery', 'conflict'])('retains the failed answer in the transcript and the new draft after %s failure', async (kind) => {
+  const pending = deferredTurn()
+  const user = userEvent.setup()
+  renderPage()
+  await acceptConsent(user)
+  const input = screen.getByRole('textbox', { name: 'Message' })
+  await user.type(input, 'Unconfirmed answer.')
+  await user.click(screen.getByRole('button', { name: 'Send' }))
+  expect(input).toHaveValue('')
+  await user.type(input, 'Keep this next draft.')
+  await act(async () => pending.reject(kind === 'conflict'
+    ? new ApiFailure({ kind: 'conflict', status: 409, retryable: false }) : new Error('Offline')))
+  const log = screen.getByRole('log', { name: 'Conversation' })
+  const bubble = within(log).getByText('Unconfirmed answer.').closest('[data-chat-role="user"]') as HTMLElement
+  expect(bubble).toHaveTextContent(/not confirmed|not sent/i)
+  expect(input).toHaveValue('Keep this next draft.')
+  expect(screen.getByRole('alert')).not.toHaveTextContent('was not sent')
+  expect(screen.getByRole('button', { name: 'Load latest question' })).toBeEnabled()
+  expect(within(log).queryByRole('status')).not.toBeInTheDocument()
+  if (kind === 'conflict') {
+    await user.click(screen.getByRole('button', { name: 'Load latest question' }))
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Load latest question' })).not.toBeInTheDocument())
+    expect(input).toHaveValue('Keep this next draft.')
+  }
+})
+
+it.each([true, false])('reconciles unknown delivery only against matching persisted answers after its baseline (persisted: %s)', async (persisted) => {
+  const original = { ...baseSession, messages: [
+    { id: 1, sequence: 1, role: 'student' as const, content: 'Repeated answer.', attribution: {} },
+    { id: 2, sequence: 2, role: 'assistant' as const, content: ratingPrompt.text, attribution: {} },
+  ] }
+  const restored = { ...original, turn_version: persisted ? 2 : 1, messages: [
+    ...original.messages,
+    ...(persisted ? [
+      { id: 3, sequence: 3, role: 'student' as const, content: 'Repeated answer.', attribution: {} },
+      { id: 4, sequence: 4, role: 'assistant' as const, content: 'Next question.', attribution: {} },
+    ] : []),
+  ] }
+  sessionStorage.setItem(`leai:local:student:${surveyId}`, JSON.stringify({ sessionId, token }))
+  vi.mocked(api.session).mockResolvedValueOnce(original).mockResolvedValueOnce(restored)
+  vi.mocked(api.turn).mockRejectedValueOnce(new Error('Response lost'))
+  const user = userEvent.setup()
+  renderPage()
+  const input = await screen.findByRole('textbox', { name: 'Message' })
+  await user.type(input, 'Repeated answer.')
+  await user.click(screen.getByRole('button', { name: 'Send' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent(/delivery.*not confirmed/i)
+  await user.type(input, 'New draft must survive.')
+  await user.click(screen.getByRole('button', { name: 'Load latest question' }))
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Load latest question' })).not.toBeInTheDocument())
+  const log = screen.getByRole('log', { name: 'Conversation' })
+  expect(within(log).getAllByText('Repeated answer.')).toHaveLength(2)
+  if (persisted) expect(within(log).queryByText(/Delivery not confirmed/)).not.toBeInTheDocument()
+  else expect(within(log).getByText(/Delivery not confirmed/)).toBeVisible()
+  expect(input).toHaveValue('New draft must survive.')
+  expect(api.turn).toHaveBeenCalledTimes(1)
+})
+
+it('consumes submitted dictation synchronously and keeps continuous dictation usable during the turn', async () => {
+  const previous = Object.getOwnPropertyDescriptor(window, 'SpeechRecognition')
+  const recognition = { start: vi.fn(), stop: vi.fn(),
+    onresult: null as null | ((event: { results: { isFinal: boolean; 0: { transcript: string } }[] }) => void) }
+  Object.defineProperty(window, 'SpeechRecognition', { configurable: true, value: class { constructor() { return recognition } } })
+  const pending = deferredTurn()
+  try {
+    const user = userEvent.setup()
+    renderPage()
+    await acceptConsent(user)
+    const input = screen.getByRole('textbox', { name: 'Message' })
+    await user.click(screen.getByRole('button', { name: 'Dictate' }))
+    act(() => recognition.onresult!({ results: [{ isFinal: true, 0: { transcript: 'First spoken answer.' } }] }))
+    await user.click(screen.getByRole('button', { name: 'Send' }))
+    expect(input).toHaveValue('')
+    expect(screen.getByRole('button', { name: 'Stop dictation' })).toBeEnabled()
+    expect(recognition.stop).not.toHaveBeenCalled()
+    act(() => recognition.onresult!({ results: [
+      { isFinal: true, 0: { transcript: 'First spoken answer.' } },
+      { isFinal: true, 0: { transcript: 'Next spoken draft.' } },
+    ] }))
+    expect(input).toHaveValue('Next spoken draft.')
+    // A blocked programmatic submit must not consume the next speech segments.
+    fireEvent.submit(input.closest('form')!)
+    act(() => recognition.onresult!({ results: [
+      { isFinal: true, 0: { transcript: 'First spoken answer.' } },
+      { isFinal: true, 0: { transcript: 'Next spoken draft.' } },
+      { isFinal: true, 0: { transcript: 'Still dictating.' } },
+    ] }))
+    expect(input).toHaveValue('Next spoken draft. Still dictating.')
+    expect(api.turn).toHaveBeenCalledTimes(1)
+    await act(async () => pending.resolve({ ...baseSession, turn_version: 2 }))
+    expect(input).toHaveValue('Next spoken draft. Still dictating.')
+  } finally {
+    if (previous) Object.defineProperty(window, 'SpeechRecognition', previous)
+    else Reflect.deleteProperty(window, 'SpeechRecognition')
+  }
+})
+
+it('keeps a closed reflection locked even when environment verification succeeds', async () => {
+  sessionStorage.setItem(`leai:local:student:${surveyId}`, JSON.stringify({ sessionId, token }))
+  vi.mocked(api.session).mockResolvedValue({ ...baseSession, status: 'closed' })
+  renderPage()
+  expect(await screen.findByRole('textbox', { name: 'Message' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Dictate' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
+})
+
+it('scrolls to the first optimistic answer even when the restored server transcript is empty', async () => {
+  const pending = deferredTurn()
+  const user = userEvent.setup()
+  renderPage()
+  await acceptConsent(user)
+  const log = screen.getByRole('log', { name: 'Conversation' })
+  const scroll = vi.fn()
+  Object.defineProperty(log.lastElementChild!, 'scrollIntoView', { configurable: true, value: scroll })
+  await user.type(screen.getByRole('textbox', { name: 'Message' }), 'My first answer.')
+  await user.click(screen.getByRole('button', { name: 'Send' }))
+  expect(scroll).toHaveBeenCalledWith({ block: 'end' })
+  await act(async () => pending.resolve({ ...baseSession, turn_version: 2 }))
+})
+
+it('does not consume dictation when a second same-tick submit is rejected by the turn lock', async () => {
+  const previous = Object.getOwnPropertyDescriptor(window, 'SpeechRecognition')
+  const recognition = { start: vi.fn(), stop: vi.fn(),
+    onresult: null as null | ((event: { results: { isFinal: boolean; 0: { transcript: string } }[] }) => void) }
+  Object.defineProperty(window, 'SpeechRecognition', { configurable: true, value: class { constructor() { return recognition } } })
+  const pending = deferredTurn()
+  try {
+    const user = userEvent.setup()
+    renderPage()
+    await acceptConsent(user)
+    const input = screen.getByRole('textbox', { name: 'Message' })
+    await user.click(screen.getByRole('button', { name: 'Dictate' }))
+    act(() => recognition.onresult!({ results: [{ isFinal: true, 0: { transcript: 'First speech.' } }] }))
+    const nextResults = { results: [
+      { isFinal: true, 0: { transcript: 'First speech.' } },
+      { isFinal: true, 0: { transcript: 'Keep new speech.' } },
+    ] }
+    act(() => {
+      fireEvent.submit(input.closest('form')!)
+      recognition.onresult!(nextResults)
+      fireEvent.submit(input.closest('form')!)
+      recognition.onresult!(nextResults)
+    })
+    expect(api.turn).toHaveBeenCalledTimes(1)
+    expect(input).toHaveValue('Keep new speech.')
+    await act(async () => pending.resolve({ ...baseSession, turn_version: 2 }))
+    expect(input).toHaveValue('Keep new speech.')
+  } finally {
+    if (previous) Object.defineProperty(window, 'SpeechRecognition', previous)
+    else Reflect.deleteProperty(window, 'SpeechRecognition')
+  }
+})
 
 it('uses Enter to send on desktop, shows the shared tooltip twice, and highlights new AI replies once', async () => {
   const active = { ...baseSession, prompt: { item_id: 'P1', phase: 'answer' as const,
@@ -490,8 +681,11 @@ it.each([reflectionPrompt, ratingPrompt])('keeps the $phase response for retry a
   await acceptConsent(user)
   await user.type(await screen.findByRole('textbox', { name: 'Message' }), 'I planned before asking.')
   await user.click(screen.getByRole('button', { name: 'Send' }))
-  expect(await screen.findByRole('alert')).toHaveTextContent('Your answer was not sent')
-  expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('I planned before asking.')
+  expect(await screen.findByRole('alert')).toHaveTextContent(/delivery.*not confirmed/i)
+  expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('')
+  const failedBubble = within(screen.getByRole('log', { name: 'Conversation' })).getByText('I planned before asking.').closest('[data-chat-role="user"]') as HTMLElement
+  expect(failedBubble).toHaveTextContent('Delivery not confirmed')
+  await user.type(screen.getByRole('textbox', { name: 'Message' }), 'I planned before asking.')
   await user.click(screen.getByRole('button', { name: 'Send' }))
   await waitFor(() => expect(screen.getAllByText('Reflection complete').length).toBeGreaterThan(0))
   expect(api.turn).toHaveBeenCalledTimes(2)

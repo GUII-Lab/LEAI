@@ -1,21 +1,32 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { ChevronDown, ChevronUp, Link2, LockKeyhole } from 'lucide-react'
 import type { StudentSession, StudentSurvey } from '@/api/student'
 import { Button } from '@/components/ui/button'
 import { ChatComposer } from '@/components/chat/ChatComposer'
 import { ChatMessage } from '@/components/chat/ChatMessage'
 import { ChatTranscript } from '@/components/chat/ChatTranscript'
+import { ChatThinkingMessage } from '@/components/chat/ChatThinkingMessage'
 import { useChatVoiceInput } from '@/components/chat/useChatVoiceInput'
 import { StudentConsentDialog } from './StudentConsentDialog'
 import './student-legacy.css'
 
+export type StudentOptimisticMessage = {
+  id: number
+  content: string
+  status: 'pending' | 'failed'
+  createdAt: string
+  baselineMessageIds: number[]
+  baselineSequence: number
+}
+
 export function StudentConversation({ survey, session, text, onTextChange, onSubmit,
-  onStart, onCopyResume, onDownloadDocument, busy, verified, error, conflictAction, debugDisclosure, termsHref, privacyHref }: {
+  onStart, onCopyResume, onDownloadDocument, busy, verified, error, conflictAction, debugDisclosure, termsHref, privacyHref,
+  optimisticMessages = [], turnPending = false }: {
   survey?: StudentSurvey
   session: StudentSession | null
   text: string
   onTextChange: (value: string) => void
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void
+  onSubmit: (event: FormEvent<HTMLFormElement>, onAccepted: () => void) => void
   onStart: (researchConsent: boolean, teamId?: string) => void
   onCopyResume: () => void
   onDownloadDocument: () => void
@@ -26,6 +37,8 @@ export function StudentConversation({ survey, session, text, onTextChange, onSub
   debugDisclosure?: ReactNode
   termsHref: string
   privacyHref: string
+  optimisticMessages?: StudentOptimisticMessage[]
+  turnPending?: boolean
 }) {
   const transcriptEnd = useRef<HTMLLIElement>(null)
   const previousLatestAssistantId = useRef<number | null>(null)
@@ -40,8 +53,9 @@ export function StudentConversation({ survey, session, text, onTextChange, onSub
   const [downloadsFocused, setDownloadsFocused] = useState(false)
   const [downloadsPinned, setDownloadsPinned] = useState(false)
   const prompt = session?.prompt
+  const inputLocked = !verified || session?.status !== 'active'
   const voice = useChatVoiceInput({
-    value: text, onValueChange: onTextChange, disabled: busy || !verified,
+    value: text, onValueChange: onTextChange, disabled: inputLocked,
     contextKey: session?.session_id,
     stoppedMessage: 'Voice input stopped. You can still type your answer.',
     unavailableMessage: 'Voice input is unavailable. Please type your answer.',
@@ -51,8 +65,8 @@ export function StudentConversation({ survey, session, text, onTextChange, onSub
   const headerExpanded = !hasStudentResponse || headerPointerInside || headerFocused || headerPinned
   const downloadsExpanded = !hasStudentResponse || downloadsPointerInside || downloadsFocused || downloadsPinned
   useEffect(() => {
-    if (session && messages.length) transcriptEnd.current?.scrollIntoView?.({ block: 'end' })
-  }, [session, messages.length])
+    if (session && (messages.length || optimisticMessages.length || turnPending)) transcriptEnd.current?.scrollIntoView?.({ block: 'end' })
+  }, [session, messages.length, optimisticMessages.length, turnPending])
   useEffect(() => () => {
     if (keyboardHintTimeout.current) clearTimeout(keyboardHintTimeout.current)
     if (arrivalTimeout.current) clearTimeout(arrivalTimeout.current)
@@ -68,26 +82,6 @@ export function StudentConversation({ survey, session, text, onTextChange, onSub
     if (keyboardHintTimeout.current) clearTimeout(keyboardHintTimeout.current)
     keyboardHintTimeout.current = setTimeout(() => setKeyboardHintOpen(false), 8000)
     setTimeout(() => setKeyboardHintOpen(true), 40)
-  }
-
-  function handleComposerKeyDown(event: ReactKeyboardEvent<HTMLTextAreaElement>) {
-    if (event.nativeEvent.isComposing || event.keyCode === 229 || event.key !== 'Enter') return
-    const mobileViewport = window.innerWidth < 640
-    const input = event.currentTarget
-    if (!mobileViewport && (event.metaKey || event.ctrlKey)) {
-      event.preventDefault()
-      const start = input.selectionStart
-      const end = input.selectionEnd
-      onTextChange(`${text.slice(0, start)}\n${text.slice(end)}`)
-      setTimeout(() => input.setSelectionRange(start + 1, start + 1), 0)
-      return
-    }
-    if (!mobileViewport && !event.shiftKey && !event.altKey) {
-      event.preventDefault()
-      if (!text.trim()) return
-      showKeyboardHint()
-      input.form?.requestSubmit()
-    }
   }
 
   const currentPromptText = prompt && prompt.phase !== 'complete' ? prompt.text : null
@@ -154,6 +148,13 @@ export function StudentConversation({ survey, session, text, onTextChange, onSub
               {message.id === latestAssistantId && debugDisclosure}
             </div>
           </ChatMessage>)}
+        {optimisticMessages.map((message) => <ChatMessage author="You" className="student-user-message"
+          key={`optimistic-${message.id}`} metaClassName="student-message-meta" role="user" timestamp={message.createdAt}>
+          <p className="w-full max-w-[83%] whitespace-pre-wrap break-words rounded bg-muted px-5 py-4 text-base leading-7">{message.content}</p>
+          <p className="text-sm text-muted-foreground">{message.status === 'pending'
+            ? 'Sending…' : 'Delivery not confirmed. Load the latest question before deciding whether to send this answer again.'}</p>
+        </ChatMessage>)}
+        {turnPending && <ChatThinkingMessage />}
       </ChatTranscript>}
     </section>
     <footer className="student-chat-footer shrink-0 border-t border-border/50 bg-card px-4 py-3 sm:px-6 sm:py-4">
@@ -166,8 +167,8 @@ export function StudentConversation({ survey, session, text, onTextChange, onSub
             <em>“go back to your earlier question about ...”</em></span>
         </div>}
         {session?.status === 'completed' ? <p className="py-3 text-sm font-medium text-success">Reflection downloaded. This version is final.</p> : session && prompt ?
-          <form onSubmit={onSubmit}>
-            <ChatComposer busy={busy} disabled={!verified} inputLabel="Message" onKeyDown={handleComposerKeyDown} onValueChange={onTextChange}
+          <form onSubmit={(event) => onSubmit(event, voice.resetTranscript)}>
+            <ChatComposer busy={busy} disabled={inputLocked} inputLabel="Message" onEnterSend={showKeyboardHint} onValueChange={onTextChange}
               placeholder="Share your thoughts about the class..." sendDisabled={!text.trim()}
               sendHint={{ content: <span>Enter sends. <kbd data-slot="kbd">⌘+Enter</kbd> or <kbd data-slot="kbd">Ctrl+Enter</kbd> adds a new line. Shift+Enter also works.</span>,
                 open: keyboardHintOpen, onOpenChange: setKeyboardHintOpen }} value={text}

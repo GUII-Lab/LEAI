@@ -6,7 +6,7 @@ import { ApiFailure } from '@/api/contracts/errors'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { qualifyBrowserKey, toAppHref, type PublicEnvironment } from '@/config/environment'
-import { StudentConversation } from './StudentConversation'
+import { StudentConversation, type StudentOptimisticMessage } from './StudentConversation'
 import { saveStudentPdfBlob } from './student-document'
 
 type StudentApi = ReturnType<typeof createStudentApi>
@@ -137,6 +137,9 @@ export function StudentSurveyPage({ api, environment, verified }: {
   const [error, setError] = useState('')
   const [conflict, setConflict] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [optimisticMessages, setOptimisticMessages] = useState<StudentOptimisticMessage[]>([])
+  const turnInFlight = useRef(false)
+  const nextOptimisticId = useRef(0)
   const [showDebug, setShowDebug] = useState(false)
   const matchingSessions = useRef(new Set<string>())
   const activeApi = useMemo(() => api ?? createStudentApi(environment, () => verified), [api, environment, verified])
@@ -202,9 +205,9 @@ export function StudentSurveyPage({ api, environment, verified }: {
     }
   }
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>, onAccepted: () => void) {
     event.preventDefault()
-    if (!verified || busy || !stored || !session || session.status !== 'active') return
+    if (!verified || busy || turnInFlight.current || !stored || !session || session.status !== 'active') return
     const prompt = session.prompt
     const turn: StudentTurn = {
       expected_version: session.turn_version,
@@ -212,24 +215,36 @@ export function StudentSurveyPage({ api, environment, verified }: {
       kind: 'text', text: text.trim(),
     }
     if (!turn.text) return
+    onAccepted()
     await sendTurn(turn)
   }
 
   async function sendTurn(turn: StudentTurn) {
-    if (!stored || busy) return
+    if (!stored || busy || turnInFlight.current) return
+    turnInFlight.current = true
+    const id = ++nextOptimisticId.current
+    setOptimisticMessages((messages) => [...messages, {
+      id, content: turn.kind === 'text' ? turn.text : '', status: 'pending', createdAt: new Date().toISOString(),
+      baselineMessageIds: session?.messages.map((message) => message.id) ?? [],
+      baselineSequence: Math.max(0, ...(session?.messages.map((message) => message.sequence) ?? [])),
+    }])
+    setText('')
     setBusy(true)
     setError('')
     setConflict(false)
     try {
       const updated = await activeApi.turn(surveyId, stored.sessionId, stored.token, turn)
       setCurrent(updated)
-      setText('')
+      setOptimisticMessages((messages) => messages.filter((message) => message.id !== id))
     } catch (cause) {
+      setOptimisticMessages((messages) => messages.map((message) => message.id === id
+        ? { ...message, status: 'failed' } : message))
+      setConflict(true)
       if (cause instanceof ApiFailure && cause.kind === 'conflict') {
-        setConflict(true)
         setError('This reflection changed in another tab. Load the latest question before continuing.')
-      } else setError('Your answer was not sent. Please try again.')
+      } else setError('Delivery of your answer is not confirmed. Load the latest question before deciding whether to send it again.')
     } finally {
+      turnInFlight.current = false
       setBusy(false)
     }
   }
@@ -239,8 +254,20 @@ export function StudentSurveyPage({ api, environment, verified }: {
     setBusy(true)
     setError('')
     try {
-      setCurrent(await activeApi.session(surveyId, stored.sessionId, stored.token))
-      setText('')
+      const restored = await activeApi.session(surveyId, stored.sessionId, stored.token)
+      setCurrent(restored)
+      setOptimisticMessages((messages) => {
+        const matchedIds = new Set<number>()
+        return messages.filter((message) => {
+          if (message.status !== 'failed') return true
+          const persisted = restored.messages.find((candidate) => candidate.role === 'student'
+            && candidate.content === message.content && candidate.sequence > message.baselineSequence
+            && !message.baselineMessageIds.includes(candidate.id) && !matchedIds.has(candidate.id))
+          if (!persisted) return true
+          matchedIds.add(persisted.id)
+          return false
+        })
+      })
       setConflict(false)
     } catch {
       setError('Could not restore your reflection. Please try again.')
@@ -253,6 +280,7 @@ export function StudentSurveyPage({ api, environment, verified }: {
     sessionStorage.removeItem(storageKey)
     setStored(null)
     setCurrent(null)
+    setOptimisticMessages([])
     setError('')
     setConflict(false)
     setShowDebug(false)
@@ -313,8 +341,9 @@ export function StudentSurveyPage({ api, environment, verified }: {
   </main>
 
   return <StudentConversation survey={survey} session={session} text={text} onTextChange={setText}
+    optimisticMessages={optimisticMessages} turnPending={optimisticMessages.some((message) => message.status === 'pending')}
     termsHref={toAppHref(environment, 'legal/terms.html')} privacyHref={toAppHref(environment, 'legal/privacy.html')}
-    onSubmit={(event) => void submit(event)}
+    onSubmit={(event, onAccepted) => void submit(event, onAccepted)}
     onStart={(researchConsent, teamId) => void start(researchConsent, teamId)} onCopyResume={() => void copyResumeLink()} busy={busy} verified={verified} error={error}
     onDownloadDocument={() => void saveDraft()}
     conflictAction={conflict && <Button className="mt-2" onClick={() => void refreshSession()} type="button" variant="outline">Load latest question</Button>}
