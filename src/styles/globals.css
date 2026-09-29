@@ -323,11 +323,17 @@ body {
   --border: #cbd9dc;
   --builder-preview-start: #007f80;
   --builder-preview-end: #006c9b;
-  --builder-surface: #f4f8f9;
+  --builder-surface: #f7fafb;
 }
 
 .legacy-builder {
   font-family: 'Inter', sans-serif;
+}
+
+.legacy-builder-step-heading {
+  font-size: clamp(27px, 3vw, 40px);
+  line-height: 1.08;
+  letter-spacing: -0.045em;
 }
 
 .legacy-prompt-create {

@@ -91,6 +91,12 @@ for (const width of [390, 820, 1022, 1440]) {
     await expect(page.getByRole('heading', { name: 'Who are you collecting feedback from?' })).toBeVisible()
     await expect(page.getByRole('radio', { name: /Individual feedback/ })).not.toBeChecked()
     await expect(page.getByRole('radio', { name: /Team feedback/ })).not.toBeChecked()
+    if (width === 390) {
+      const steps = page.getByRole('list', { name: 'Feedback Builder steps' })
+      const label = await steps.locator('li[aria-current="step"] > span').last().boundingBox()
+      const nextCircle = await steps.locator('li').nth(1).locator('span').first().boundingBox()
+      expect(Boolean(label && nextCircle && label.x + label.width <= nextCircle.x)).toBe(true)
+    }
     await page.waitForTimeout(250)
     await fit()
     if (width === 390 || width === 1440) await shot('prompt-audience')

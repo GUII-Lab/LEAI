@@ -143,6 +143,7 @@ export function PromptDesignerPage({ api, environment, verified }: {
   )
   const templates = templatesQuery.data?.templates ?? []
   const visibleTemplates = templates.filter((row) => row.source === source && row.audience === audience && row.collection_style === style)
+  const selectedTemplateId = source === 'scratch' ? '' : templateId || visibleTemplates[0]?.id || ''
 
   useEffect(() => {
     if (step !== 3 || !revision || !courseId) return
@@ -317,7 +318,7 @@ export function PromptDesignerPage({ api, environment, verified }: {
     setBusy(true)
     setError('')
     try {
-      const selected = templates.find((item) => item.id === templateId)
+      const selected = templates.find((item) => item.id === selectedTemplateId)
       const created = await api.createWizardDraft(courseId, {
         title: newTitle.trim() || 'New feedback',
         audience, collection_style: style,
@@ -636,7 +637,7 @@ export function PromptDesignerPage({ api, environment, verified }: {
       {error && <p role="alert" className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-destructive">{error}</p>}
       {step === 0 && <div className="mx-auto max-w-[1000px] space-y-6">
         <div><p className="text-sm font-extrabold tracking-widest text-primary">Step 1</p>
-          <h3 className="mt-1 text-3xl font-semibold tracking-tight">Who are you collecting feedback from?</h3>
+          <h3 className="legacy-builder-step-heading mt-1 font-semibold">Who are you collecting feedback from?</h3>
           <p className="mt-2 text-base text-muted-foreground">Choose the purpose. Neither option is preferred over the other.</p></div>
         <div aria-label="Feedback audience" className="grid gap-[18px] sm:grid-cols-2" role="radiogroup">
           {(['individual', 'team'] as const).map((value) => <WizardChoiceCard description={value === 'individual' ? 'Collect each student’s own learning experience, needs, and suggestions.' : 'Collect private feedback about collaboration inside the team each student selects.'}
@@ -653,7 +654,7 @@ export function PromptDesignerPage({ api, environment, verified }: {
       {step === 1 && <div className="mx-auto max-w-[1000px] space-y-6">
         {audience === 'individual' && !styleChosen ? <>
           <div><p className="text-sm font-extrabold tracking-widest text-primary">Step 2</p>
-            <h3 className="mt-1 text-3xl font-semibold tracking-tight">How should the conversation work?</h3>
+            <h3 className="legacy-builder-step-heading mt-1 font-semibold">How should the conversation work?</h3>
             <p className="mt-2 text-base text-muted-foreground">Both paths open the same editable workspace.</p></div>
           <div aria-label="Feedback format" className="grid gap-[18px] sm:grid-cols-2" role="radiogroup">
             {(['guided', 'open'] as const).map((value) => <WizardChoiceCard description={value === 'guided' ? 'Every student encounters a planned set of questions and optional follow-ups.' : 'Set one opening question and a listening goal, then follow what the student raises.'}
@@ -662,25 +663,29 @@ export function PromptDesignerPage({ api, environment, verified }: {
           </div>
         </> : <>
         <div><p className="text-sm font-extrabold tracking-widest text-primary">Starting point</p>
-          <h3 className="mt-1 text-3xl font-semibold tracking-tight">{style === 'open' ? 'Start your open conversation' : 'Choose a starting point'}</h3>
+          <h3 className="legacy-builder-step-heading mt-1 font-semibold">{style === 'open' ? 'Start your open conversation' : 'Choose a starting point'}</h3>
           <p className="mt-2 text-base text-muted-foreground">Everything remains editable after you choose.</p></div>
         <label className="block space-y-2"><span className="font-medium">Working title</span>
           <Input maxLength={200} onChange={(event) => setNewTitle(event.target.value)} value={newTitle} /></label>
         {style === 'guided' ? <>
         <Tabs onValueChange={(value) => { setSource(value as typeof source); setTemplateId('') }} value={source}>
           <TabsList className="h-auto w-full flex-wrap justify-start border-b border-border bg-transparent" variant="line">
-            <TabsTrigger value="leai">LEAI</TabsTrigger><TabsTrigger value="my">My templates</TabsTrigger>
-            <TabsTrigger value="community">Community</TabsTrigger><TabsTrigger value="scratch">Start from scratch</TabsTrigger>
+            <TabsTrigger className="flex-none px-[15px] py-[11px] text-[13px] font-bold" value="leai">LEAI templates</TabsTrigger>
+            <TabsTrigger className="flex-none px-[15px] py-[11px] text-[13px] font-bold" value="my">My templates</TabsTrigger>
+            <TabsTrigger className="flex-none px-[15px] py-[11px] text-[13px] font-bold" value="community">Community</TabsTrigger>
+            <TabsTrigger className="flex-none px-[15px] py-[11px] text-[13px] font-bold" value="scratch">Start from scratch</TabsTrigger>
           </TabsList>
           {(['leai', 'my', 'community'] as const).map((kind) => <TabsContent className="min-h-56 pt-4" key={kind} value={kind}>
             {templatesQuery.isLoading ? <p role="status">Loading templates…</p>
-              : visibleTemplates.length ? <div className="grid gap-3 sm:grid-cols-2">{visibleTemplates.map((template: WizardTemplate) =>
-                <button aria-pressed={templateId === template.id} className={`min-w-0 rounded-xl border bg-card p-5 text-left hover:border-primary/60 ${templateId === template.id ? 'border-primary ring-2 ring-primary/10' : 'border-border'}`}
+              : visibleTemplates.length ? <div className="grid auto-cols-[minmax(270px,40%)] grid-flow-col gap-3 overflow-x-auto pb-3">{visibleTemplates.map((template: WizardTemplate) =>
+                <button aria-pressed={selectedTemplateId === template.id} className={`min-w-0 rounded-[14px] border bg-card p-[22px] text-left hover:border-primary/60 ${selectedTemplateId === template.id ? 'border-primary ring-2 ring-primary/10' : 'border-border'}`}
                   key={template.id} onClick={() => {
                     setTemplateId(template.id); setNewTitle(template.name)
                   }} type="button">
-                  <strong className="block">{template.name}</strong>
-                  <span className="mt-1 block text-sm text-muted-foreground">{template.description || 'Saved question set'}</span>
+                  <span className="mb-2 block text-[10px] font-extrabold tracking-[0.09em] text-muted-foreground uppercase">{kind === 'leai' ? 'LEAI templates' : kind === 'my' ? 'My templates' : 'Community'}</span>
+                  <strong className="block text-[19px]">{template.name}</strong>
+                  <span className="mt-1 block text-sm leading-[1.48] text-muted-foreground">{template.description || 'Reusable guided feedback design'}</span>
+                  <span className="mt-3 block text-xs font-bold text-primary">Fixed copy · editable after selection</span>
                 </button>)}</div> : <p className="text-muted-foreground">No templates in this collection yet. Start from scratch or choose LEAI.</p>}
           </TabsContent>)}
           <TabsContent className="min-h-56 pt-4" value="scratch">
