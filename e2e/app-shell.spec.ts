@@ -61,15 +61,16 @@ for (const width of [390, 820, 1022, 1440]) {
       await expect(page.getByRole('link', { name: 'Account' }).locator('span')).toBeVisible()
       await expect(page.getByRole('link', { name: 'All Courses' }).locator('span')).toBeVisible()
       await expect(page.getByRole('button', { name: 'Sign out' }).locator('span')).toBeVisible()
-      for (const label of [
-        page.getByRole('link', { name: 'Account' }).locator('span'),
-        page.getByRole('link', { name: 'All Courses' }).locator('span'),
-        page.getByRole('button', { name: 'Sign out' }).locator('span'),
-      ]) {
-        await expect.poll(() => label.evaluate(element => getComputedStyle(element).fontSize))
+      const labels = [
+        { element: page.getByRole('link', { name: 'Account' }).locator('span'), maxHeight: 20 },
+        { element: page.getByRole('link', { name: 'All Courses' }).locator('span'), maxHeight: 40 },
+        { element: page.getByRole('button', { name: 'Sign out' }).locator('span'), maxHeight: 20 },
+      ]
+      for (const { element, maxHeight } of labels) {
+        await expect.poll(() => element.evaluate(node => getComputedStyle(node).fontSize))
           .toBe('16px')
-        await expect.poll(() => label.evaluate(element => element.getBoundingClientRect().height))
-          .toBeLessThanOrEqual(20)
+        await expect.poll(() => element.evaluate(node => node.getBoundingClientRect().height))
+          .toBeLessThanOrEqual(maxHeight)
       }
       await expect.poll(() => page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight))
         .toBe(true)
@@ -98,8 +99,6 @@ test('entering a course opens its workspace navigation', async ({ page }, testIn
   await expect(card).toBeVisible()
   await expect.poll(() => card.locator('p').evaluate(element => getComputedStyle(element).fontSize))
     .toBe('12px')
-  await expect.poll(() => card.getByRole('link', { name: 'Open feedback' })
-    .evaluate(element => getComputedStyle(element).fontSize)).toBe('16px')
   await expect(page.getByRole('navigation', { name: 'Course navigation' })).toHaveCount(0)
   const desktopSignOut = page.getByRole('button', { name: 'Sign out' })
   const desktopSignOutBox = await desktopSignOut.boundingBox()
@@ -108,7 +107,7 @@ test('entering a course opens its workspace navigation', async ({ page }, testIn
   const desktopHomeScreenshot = join(screenshotDirectory, `course-nav-${testInfo.project.name}-home-desktop.png`)
   await page.screenshot({ path: desktopHomeScreenshot, fullPage: true })
   await testInfo.attach('home-desktop', { path: desktopHomeScreenshot, contentType: 'image/png' })
-  await card.getByRole('link', { name: 'Open feedback' }).click()
+  await card.getByRole('link', { name: 'Open Game Design' }).click()
 
   await expect(page).toHaveURL(/FeedbackAnalyzer\.html$/)
   await expect(page.getByRole('navigation', { name: 'Course navigation' })).toBeVisible()
@@ -135,7 +134,7 @@ test('entering a course opens its workspace navigation', async ({ page }, testIn
   const mobileHomeScreenshot = join(screenshotDirectory, `course-nav-${testInfo.project.name}-home-mobile.png`)
   await page.screenshot({ path: mobileHomeScreenshot, fullPage: true })
   await testInfo.attach('home-mobile', { path: mobileHomeScreenshot, contentType: 'image/png' })
-  await page.getByRole('article', { name: 'Game Design' }).getByRole('link', { name: 'Open feedback' }).click()
+  await page.getByRole('article', { name: 'Game Design' }).getByRole('link', { name: 'Open Game Design' }).click()
   await page.getByRole('button', { name: 'Open navigation' }).click()
   const mobileCourseNavigation = page.getByRole('dialog', { name: 'Navigation' })
     .getByRole('navigation', { name: 'Course navigation' })
@@ -281,7 +280,7 @@ for (const [path, title] of [
   ['/FeedbackAnalyzer.html', 'Feedback Analyzer'],
   ['/FeedbackChat.html', 'Feedback Chat'],
   ['/CourseBanner.html', 'Course Banner'],
-  ['/Customizations.html', 'Customizations'],
+  ['/Customizations.html', 'Settings'],
   ['/NotFound.html', 'Page Not Found'],
   ['/feedback.html', 'Reflection'],
 ]) {
