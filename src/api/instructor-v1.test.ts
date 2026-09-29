@@ -230,3 +230,24 @@ it('verifies certificate codes in one bounded course-scoped request without echo
   expect(JSON.parse(init?.body as string)).toEqual({ occurrence_id: occurrenceId, codes: ['ABCD-EFGH-JKLM-NPQR', 'WXYZ-WXYZ-WXYZ-WXYZ'] })
   expect(new Headers(init?.headers).get('X-CSRFToken')).toBe('masked-csrf-token')
 })
+
+
+it('saves an immutable Wizard revision privately with a course-scoped idempotent request', async () => {
+  const revisionId = '22222222-2222-4222-8222-222222222227'
+  const saved = {
+    id: '22222222-2222-4222-8222-222222222228', name: 'Research check-in', description: '',
+    audience: 'individual', collection_style: 'guided', source: 'my',
+  }
+  const fetcher = vi.fn<typeof fetch>()
+    .mockResolvedValueOnce(csrf())
+    .mockResolvedValueOnce(new Response(JSON.stringify(saved), { status: 201 }))
+  const api = createInstructorApi(environment, () => true, fetcher)
+
+  await expect(api.saveWizardTemplate(courseId, revisionId, ' Research check-in ', 'save-template-attempt-1')).resolves.toEqual(saved)
+  const [url, init] = fetcher.mock.calls[1]
+  expect(String(url)).toMatch(new RegExp(`instructor_courses/${courseId}/question-set-templates/$`))
+  expect(init?.method).toBe('POST')
+  expect(JSON.parse(init?.body as string)).toEqual({ revision_id: revisionId, title: 'Research check-in' })
+  expect(new Headers(init?.headers).get('Idempotency-Key')).toBe('save-template-attempt-1')
+  expect(new Headers(init?.headers).get('X-CSRFToken')).toBe('masked-csrf-token')
+})

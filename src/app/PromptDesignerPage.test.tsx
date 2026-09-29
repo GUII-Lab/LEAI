@@ -55,6 +55,7 @@ const api = {
   wizardPreviewAnswer: vi.fn(),
   decideWizardPreview: vi.fn(),
   publishWizard: vi.fn(),
+  saveWizardTemplate: vi.fn(),
   job: vi.fn(),
   startWizardAi: vi.fn(),
   restoreWizardVersion: vi.fn(),
@@ -91,6 +92,10 @@ beforeEach(() => {
   vi.mocked(api.wizardRevision).mockResolvedValue(revision)
   vi.mocked(api.decideWizardPreview).mockResolvedValue({ ...revision, preview_decision: 'skipped' })
   vi.mocked(api.publishWizard).mockResolvedValue(survey)
+  vi.mocked(api.saveWizardTemplate).mockResolvedValue({
+    id: '550e8400-e29b-41d4-a716-446655440050', name: 'Research check-in', description: '',
+    audience: 'individual', collection_style: 'guided', source: 'my',
+  })
 })
 
 it('shows resume only for a valid resumable draft and keeps published surveys separate', async () => {
@@ -142,4 +147,91 @@ it('keeps Team Open unavailable and leaves the prior draft when closing', async 
   expect(screen.getByRole('radio', { name: /Open conversation/ })).toBeDisabled()
   await user.click(screen.getByRole('button', { name: 'Close builder' }))
   expect(screen.getByRole('alertdialog', { name: 'Leave the Builder?' })).toBeInTheDocument()
+})
+
+
+it('saves an exact revision privately from a focused template modal and restores focus', async () => {
+  const savedTemplate = {
+    id: '550e8400-e29b-41d4-a716-446655440050', name: 'Research check-in', description: '',
+    audience: 'individual' as const, collection_style: 'guided' as const, source: 'my' as const,
+  }
+  const starterTemplate = {
+    id: 'weekly-reflection', name: 'Weekly reflection', description: 'A weekly check-in.',
+    audience: 'individual' as const, collection_style: 'guided' as const, source: 'leai' as const,
+  }
+  vi.mocked(api.wizardTemplates).mockResolvedValueOnce({ templates: [starterTemplate] })
+    .mockResolvedValueOnce({ templates: [starterTemplate, savedTemplate] })
+  const user = userEvent.setup()
+  renderPage()
+  await user.click(await screen.findByRole('button', { name: 'Create new feedback' }))
+  const builder = screen.getByRole('dialog', { name: 'Feedback Builder' })
+  await user.click(within(builder).getByRole('button', { name: /^Continue$/ }))
+  await user.click(await within(builder).findByRole('button', { name: /Weekly reflection/ }))
+  await user.click(within(builder).getByRole('button', { name: /^Continue$/ }))
+  await within(builder).findByRole('heading', { name: 'Feedback artifact' })
+  await user.click(within(builder).getByRole('button', { name: 'Continue to preview' }))
+  await user.click(await within(builder).findByRole('button', { name: 'Skip preview for this revision' }))
+  await waitFor(() => expect(within(builder).getByRole('button', { name: 'Continue to publish' })).toBeEnabled())
+  await user.click(within(builder).getByRole('button', { name: 'Continue to publish' }))
+
+  const trigger = within(builder).getByRole('button', { name: 'Save as My template' })
+  await user.click(trigger)
+  const dialog = screen.getByRole('dialog', { name: 'Save as My template' })
+  const name = within(dialog).getByRole('textbox', { name: 'Template name' })
+  await user.clear(name)
+  await user.click(within(dialog).getByRole('button', { name: 'Save template' }))
+  expect(within(dialog).getByRole('alert')).toHaveTextContent('Enter a template name.')
+  expect(api.saveWizardTemplate).not.toHaveBeenCalled()
+
+  await user.type(name, 'Research check-in')
+  await user.click(within(dialog).getByRole('button', { name: 'Save template' }))
+  await waitFor(() => expect(api.saveWizardTemplate).toHaveBeenCalledWith(courseId, revisionId, 'Research check-in', expect.any(String)))
+  expect(await within(dialog).findByRole('status')).toHaveTextContent('Saved privately to My templates.')
+  await user.click(within(dialog).getByRole('button', { name: 'Done' }))
+  await waitFor(() => expect(trigger).toHaveFocus())
+  await waitFor(() => expect(api.wizardTemplates).toHaveBeenCalledTimes(2))
+
+  await user.click(within(builder).getByRole('button', { name: 'Close builder' }))
+  const leaveDialog = screen.getByRole('alertdialog', { name: 'Leave the Builder?' })
+  await user.click(within(leaveDialog).getByRole('button', { name: 'Save and close' }))
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Feedback Builder' })).not.toBeInTheDocument())
+  await user.click(await screen.findByRole('button', { name: 'Create new feedback' }))
+  const nextBuilder = screen.getByRole('dialog', { name: 'Feedback Builder' })
+  await user.click(within(nextBuilder).getByRole('button', { name: /^Continue$/ }))
+  await user.click(within(nextBuilder).getByRole('tab', { name: 'My templates' }))
+  expect(await within(nextBuilder).findByRole('button', { name: /Research check-in/ })).toBeInTheDocument()
+})
+
+
+it('shows save progress and a recoverable error for a failed private template save', async () => {
+  let releaseSave!: () => void
+  vi.mocked(api.saveWizardTemplate).mockImplementationOnce(async () => {
+    await new Promise<void>((resolve) => { releaseSave = resolve })
+    throw new Error('network failure')
+  })
+  const user = userEvent.setup()
+  renderPage()
+  await user.click(await screen.findByRole('button', { name: 'Create new feedback' }))
+  const builder = screen.getByRole('dialog', { name: 'Feedback Builder' })
+  await user.click(within(builder).getByRole('button', { name: /^Continue$/ }))
+  await user.click(await within(builder).findByRole('button', { name: /Weekly reflection/ }))
+  await user.click(within(builder).getByRole('button', { name: /^Continue$/ }))
+  await within(builder).findByRole('heading', { name: 'Feedback artifact' })
+  await user.click(within(builder).getByRole('button', { name: 'Continue to preview' }))
+  await user.click(await within(builder).findByRole('button', { name: 'Skip preview for this revision' }))
+  await waitFor(() => expect(within(builder).getByRole('button', { name: 'Continue to publish' })).toBeEnabled())
+  await user.click(within(builder).getByRole('button', { name: 'Continue to publish' }))
+  await user.click(within(builder).getByRole('button', { name: 'Save as My template' }))
+  const dialog = screen.getByRole('dialog', { name: 'Save as My template' })
+  await user.click(within(dialog).getByRole('button', { name: 'Save template' }))
+  expect(await within(dialog).findByRole('status')).toHaveTextContent('Saving privately…')
+  await waitFor(() => expect(releaseSave).toBeTypeOf('function'))
+  releaseSave()
+  expect(await within(dialog).findByRole('alert')).toHaveTextContent('Could not complete this action. Please try again.')
+  expect(within(dialog).getByRole('button', { name: 'Save template' })).toBeEnabled()
+  const firstKey = vi.mocked(api.saveWizardTemplate).mock.calls[0]?.[3]
+  await user.click(within(dialog).getByRole('button', { name: 'Save template' }))
+  await waitFor(() => expect(api.saveWizardTemplate).toHaveBeenCalledTimes(2))
+  expect(vi.mocked(api.saveWizardTemplate).mock.calls[1]?.[3]).toBe(firstKey)
+  expect(await within(dialog).findByRole('status')).toHaveTextContent('Saved privately to My templates.')
 })

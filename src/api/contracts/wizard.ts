@@ -49,6 +49,11 @@ export const wizardTemplateSchema = z.object({
   source: z.enum(['leai', 'my', 'community']),
 }).strict()
 export const wizardTemplateListSchema = z.object({ templates: z.array(wizardTemplateSchema) }).strict()
+export const wizardTemplateSaveRequestSchema = z.object({
+  revision_id: id,
+  title: z.string().trim().min(1).max(200),
+}).strict()
+export const wizardTemplateSaveResponseSchema = wizardTemplateSchema
 
 export const wizardVersionSchema = z.object({
   id: z.string().regex(/^[1-9][0-9]*$/),

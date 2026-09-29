@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { qualifyBrowserKey, toAppHref, type PublicEnvironment } from '@/config/environment'
@@ -68,6 +68,10 @@ export function PromptDesignerPage({ api, environment, verified }: {
   const [revision, setRevision] = useState<WizardRevision | null>(null)
   const [previewOpened, setPreviewOpened] = useState(false)
   const [previewBusy, setPreviewBusy] = useState(false)
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
+  const [templateName, setTemplateName] = useState('')
+  const [templateSaveStatus, setTemplateSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [templateSaveError, setTemplateSaveError] = useState('')
   const [publishLabel, setPublishLabel] = useState('')
   const [opensAt, setOpensAt] = useState('')
   const [closesAt, setClosesAt] = useState('')
@@ -86,6 +90,8 @@ export function PromptDesignerPage({ api, environment, verified }: {
   const dirtyRef = useRef(false)
   const savingRef = useRef<Promise<void> | null>(null)
   const draftIdRef = useRef('')
+  const templateSaveRequestRef = useRef('')
+  const templateSaveKeyRef = useRef('')
 
   const coursesQuery = useQuery({
     queryKey: ['wizard-courses', environment.name],
@@ -364,6 +370,31 @@ export function PromptDesignerPage({ api, environment, verified }: {
     finally { setBusy(false) }
   }
 
+  async function saveTemplate() {
+    if (!revision) return
+    const title = templateName.trim()
+    if (!title) {
+      setTemplateSaveError('Enter a template name.')
+      setTemplateSaveStatus('error')
+      return
+    }
+    const requestIdentity = JSON.stringify([courseId, revision.id, title])
+    if (templateSaveRequestRef.current !== requestIdentity) {
+      templateSaveRequestRef.current = requestIdentity
+      templateSaveKeyRef.current = crypto.randomUUID()
+    }
+    setTemplateSaveError('')
+    setTemplateSaveStatus('saving')
+    try {
+      await api.saveWizardTemplate(courseId, revision.id, title, templateSaveKeyRef.current)
+      await queryClient.invalidateQueries({ queryKey: ['wizard-templates', courseId] })
+      setTemplateSaveStatus('saved')
+    } catch (cause) {
+      setTemplateSaveError(errorText(cause))
+      setTemplateSaveStatus('error')
+    }
+  }
+
   async function copyLink(survey: WizardSurvey) {
     try {
       await navigator.clipboard.writeText(new URL(toAppHref(environment, survey.direct_url), window.location.href).href)
@@ -571,6 +602,45 @@ export function PromptDesignerPage({ api, environment, verified }: {
         </div>
         </div><aside className="rounded-xl border border-border bg-card p-5"><p className="text-sm font-bold tracking-widest text-primary uppercase">Publication summary</p><dl className="mt-3 divide-y divide-border text-base"><div className="py-3"><dt className="text-sm font-bold text-muted-foreground uppercase">Audience</dt><dd>{audience === 'team' ? 'Team members' : 'Individual students'}</dd></div><div className="py-3"><dt className="text-sm font-bold text-muted-foreground uppercase">Format</dt><dd>{style === 'open' ? 'Open conversation' : 'Guided feedback'}</dd></div><div className="py-3"><dt className="text-sm font-bold text-muted-foreground uppercase">Preview</dt><dd>{revision.preview_decision}</dd></div><div className="py-3"><dt className="text-sm font-bold text-muted-foreground uppercase">Outputs</dt><dd>Certificate {certificateEnabled ? 'on' : 'off'} · response form {downloadEnabled ? 'on' : 'off'}</dd></div></dl></aside></div>
         {audience === 'team' && <p className="text-sm text-muted-foreground">You can publish now and set up teams from the survey card before students begin.</p>}
+        <Dialog open={templateDialogOpen} onOpenChange={(open) => {
+          setTemplateDialogOpen(open)
+          if (open) {
+            setTemplateName(revision.body.title)
+            setTemplateSaveStatus('idle')
+            setTemplateSaveError('')
+          }
+        }}>
+          <DialogTrigger asChild>
+            <Button type="button" variant="outline">Save as My template</Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Save as My template</DialogTitle>
+              <DialogDescription>Save this exact revision privately to My templates. It will not be shared with the community.</DialogDescription>
+            </DialogHeader>
+            <form className="space-y-4" noValidate onSubmit={(event) => { event.preventDefault(); void saveTemplate() }}>
+              <label className="block space-y-2">
+                <span className="font-medium">Template name</span>
+                <Input aria-invalid={templateSaveStatus === 'error'} aria-required="true" maxLength={200} onChange={(event) => {
+                  setTemplateName(event.target.value)
+                  setTemplateSaveStatus('idle')
+                  setTemplateSaveError('')
+                }} value={templateName} />
+              </label>
+              {templateSaveStatus === 'saving' && <p className="text-sm text-muted-foreground" role="status">Saving privately…</p>}
+              {templateSaveStatus === 'saved' && <p className="text-sm text-success" role="status">Saved privately to My templates.</p>}
+              {templateSaveStatus === 'error' && <p className="text-sm text-destructive" role="alert">{templateSaveError}</p>}
+              <DialogFooter>
+                {templateSaveStatus === 'saved'
+                  ? <DialogClose asChild><Button type="button">Done</Button></DialogClose>
+                  : <>
+                    <DialogClose asChild><Button disabled={templateSaveStatus === 'saving'} type="button" variant="outline">Cancel</Button></DialogClose>
+                    <Button disabled={templateSaveStatus === 'saving'} type="submit">{templateSaveStatus === 'saving' ? 'Saving…' : 'Save template'}</Button>
+                  </>}
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>}
     </BuilderFrame>}
 

@@ -53,6 +53,8 @@ import {
   wizardSurveyListSchema,
   wizardSurveySchema,
   wizardTemplateListSchema,
+  wizardTemplateSaveRequestSchema,
+  wizardTemplateSaveResponseSchema,
   wizardVersionListSchema,
 } from './contracts/wizard'
 import type { WizardProtocol } from './contracts/wizard'
@@ -395,6 +397,15 @@ export function createInstructorApi(
     async wizardTemplates(courseId: string, signal?: AbortSignal) {
       const id = z.string().uuid().parse(courseId)
       return parseResponse(await protectedRequest(`instructor_courses/${id}/question-set-templates/`, { signal }), wizardTemplateListSchema)
+    },
+    async saveWizardTemplate(courseId: string, revisionId: string, title: string, key: string) {
+      const id = z.string().uuid().parse(courseId)
+      const revision = z.string().uuid().parse(revisionId)
+      const body = wizardTemplateSaveRequestSchema.parse({ revision_id: revision, title })
+      return parseResponse(await protectedRequest(`instructor_courses/${id}/question-set-templates/`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key },
+        body: JSON.stringify(body),
+      }), wizardTemplateSaveResponseSchema)
     },
     async wizardDrafts(courseId: string, signal?: AbortSignal) {
       const id = z.string().uuid().parse(courseId)
