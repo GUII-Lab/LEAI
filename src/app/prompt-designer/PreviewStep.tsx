@@ -19,11 +19,10 @@ function StudentOutputSetting({ label, help, checked, onChange }: {
   </div>
 }
 
-export function PreviewStep({ revision, previewOpened, onLaunch, onDecision, busy, certificateEnabled, downloadEnabled, onCertificateChange, onDownloadChange }: {
+export function PreviewStep({ revision, previewOpened, onLaunch, busy, certificateEnabled, downloadEnabled, onCertificateChange, onDownloadChange }: {
   revision: WizardRevision
   previewOpened: boolean
   onLaunch: () => void
-  onDecision: (value: 'completed' | 'skipped') => void
   busy: boolean
   certificateEnabled: boolean
   downloadEnabled: boolean
@@ -61,10 +60,5 @@ export function PreviewStep({ revision, previewOpened, onLaunch, onDecision, bus
         <p className="rounded-lg bg-secondary p-[11px] text-xs text-secondary-foreground">These settings are saved when you publish.</p>
       </aside>
     </div>
-    {revision.preview_decision
-      ? <p role="status" className="rounded-lg border border-border bg-muted/50 p-4">Preview {revision.preview_decision} for this exact revision.</p>
-      : <div className="border-t border-border pt-4">
-        <Button disabled={busy} onClick={() => onDecision('skipped')} type="button" variant="outline">Skip preview for this revision</Button>
-      </div>}
   </div>
 }

@@ -14,7 +14,6 @@ it('opens student-output help without changing the output setting', async () => 
     }}
     previewOpened={false}
     onLaunch={vi.fn()}
-    onDecision={vi.fn()}
     busy={false}
     certificateEnabled={false}
     downloadEnabled={false}

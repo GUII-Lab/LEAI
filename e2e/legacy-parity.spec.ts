@@ -339,3 +339,60 @@ test('student preview runs and completes in its own page', async ({ page }, test
     await testInfo.attach('wizard-preview', { path, contentType: 'image/png' })
   }
 })
+
+test('V12 preview keeps switch thumbs inside the track and warns only on the first skip', async ({ page }, testInfo) => {
+  const revision = { id: '550e8400-e29b-41d4-a716-446655440070', question_set_id: wizardDraftId,
+    revision_number: 1, source_draft_version: 1, content_hash: 'a'.repeat(64), body: wizardDraft.body,
+    preview_decision: null, created_at: '2026-09-29T12:00:00Z' }
+  let decisions = 0
+  await page.route('**/freeze/', route => route.fulfill({ headers, json: { revision } }))
+  await page.route('**/preview-decision/', route => {
+    decisions += 1
+    return route.fulfill({ headers, json: { ...revision, preview_decision: 'skipped' } })
+  })
+  await page.goto('/PromptDesigner.html')
+  await page.getByRole('button', { name: 'Create new feedback' }).click()
+  await page.getByText('Individual feedback', { exact: true }).click()
+  await page.getByText('Guided feedback', { exact: true }).click()
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
+  await page.getByRole('button', { name: 'Generate preview' }).click()
+  await expect(page.getByRole('heading', { name: 'Preview this exact version' })).toBeVisible()
+  const certificate = page.getByRole('switch', { name: 'Completion certificate', exact: true })
+  const thumb = certificate.locator('[data-slot="switch-thumb"]')
+  const assertThumbFits = async () => expect.poll(async () => {
+    const track = await certificate.boundingBox(), knob = await thumb.boundingBox()
+    return Boolean(track && knob && knob.x >= track.x && knob.x + knob.width <= track.x + track.width)
+  }).toBe(true)
+  await expect(certificate).toBeChecked()
+  await assertThumbFits()
+  await certificate.click()
+  await expect(certificate).not.toBeChecked()
+  await assertThumbFits()
+  if (testInfo.project.name === 'webkit') {
+    await page.keyboard.press('Alt+Shift+Tab')
+    await page.keyboard.press('Alt+Tab')
+  }
+  await expect(certificate).toBeFocused()
+  await page.keyboard.press('Space')
+  await expect(certificate).toBeChecked()
+  await assertThumbFits()
+  await expect(page.getByRole('button', { name: 'Next', exact: true })).toBeDisabled()
+  await page.getByRole('button', { name: 'Skip', exact: true }).click()
+  const warning = page.getByRole('alertdialog', { name: 'Skip the student preview?' })
+  await expect(warning).toBeVisible()
+  expect(decisions).toBe(0)
+  await warning.getByRole('button', { name: 'Keep previewing' }).click()
+  await expect(warning).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Skip', exact: true })).toBeFocused()
+  await page.getByRole('button', { name: 'Skip', exact: true }).click()
+  await warning.getByRole('button', { name: 'Skip preview', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Publish this feedback' })).toBeVisible()
+  expect(decisions).toBe(1)
+  await page.getByRole('button', { name: 'Back', exact: true }).click()
+  await page.getByRole('button', { name: 'Back', exact: true }).click()
+  await page.getByRole('button', { name: 'Generate preview' }).click()
+  await page.getByRole('button', { name: 'Skip', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Publish this feedback' })).toBeVisible()
+  await expect(warning).toBeHidden()
+  expect(decisions).toBe(2)
+})

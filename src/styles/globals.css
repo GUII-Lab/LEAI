@@ -430,8 +430,17 @@ body {
   width: 18px;
   height: 18px;
   background: white;
+  translate: none;
   transform: translateX(0);
 }
 .legacy-builder .legacy-builder-output-switch[data-state="checked"] [data-slot="switch-thumb"] {
   transform: translateX(20px);
 }
+
+/* V12 regular actions are rectangular; icon controls keep their own shape. */
+.legacy-builder [data-slot="button"]:not([data-size^="icon"]),
+.legacy-builder-theme [data-slot="button"]:not([data-size^="icon"]) { border-radius: 8px; }
+.legacy-builder [data-slot="button"][data-size="default"],
+.legacy-builder-theme [data-slot="button"][data-size="default"] { min-height: 40px; padding-inline: 16px; }
+.legacy-builder [data-slot="input"]:not(.border-transparent),
+.legacy-builder-theme [data-slot="input"]:not(.border-transparent) { height: 40px; border-radius: 7px; }

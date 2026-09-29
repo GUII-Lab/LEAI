@@ -80,6 +80,8 @@ export function PromptDesignerPage({ api, environment, verified }: {
   const [revision, setRevision] = useState<WizardRevision | null>(null)
   const [previewOpened, setPreviewOpened] = useState(false)
   const [previewBusy, setPreviewBusy] = useState(false)
+  const [previewSkipOpen, setPreviewSkipOpen] = useState(false)
+  const previewSkipTriggerRef = useRef<HTMLButtonElement>(null)
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
   const [templateName, setTemplateName] = useState('')
   const [templateSaveStatus, setTemplateSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
@@ -381,9 +383,26 @@ export function PromptDesignerPage({ api, environment, verified }: {
   async function decidePreview(decision: 'completed' | 'skipped') {
     if (!revision) return
     setPreviewBusy(true)
-    try { setRevision(await api.decideWizardPreview(courseId, revision.id, decision, crypto.randomUUID())) }
+    try {
+      setRevision(await api.decideWizardPreview(courseId, revision.id, decision, crypto.randomUUID()))
+      if (decision === 'skipped') setStep(4)
+    }
     catch (cause) { handleError(cause) }
     finally { setPreviewBusy(false) }
+  }
+
+  function requestPreviewSkip() {
+    if (!revision || previewBusy) return
+    let acknowledged = false
+    try { acknowledged = window.localStorage.getItem(qualifyBrowserKey(environment.name, 'wizard-preview-skip-acknowledged')) === '1' } catch { /* Confirmation remains available when storage is blocked. */ }
+    if (acknowledged) void decidePreview('skipped')
+    else setPreviewSkipOpen(true)
+  }
+
+  function confirmPreviewSkip() {
+    try { window.localStorage.setItem(qualifyBrowserKey(environment.name, 'wizard-preview-skip-acknowledged'), '1') } catch { /* The next attempt can show the warning again. */ }
+    setPreviewSkipOpen(false)
+    void decidePreview('skipped')
   }
 
   async function publish() {
@@ -514,14 +533,15 @@ export function PromptDesignerPage({ api, environment, verified }: {
         </Button>
         : step === 2
           ? <Button disabled={busy || !body} onClick={() => { void toPreview() }} type="button">
-            {busy ? 'Saving…' : 'Continue to preview'}<ArrowRight className="size-4" />
+            {busy ? 'Preparing…' : 'Generate preview'}<ArrowRight className="size-4" />
           </Button>
           : step === 3
-            ? <Button disabled={!revision?.preview_decision || previewBusy} onClick={() => setStep(4)} type="button">
-              Continue to publish<ArrowRight className="size-4" />
-            </Button>
+            ? <div className="flex items-center gap-3">
+              {!revision?.preview_decision && <Button disabled={previewBusy} onClick={requestPreviewSkip} ref={previewSkipTriggerRef} type="button" variant="ghost">Skip</Button>}
+              <Button disabled={!revision?.preview_decision || previewBusy} onClick={() => setStep(4)} type="button">Next</Button>
+            </div>
             : <Button disabled={busy || !canPublish || !revision?.preview_decision} onClick={() => { void publish() }} type="button">
-              {busy ? 'Publishing…' : 'Publish feedback'}
+              {busy ? 'Publishing…' : 'Publish & get link'}
             </Button>
     return <>{back}{next}</>
   }
@@ -706,7 +726,7 @@ export function PromptDesignerPage({ api, environment, verified }: {
           saveStatus={saveStatus} versions={versions} /></div>
       </div>}
       {step === 3 && revision && <PreviewStep busy={previewBusy}
-        onDecision={(decision) => { void decidePreview(decision) }} onLaunch={() => { void launchPreview() }}
+        onLaunch={() => { void launchPreview() }}
         previewOpened={previewOpened} revision={revision} certificateEnabled={certificateEnabled} downloadEnabled={downloadEnabled}
         onCertificateChange={setCertificateEnabled} onDownloadChange={setDownloadEnabled} />}
       {step === 4 && publishedSurvey && <div aria-live="polite" className="mx-auto max-w-3xl rounded-xl border border-success/30 bg-success/5 p-8 text-center">
@@ -770,6 +790,21 @@ export function PromptDesignerPage({ api, environment, verified }: {
         </Dialog>
       </div>}
     </BuilderFrame>}
+
+    <AlertDialog onOpenChange={setPreviewSkipOpen} open={previewSkipOpen}>
+      <AlertDialogContent className="legacy-builder-theme" onCloseAutoFocus={(event) => {
+        event.preventDefault()
+        previewSkipTriggerRef.current?.focus()
+      }}>
+        <AlertDialogHeader><AlertDialogTitle>Skip the student preview?</AlertDialogTitle>
+          <AlertDialogDescription>You can still go back before publishing.</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Keep previewing</AlertDialogCancel>
+          <AlertDialogAction onClick={confirmPreviewSkip}>Skip preview</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
 
     <AlertDialog onOpenChange={setCloseOpen} open={closeOpen}>
       <AlertDialogContent className="legacy-builder-theme">
