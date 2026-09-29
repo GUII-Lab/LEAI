@@ -107,9 +107,17 @@ jobs:
           backend_dir="$RUNNER_TEMP/leai-backend-release"
           git clone --no-checkout https://github.com/GUII-Lab/guiidatapipelines.git "$backend_dir"
           git -C "$backend_dir" fetch --no-tags origin qa
-          qa_head="$(git -C "$backend_dir" rev-parse FETCH_HEAD)"
-          if [ "$qa_head" != "$LEAI_QA_BACKEND_SHA" ]; then
-            echo "LEAI_QA_BACKEND_SHA does not match the current guiidatapipelines/qa head." >&2
+          if ! git -C "$backend_dir" merge-base --is-ancestor "$LEAI_QA_BACKEND_SHA" FETCH_HEAD; then
+            echo "LEAI_QA_BACKEND_SHA is not in the current guiidatapipelines/qa history." >&2
+            exit 1
+          fi
+          heroku_build_id="$(curl --fail --silent --show-error \
+            -H 'Accept: application/vnd.heroku+json; version=3' \
+            -H "Authorization: Bearer $HEROKU_API_KEY" \
+            https://api.heroku.com/apps/guiidata-leai-qa/config-vars \
+            | node -e 'let input=""; process.stdin.on("data", chunk => input += chunk); process.stdin.on("end", () => process.stdout.write(JSON.parse(input).LEAI_BUILD_ID ?? ""))')"
+          if [ "$heroku_build_id" != "$LEAI_QA_BACKEND_SHA" ]; then
+            echo "LEAI_QA_BACKEND_SHA does not match the active Heroku QA backend build." >&2
             exit 1
           fi
           git -C "$backend_dir" checkout --detach "$LEAI_QA_BACKEND_SHA"
