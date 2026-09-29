@@ -14,6 +14,7 @@ import {
 import { AccountRail, AccountSignOut, type NavigationItem } from './AccountRail'
 import { CourseNavigation } from './CourseNavigation'
 import { EnvironmentBar } from './EnvironmentBar'
+import { LegacyCourseRail } from './LegacyCourseRail'
 
 export type AppShellProps = {
   accountItems: NavigationItem[]
@@ -43,9 +44,10 @@ export function AppShell({
   const activeCourseItem = courseItems.find((item) => item.id === activeItem)
   const showCourseNavigation = showCourseNavigationOverride
     ?? (activeItem !== 'all-courses' && activeItem !== 'account' && activeItem !== 'not-found')
+  const legacyWorkspace = ['prompt-designer', 'feedback-analyzer', 'feedback-chat'].includes(activeItem)
 
   return (
-    <div className="min-h-screen bg-background text-foreground lg:flex lg:h-svh lg:min-h-0 lg:flex-col lg:overflow-hidden">
+    <div className={`min-h-screen bg-background text-foreground lg:flex lg:h-svh lg:min-h-0 lg:flex-col lg:overflow-hidden ${legacyWorkspace ? 'legacy-instructor-ui' : ''} ${activeItem === 'feedback-analyzer' ? 'legacy-analyzer' : ''} ${activeItem === 'prompt-designer' ? 'legacy-prompt-designer' : ''}`}>
       <EnvironmentBar environment={environment} />
       <div className="flex items-center gap-3 border-b border-border bg-card px-4 py-3 lg:hidden">
         <Sheet>
@@ -55,6 +57,7 @@ export function AppShell({
             </Button>
           </SheetTrigger>
           <SheetContent className="w-80 gap-0 overflow-y-auto border-sidebar-border bg-sidebar p-0 text-sidebar-foreground" closeButtonClassName="text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground" side="left">
+            {legacyWorkspace ? <><SheetHeader className="sr-only"><SheetTitle>Navigation</SheetTitle><SheetDescription>Instructor navigation</SheetDescription></SheetHeader><LegacyCourseRail accountItems={accountItems} activeItem={activeItem} courseItems={courseItems} courseName={courseName} mobile onSignOut={onSignOut} signingOut={signingOut} /></> : <>
             <SheetHeader className="border-b border-sidebar-border bg-sidebar">
               <SheetTitle className="text-[16pt] text-sidebar-foreground">Navigation</SheetTitle>
               <SheetDescription className="sr-only">
@@ -72,9 +75,10 @@ export function AppShell({
                 <AccountSignOut mobile onSignOut={onSignOut} signingOut={signingOut} />
               </SheetFooter>
             )}
+            </>}
           </SheetContent>
         </Sheet>
-        {activeCourseItem && (
+        {legacyWorkspace ? <span className="text-base font-bold tracking-widest">LEAI</span> : activeCourseItem && (
           <a
             aria-current="page"
             className="min-w-0 truncate text-base font-semibold text-foreground"
@@ -84,21 +88,25 @@ export function AppShell({
           </a>
         )}
       </div>
-      <div className={showCourseNavigation
+      <div className={legacyWorkspace
+        ? 'lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-[13.75rem_minmax(0,1fr)]'
+        : showCourseNavigation
         ? 'lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-[7rem_15rem_minmax(0,1fr)]'
         : 'lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-[7rem_minmax(0,1fr)]'}>
-        <aside className="hidden min-h-0 bg-sidebar lg:flex lg:flex-col">
+        {legacyWorkspace ? <aside className="hidden min-h-0 bg-sidebar lg:block">
+          <LegacyCourseRail accountItems={accountItems} activeItem={activeItem} courseItems={courseItems} courseName={courseName} onSignOut={onSignOut} signingOut={signingOut} />
+        </aside> : <aside className="hidden min-h-0 bg-sidebar lg:flex lg:flex-col">
           <AccountRail items={accountItems} />
           {onSignOut && (
             <div className="mt-auto border-t border-border p-2">
               <AccountSignOut onSignOut={onSignOut} signingOut={signingOut} />
             </div>
           )}
-        </aside>
-        {showCourseNavigation && <aside className="hidden min-h-0 overflow-y-auto border-r border-border bg-card lg:block">
+        </aside>}
+        {showCourseNavigation && !legacyWorkspace && <aside className="hidden min-h-0 overflow-y-auto border-r border-border bg-card lg:block">
           <CourseNavigation activeItem={activeItem} courseName={courseName} items={courseItems} />
         </aside>}
-        <main className="min-w-0 px-5 py-8 sm:px-8 lg:min-h-0 lg:overflow-y-auto lg:px-10">
+        <main className={legacyWorkspace ? `min-w-0 px-4 py-6 sm:px-7 lg:min-h-0 lg:overflow-y-auto ${activeItem === 'feedback-analyzer' ? 'legacy-analyzer-main' : ''} ${activeItem === 'prompt-designer' ? 'legacy-prompt-main' : ''}` : 'min-w-0 px-5 py-8 sm:px-8 lg:min-h-0 lg:overflow-y-auto lg:px-10'}>
           {signOutError && <p className="mb-4 text-sm text-destructive" role="alert">{signOutError}</p>}
           {children}
         </main>

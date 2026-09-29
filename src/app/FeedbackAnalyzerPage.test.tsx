@@ -157,8 +157,8 @@ it('loads course analysis and composes response records using the existing prese
   const modeTabs = await screen.findByRole('tablist', { name: 'Survey mode' })
   expect(within(modeTabs).getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
     'General Course Feedback',
-    'Structured Reflection',
     'In-Group Feedback',
+    'Structured Reflection',
     'Student progress',
     'Group progress',
   ])
@@ -166,7 +166,7 @@ it('loads course analysis and composes response records using the existing prese
   expect(screen.getByRole('region', { name: 'Analysis metrics' })).toBeInTheDocument()
   expect(await screen.findByText('The weekly instructions were clear.')).toBeInTheDocument()
   expect(screen.getByText('2')).toBeInTheDocument()
-  expect(screen.getByText('Participation unavailable')).toBeInTheDocument()
+  expect(screen.getByText(/Participation unavailable:/)).toBeInTheDocument()
   expect(screen.getByText('Instructor Insights are unavailable until an approved provider is configured.')).toBeInTheDocument()
   expect(api.overview).toHaveBeenCalledWith(courseId, expect.any(Array), expect.any(AbortSignal))
   await user.click(screen.getByText('R1'))

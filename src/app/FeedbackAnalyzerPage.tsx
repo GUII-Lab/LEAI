@@ -52,8 +52,8 @@ export type FeedbackAnalyzerApi = {
 
 const modes: readonly AnalysisModeOption[] = [
   { value: 'general', label: 'General Course Feedback' },
-  { value: 'structured', label: 'Structured Reflection' },
   { value: 'team', label: 'In-Group Feedback' },
+  { value: 'structured', label: 'Structured Reflection' },
   { value: 'student-progress', label: 'Student progress' },
   { value: 'group-progress', label: 'Group progress' },
 ]
@@ -281,7 +281,7 @@ export function FeedbackAnalyzerPage({ api, environment, verified }: { api: Feed
                   averageWordsPerResponse: overviewQuery.data.summary.average_words,
                   participation: { status: 'unavailable', reason: overviewQuery.data.summary.participation.reason },
                 }} />}
-                {certificateOccurrence && <CertificateVerification
+                {certificateOccurrence && <details className="rounded-sm border border-border bg-muted/40"><summary className="cursor-pointer px-4 py-3 text-sm font-bold tracking-wide uppercase">Verify completion certificates <span className="ml-2 font-normal tracking-normal normal-case text-muted-foreground">check issued codes for the selected survey</span></summary><div className="border-t border-border p-4"><CertificateVerification
                   enabled={canViewResponses}
                   surveyLabel={certificateOccurrence.label}
                   state={certificateState}
@@ -290,8 +290,10 @@ export function FeedbackAnalyzerPage({ api, environment, verified }: { api: Feed
                     occurrenceId: certificateOccurrence.id,
                     codes: [...codes],
                   })}
-                />}
-                <NgramPanel
+                /></div></details>}
+                <details className="rounded-sm border border-border bg-muted/40">
+                  <summary className="cursor-pointer px-4 py-3 text-sm font-bold tracking-wide uppercase">Traditional Analysis <span className="ml-2 font-normal tracking-normal normal-case text-muted-foreground">word frequency &amp; keyness</span></summary>
+                  <div className="border-t border-border px-4 pb-5"><NgramPanel
                   state={ngramState(ngramQuery.data, ngramQuery.isPending, ngramQuery.isError, ngramSort)}
                   ngramSize={ngramSize}
                   sort={ngramSort}
@@ -304,7 +306,8 @@ export function FeedbackAnalyzerPage({ api, environment, verified }: { api: Feed
                   onClearTerm={() => setSelectedTerm('')}
                   onRetryDrilldown={() => void ngramResponseQuery.refetch()}
                   onLoadMore={() => void ngramResponseQuery.fetchNextPage()}
-                />
+                  /></div>
+                </details>
                 <InstructorInsightsCard state={{ status: 'unavailable', message: 'Instructor Insights are unavailable until an approved provider is configured.' }} onGenerate={() => undefined} />
                 {canViewResponses && <>
                 <ResponseList

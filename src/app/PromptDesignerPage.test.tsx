@@ -51,6 +51,7 @@ const api = {
   saveWizardDraft: vi.fn(),
   freezeWizardDraft: vi.fn(),
   wizardPreview: vi.fn(),
+  wizardRevision: vi.fn(),
   wizardPreviewAnswer: vi.fn(),
   decideWizardPreview: vi.fn(),
   publishWizard: vi.fn(),
@@ -87,6 +88,7 @@ beforeEach(() => {
   }))
   vi.mocked(api.freezeWizardDraft).mockResolvedValue({ revision })
   vi.mocked(api.wizardPreview).mockResolvedValue({ preview_id: '550e8400-e29b-41d4-a716-446655440040', revision, messages: [] })
+  vi.mocked(api.wizardRevision).mockResolvedValue(revision)
   vi.mocked(api.decideWizardPreview).mockResolvedValue({ ...revision, preview_decision: 'skipped' })
   vi.mocked(api.publishWizard).mockResolvedValue(survey)
 })
@@ -105,16 +107,21 @@ it('builds in five steps, uses the artifact and chat components, and publishes t
   renderPage()
   await user.click(await screen.findByRole('button', { name: 'Create new feedback' }))
   const builder = screen.getByRole('dialog', { name: 'Feedback Builder' })
-  expect(within(builder).getByRole('list', { name: 'Feedback Builder steps' })).toHaveTextContent('Start')
-  await user.click(await within(builder).findByRole('button', { name: /Weekly reflection/ }))
+  expect(within(builder).getByRole('list', { name: 'Feedback Builder steps' })).toHaveTextContent('Audience')
+  expect(within(builder).getByRole('radio', { name: /Individual feedback/ })).toBeChecked()
   await user.click(within(builder).getByRole('button', { name: /^Continue$/ }))
-  expect(within(builder).getByRole('radio', { name: 'Individual feedback' })).toBeChecked()
+  expect(within(builder).getByRole('radio', { name: /Guided feedback/ })).toBeChecked()
+  await user.click(await within(builder).findByRole('button', { name: /Weekly reflection/ }))
   await user.click(within(builder).getByRole('button', { name: /^Continue$/ }))
   expect(await within(builder).findByRole('heading', { name: 'Feedback artifact' })).toBeInTheDocument()
   expect(within(builder).getByRole('log', { name: 'Conversation' })).toBeInTheDocument()
   expect(within(builder).getByRole('textbox', { name: 'Ask LEAI to edit this feedback draft' })).toBeInTheDocument()
   await user.click(within(builder).getByRole('button', { name: 'Continue to preview' }))
   expect(await within(builder).findByRole('heading', { name: 'Preview the student experience' })).toBeInTheDocument()
+  const open = vi.spyOn(window, 'open').mockReturnValue({} as Window)
+  await user.click(within(builder).getByRole('button', { name: /Open student preview/ }))
+  expect(open).toHaveBeenCalledWith(`/WizardPreview.html?revision=${revisionId}`, '_blank')
+  open.mockRestore()
   await user.click(within(builder).getByRole('button', { name: 'Skip preview for this revision' }))
   await waitFor(() => expect(within(builder).getByRole('button', { name: 'Continue to publish' })).toBeEnabled())
   await user.click(within(builder).getByRole('button', { name: 'Continue to publish' }))
@@ -127,9 +134,9 @@ it('keeps Team Open unavailable and leaves the prior draft when closing', async 
   const user = userEvent.setup()
   renderPage()
   await user.click(await screen.findByRole('button', { name: 'Create new feedback' }))
+  await user.click(screen.getByRole('radio', { name: /Team feedback/ }))
   await user.click(screen.getByRole('button', { name: /^Continue$/ }))
-  await user.click(screen.getByRole('radio', { name: 'Team feedback' }))
-  expect(screen.getByRole('radio', { name: 'Open conversation' })).toBeDisabled()
+  expect(screen.getByRole('radio', { name: /Open conversation/ })).toBeDisabled()
   await user.click(screen.getByRole('button', { name: 'Close builder' }))
   expect(screen.getByRole('alertdialog', { name: 'Leave the Builder?' })).toBeInTheDocument()
 })

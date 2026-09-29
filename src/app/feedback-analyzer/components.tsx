@@ -3,7 +3,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Popover, PopoverContent, PopoverDescription, PopoverHeader, PopoverTitle, PopoverTrigger } from '@/components/ui/popover'
+import { EvidenceCitation } from '@/components/product/EvidenceCitation'
+import { InfoPopover } from '@/components/product/InfoPopover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -33,8 +34,8 @@ export function AnalysisModeTabs({
     const selected = modes.find((option) => option.value === value)
     if (selected) onModeChange(selected.value)
   }} value={mode}>
-    <TabsList aria-label="Survey mode" className="flex h-auto w-full flex-wrap justify-start gap-x-4 gap-y-1 border-b border-border" variant="line">
-      {modes.map((option) => <TabsTrigger className="h-10 rounded-none px-2" key={option.value} value={option.value}>{option.label}</TabsTrigger>)}
+    <TabsList aria-label="Survey mode" className="flex h-auto w-full flex-wrap justify-start gap-0 border-b border-input bg-transparent" variant="line">
+      {modes.map((option) => <TabsTrigger className={`h-11 rounded-none px-4 text-base font-semibold ${option.value === 'team' || option.value === 'group-progress' ? 'data-active:text-team data-active:after:bg-team' : option.value === 'structured' ? 'data-active:text-guided data-active:after:bg-guided' : 'data-active:text-primary data-active:after:bg-primary'}`} key={option.value} value={option.value}>{option.label}</TabsTrigger>)}
     </TabsList>
   </Tabs>
 }
@@ -90,26 +91,26 @@ export function MetricCards({ metrics }: { metrics: AnalyzerMetrics }) {
   return <section aria-label="Analysis metrics" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
     <MetricCard label="Responses" value={metrics.responseCount.toLocaleString()} detail="Response-bearing sessions and PDF-only responses." />
     <MetricCard label="Student turns" value={metrics.studentTurnCount.toLocaleString()} detail="Student messages, counted separately from responses." />
-    <MetricCard label="Average response length" value={metrics.averageWordsPerResponse == null ? 'Unavailable' : `${Math.round(metrics.averageWordsPerResponse).toLocaleString()} words`} detail="Average words per eligible response." />
+    <MetricCard label="Average response length" value={metrics.averageWordsPerResponse == null ? '—' : Math.round(metrics.averageWordsPerResponse).toLocaleString()} detail={metrics.averageWordsPerResponse == null ? 'Average response length unavailable.' : 'Words per eligible response.'} />
     <MetricCard
       label="Participation"
       value={availableParticipation
         ? `${Math.round((availableParticipation.participantCount / availableParticipation.eligibleParticipantCount) * 100)}%`
-        : 'Participation unavailable'}
+        : '—'}
       detail={availableParticipation
         ? `${availableParticipation.participantCount.toLocaleString()} of ${availableParticipation.eligibleParticipantCount.toLocaleString()} eligible participants`
-        : participation.status === 'unavailable' ? participation.reason : 'An eligible participant denominator is required.'}
+        : participation.status === 'unavailable' ? `Participation unavailable: ${participation.reason.replaceAll('_', ' ').replace(/[.!?]$/, '')}.` : 'An eligible participant denominator is required.'}
     />
   </section>
 }
 
 function MetricCard({ label, value, detail }: { label: string; value: string; detail: string }) {
-  return <Card className="rounded-lg border-l-4 border-l-primary">
-    <CardHeader className="gap-1.5">
-      <CardDescription>{label}</CardDescription>
-      <CardTitle className="text-xl font-semibold tabular-nums">{value}</CardTitle>
+  return <Card className="rounded-sm border-0 border-l-4 border-l-primary bg-card shadow-none">
+    <CardHeader className="gap-1.5 px-6 pt-6 pb-0">
+      <CardDescription className="text-sm font-bold tracking-wide uppercase">{label}</CardDescription>
+      <CardTitle className="text-[2.5rem] leading-none font-extrabold tabular-nums">{value}</CardTitle>
     </CardHeader>
-    <CardContent><p className="text-sm leading-5 text-muted-foreground">{detail}</p></CardContent>
+    <CardContent className="px-6 pb-6"><p className="text-sm leading-5 text-muted-foreground">{detail}</p></CardContent>
   </Card>
 }
 
@@ -155,16 +156,16 @@ export function NgramPanel({
   onRetryDrilldown?: () => void
   onLoadMore?: () => void
 }) {
-  return <Card>
-    <CardHeader>
-      <CardTitle>N-gram terms</CardTitle>
+  return <Card className="border-0 bg-transparent shadow-none">
+    <CardHeader className="px-0">
+      <CardTitle className="text-sm font-semibold text-muted-foreground">N-gram terms</CardTitle>
       <CardDescription>Word frequency and keyness in the selected scope.</CardDescription>
       {state.status === 'ready' && <p className="text-xs text-muted-foreground">{state.sourceCount.toLocaleString()} responses{state.cutoffAt && <> · data through <time dateTime={state.cutoffAt}>{state.cutoffAt}</time></>}</p>}
     </CardHeader>
-    <CardContent className="space-y-4">
+    <CardContent className="space-y-4 px-0">
       <div className="flex flex-wrap items-end gap-4">
         <fieldset className="min-w-0">
-          <legend className="mb-1 text-base font-medium">N-gram length</legend>
+          <legend className="mb-1 flex items-center gap-2 text-base font-medium">N-gram length <InfoPopover label="About n-gram options">Unigrams count single words, bigrams count two-word phrases, and trigrams count three-word phrases. Choose a longer phrase to inspect recurring wording.</InfoPopover></legend>
           <div className="flex flex-wrap gap-1">
             {([1, 2, 3] as const).map((size) => <Button
               aria-pressed={ngramSize === size}
@@ -178,7 +179,7 @@ export function NgramPanel({
           </div>
         </fieldset>
         <fieldset className="min-w-0">
-          <legend className="mb-1 text-base font-medium">Sort terms</legend>
+          <legend className="mb-1 flex items-center gap-2 text-base font-medium">Sort terms <InfoPopover label="About sort options">Frequency ranks terms by count in this scope. Keyness ranks terms that are distinctive to one selected survey week.</InfoPopover></legend>
           <div className="flex flex-wrap gap-1">
             <Button aria-pressed={sort === 'frequency'} className="text-base" onClick={() => onSortChange('frequency')} size="sm" type="button" variant={sort === 'frequency' ? 'secondary' : 'outline'}>Freq</Button>
             <Button
@@ -292,10 +293,10 @@ export function InstructorInsightsCard({
   onRetry?: () => void
   onCitationOpen?: (responseId: string) => void
 }) {
-  return <Card>
+  return <Card className={`rounded-sm border-0 border-l-4 bg-card shadow-none ${state.status === 'unavailable' ? 'border-l-input' : 'border-l-primary'}`}>
     <CardHeader className="gap-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <CardTitle>Instructor Insights</CardTitle>
+        <div className="flex items-center gap-2"><CardTitle className="text-sm font-bold tracking-widest text-muted-foreground uppercase">Instructor Insights</CardTitle><InfoPopover label="About Instructor Insights">Insights summarize evidence from the selected response population. Open each citation to inspect the exact source response. Check the response count and data cutoff before using a claim.</InfoPopover></div>
         {state.status === 'ready' && <Button onClick={onGenerate} type="button" variant="outline">Regenerate insights</Button>}
         {state.status === 'not-run' && <Button onClick={onGenerate} type="button">Generate Instructor Insights</Button>}
       </div>
@@ -326,27 +327,11 @@ export function InstructorInsightsCard({
             <p className="text-xs text-muted-foreground">Supported by {claim.supportingResponseCount.toLocaleString()} responses</p>
             {claim.citations.length > 0 && <ul aria-label={`Sources for: ${claim.text}`} className="flex flex-wrap gap-2">
               {claim.citations.map((citation) => <li key={citation.responseId}>
-                <Popover>
-                  <PopoverTrigger asChild><Button aria-label={`Open source ${citation.label}`} size="xs" type="button" variant="outline">[{citation.label}]</Button></PopoverTrigger>
-                  <PopoverContent align="start" className="max-w-sm">
-                    <PopoverHeader>
-                      <PopoverTitle>{citation.sourceLabel}</PopoverTitle>
-                      <PopoverDescription>{citation.label}</PopoverDescription>
-                    </PopoverHeader>
-                    <blockquote className="border-l-2 border-border pl-3 text-base leading-5">{citation.excerpt}</blockquote>
-                    <a
-                      aria-label={`Open response ${citation.label}`}
-                      className="text-base font-medium text-link underline underline-offset-4"
-                      href={citation.href}
-                      onClick={(event) => {
-                        if (onCitationOpen) {
-                          event.preventDefault()
-                          onCitationOpen(citation.responseId)
-                        }
-                      }}
-                    >Open exact response source</a>
-                  </PopoverContent>
-                </Popover>
+                <EvidenceCitation ariaLabel={`Open source ${citation.label}`} excerpt={citation.excerpt} href={citation.href} label={citation.label}
+                  sourceLabel={citation.sourceLabel} onOpenSource={() => {
+                    if (onCitationOpen) onCitationOpen(citation.responseId)
+                    else window.location.assign(citation.href)
+                  }} />
               </li>)}
             </ul>}
           </li>)}</ul>}

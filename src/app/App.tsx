@@ -16,6 +16,7 @@ import { loginHref } from '@/auth/navigation'
 import { InstructorHomePage } from './InstructorHomePage'
 import { CourseRouteGate } from './CourseRouteGate'
 import { PageNotFound } from './PageNotFound'
+import { WizardPreviewPage } from './WizardPreviewPage'
 
 function Analyzer({ environment }: { environment: PublicEnvironment }) {
   const verified = useEnvironmentWriteAccess()
@@ -33,6 +34,12 @@ function PromptDesigner({ environment }: { environment: PublicEnvironment }) {
   const verified = useEnvironmentWriteAccess()
   const api = useMemo(() => createInstructorApi(environment, () => verified), [environment, verified])
   return <PromptDesignerPage api={api} environment={environment} verified={verified} />
+}
+
+function WizardPreview({ environment }: { environment: PublicEnvironment }) {
+  const verified = useEnvironmentWriteAccess()
+  const api = useMemo(() => createInstructorApi(environment, () => verified), [environment, verified])
+  return <WizardPreviewPage api={api} environment={environment} />
 }
 
 function StudentSurvey({ environment }: { environment: PublicEnvironment }) {
@@ -103,6 +110,10 @@ export function App({
     <EnvironmentGate environment={environment}>
       {activeItem === 'feedback' ? (
         <StudentSurvey environment={environment} />
+      ) : activeItem === 'wizard-preview' ? (
+        <InstructorAuthGate environment={environment}>
+          <CourseRouteGate environment={environment}><WizardPreview environment={environment} /></CourseRouteGate>
+        </InstructorAuthGate>
       ) : activeItem === 'not-found' ? (
         renderWorkspace()
       ) : (
@@ -134,7 +145,7 @@ export function App({
           ? <InstructorHomePage environment={environment} verified />
           : activeItem === 'not-found'
             ? <PageNotFound environment={environment} />
-            : <PageHeader description={description} title={pageTitle} />}
+            : <PageHeader badge={activeItem === 'prompt-designer' ? 'Feedback' : undefined} description={activeItem === 'feedback-chat' ? <>Chat with your survey data. <a className="text-primary hover:underline" href={toAppHref(environment, 'FeedbackAnalyzer.html')}>← Back to Analyzer</a></> : description} title={pageTitle} />}
         {activeItem === 'feedback-analyzer' && <Analyzer environment={environment} />}
         {activeItem === 'feedback-chat' && <FeedbackChat environment={environment} />}
         {activeItem === 'prompt-designer' && <PromptDesigner environment={environment} />}

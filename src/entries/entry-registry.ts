@@ -1,6 +1,7 @@
 export const entryNames = [
   'InstructorHome',
   'PromptDesigner',
+  'WizardPreview',
   'FeedbackAnalyzer',
   'FeedbackChat',
   'CourseBanner',
@@ -27,17 +28,22 @@ const entries: Record<EntryName, EntryDefinition> = {
   },
   PromptDesigner: {
     activeItem: 'prompt-designer',
-    description: 'Create and manage feedback experiences for this course.',
+    description: 'Create and manage AI-powered feedback surveys for your course.',
     pageTitle: 'Prompt Designer',
+  },
+  WizardPreview: {
+    activeItem: 'wizard-preview',
+    description: 'Practice this feedback conversation.',
+    pageTitle: 'Student preview',
   },
   FeedbackAnalyzer: {
     activeItem: 'feedback-analyzer',
-    description: 'Review feedback as it arrives.',
+    description: 'Review survey results and student engagement across your course.',
     pageTitle: 'Feedback Analyzer',
   },
   FeedbackChat: {
     activeItem: 'feedback-chat',
-    description: 'Explore feedback themes with AI assistance.',
+    description: 'Chat with your survey data.',
     pageTitle: 'Feedback Chat',
   },
   CourseBanner: {

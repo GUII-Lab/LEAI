@@ -25,6 +25,7 @@ export default defineConfig({
         index: fileURLToPath(new URL('./index.html', import.meta.url)),
         InstructorHome: fileURLToPath(new URL('./InstructorHome.html', import.meta.url)),
         PromptDesigner: fileURLToPath(new URL('./PromptDesigner.html', import.meta.url)),
+        WizardPreview: fileURLToPath(new URL('./WizardPreview.html', import.meta.url)),
         FeedbackAnalyzer: fileURLToPath(new URL('./FeedbackAnalyzer.html', import.meta.url)),
         FeedbackChat: fileURLToPath(new URL('./FeedbackChat.html', import.meta.url)),
         CourseBanner: fileURLToPath(new URL('./CourseBanner.html', import.meta.url)),

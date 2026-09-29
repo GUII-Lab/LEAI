@@ -3,6 +3,7 @@ import { toAppHref, type PublicEnvironment } from '@/config/environment'
 const instructorPages = [
   'InstructorHome.html',
   'PromptDesigner.html',
+  'WizardPreview.html',
   'FeedbackAnalyzer.html',
   'FeedbackChat.html',
   'CourseBanner.html',

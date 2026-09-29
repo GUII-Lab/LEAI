@@ -24,7 +24,7 @@ const chat = {
   updated_at: '2026-09-27T12:30:45Z', sources: [occurrence],
   messages: [
     { id: '10', sequence: 1, role: 'user' as const, content: 'What themes appear?', created_at: '2026-09-27T12:30:45Z', citations: [] },
-    { id: '11', sequence: 2, role: 'assistant' as const, content: 'Students asked for clearer steps. Source 1', created_at: '2026-09-27T12:31:45Z', citations: [{ id: '9', citation_number: 1, claim_key: 'clarity', response_id: '550e8400-e29b-41d4-a716-446655440040', response_message_id: 21, occurrence_id: occurrenceId, week_label: null, survey_label: 'Week 2 reflection', question_label: null, evidence_quote: 'The steps were confusing.' }] },
+    { id: '11', sequence: 2, role: 'assistant' as const, content: 'Students asked for clearer steps. [1]', created_at: '2026-09-27T12:31:45Z', citations: [{ id: '9', citation_number: 1, claim_key: 'clarity', response_id: '550e8400-e29b-41d4-a716-446655440040', response_message_id: 21, occurrence_id: occurrenceId, week_label: null, survey_label: 'Week 2 reflection', question_label: null, evidence_quote: 'The steps were confusing.' }] },
   ],
 }
 const api: FeedbackChatApi = {
@@ -66,7 +66,8 @@ it('creates a Chat and composes the existing transcript, messages, composer, and
   await user.click(await screen.findByRole('button', { name: 'New chat' }))
   const transcript = await screen.findByRole('log', { name: 'Conversation' })
   expect(transcript).toHaveClass('student-transcript', 'px-5', 'py-10', 'sm:gap-8', 'sm:px-0', 'sm:py-12')
-  expect(within(transcript).getByText('Students asked for clearer steps. Source 1')).toBeInTheDocument()
+  expect(within(transcript).getByText('Students asked for clearer steps.')).toBeInTheDocument()
+  expect(within(transcript).getByRole('button', { name: 'Open citation 1' })).toBeInTheDocument()
   expect(within(transcript).getByText('Instructor')).toBeInTheDocument()
   expect(screen.getByRole('region', { name: 'Feedback Chat workspace' })).toContainElement(screen.getByRole('region', { name: 'Chat sessions' }))
   expect(screen.getByRole('region', { name: 'Feedback Chat workspace' })).toContainElement(transcript)
@@ -83,8 +84,9 @@ it('adds sources to the current Chat and sends an idempotent turn', async () => 
   const user = userEvent.setup()
   renderPage()
   await user.click(await screen.findByRole('button', { name: 'New chat' }))
-  await user.selectOptions(screen.getByRole('combobox', { name: 'Add a course source' }), secondOccurrence.id)
-  await user.click(screen.getByRole('button', { name: 'Add source' }))
+  await user.click(screen.getByRole('button', { name: /feedback source.*Change/i }))
+  await user.click(screen.getByRole('checkbox', { name: secondOccurrence.label }))
+  await user.click(screen.getByRole('button', { name: 'Save' }))
   await waitFor(() => expect(api.addChatScope).toHaveBeenCalledWith(courseId, chatId, { occurrence_ids: [secondOccurrence.id] }))
   const composer = screen.getByRole('textbox', { name: 'Message' })
   await user.type(composer, 'What themes appear?')
@@ -101,9 +103,10 @@ it('keeps source controls available while a queued turn polls', async () => {
   await user.type(screen.getByRole('textbox', { name: 'Message' }), 'First question')
   await user.click(screen.getByRole('button', { name: 'Send' }))
   expect(await screen.findByText(/working on your answer/i)).toBeInTheDocument()
-  expect(screen.getByRole('combobox', { name: 'Add a course source' })).toBeEnabled()
-  await user.selectOptions(screen.getByRole('combobox', { name: 'Add a course source' }), secondOccurrence.id)
-  await user.click(screen.getByRole('button', { name: 'Add source' }))
+  await user.click(screen.getByRole('button', { name: /feedback source.*Change/i }))
+  expect(screen.getByRole('checkbox', { name: secondOccurrence.label })).toBeEnabled()
+  await user.click(screen.getByRole('checkbox', { name: secondOccurrence.label }))
+  await user.click(screen.getByRole('button', { name: 'Save' }))
   await waitFor(() => expect(api.addChatScope).toHaveBeenCalledWith(courseId, chatId, { occurrence_ids: [secondOccurrence.id] }))
 })
 

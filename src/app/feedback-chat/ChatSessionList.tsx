@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Pencil } from 'lucide-react'
+import { Archive, Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -74,10 +74,11 @@ export function ChatSessionList({
   }
 
   return (
-    <section aria-label="Chat sessions" className="flex min-w-0 flex-col gap-3">
-      <Button className="w-full" onClick={onCreateSession} type="button">
+    <section aria-label="Chat sessions" className="flex min-h-0 min-w-0 flex-col gap-2">
+      <Button className="mx-2 mt-2 w-[calc(100%-1rem)] justify-start" onClick={onCreateSession} type="button">
         New chat
       </Button>
+      <p className="px-3 pt-2 text-sm font-bold tracking-wide text-muted-foreground">Recent</p>
 
       {status === 'loading' && <p className="text-sm text-muted-foreground" role="status">Loading chats…</p>}
 
@@ -93,13 +94,13 @@ export function ChatSessionList({
       )}
 
       {status === 'ready' && sessions.length > 0 && (
-        <ol aria-label="Chat sessions" className="flex min-w-0 flex-col gap-1">
+        <ol aria-label="Chat sessions" className="flex min-h-0 min-w-0 flex-col gap-1 overflow-y-auto px-2">
           {sessions.map((session) => {
             const isEditing = editingSessionId === session.id
             const isSelected = selectedSessionId === session.id
 
             return (
-              <li className="flex min-w-0 flex-wrap items-center gap-1 rounded-lg" key={session.id}>
+              <li className="flex min-w-0 flex-wrap items-center gap-1 rounded-md" key={session.id}>
                 {isEditing ? (
                   <form className="flex min-w-0 flex-1 flex-wrap items-center gap-1" onSubmit={(event) => saveRename(event, session.id)}>
                     <Input
@@ -136,7 +137,7 @@ export function ChatSessionList({
                   <>
                     <Button
                       aria-pressed={isSelected}
-                      className="min-w-0 flex-1 justify-start truncate"
+                      className="min-w-0 flex-1 justify-start truncate rounded-md"
                       onClick={() => onSelectSession(session.id)}
                       type="button"
                       variant={isSelected ? 'secondary' : 'ghost'}
@@ -156,16 +157,7 @@ export function ChatSessionList({
                     >
                       <Pencil aria-hidden="true" />
                     </Button>
-                    <Button
-                      aria-label={`Archive ${session.title}`}
-                      className="text-base"
-                      onClick={() => onArchiveSession(session.id)}
-                      size="sm"
-                      type="button"
-                      variant="ghost"
-                    >
-                      Archive
-                    </Button>
+                    <Button aria-label={`Archive ${session.title}`} onClick={() => onArchiveSession(session.id)} size="icon-sm" type="button" variant="ghost"><Archive aria-hidden="true" /></Button>
                   </>
                 )}
               </li>
@@ -173,6 +165,7 @@ export function ChatSessionList({
           })}
         </ol>
       )}
+      <p className="mt-auto border-t border-border px-3 py-2 text-sm text-muted-foreground">Stored on server</p>
     </section>
   )
 }

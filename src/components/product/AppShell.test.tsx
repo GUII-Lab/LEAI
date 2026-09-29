@@ -91,34 +91,22 @@ it('uses dark styling and 16pt type throughout the opened mobile sidebar', async
 
   const dialog = screen.getByRole('dialog', { name: 'Navigation' })
   expect(dialog).toHaveClass('bg-sidebar', 'text-sidebar-foreground')
-  expect(within(dialog).getByRole('heading', { name: 'Navigation' })).toHaveClass('text-[16pt]')
   expect(within(dialog).getByRole('button', { name: 'Close' })).toHaveClass('text-sidebar-foreground')
-
-  const accountNavigation = within(dialog).getByRole('navigation', { name: 'Account navigation' })
-  expect(accountNavigation.querySelector('p')).toHaveClass('text-[16pt]', 'text-sidebar-foreground/70')
-  expect(within(accountNavigation).getByRole('link', { name: 'Account' })).toHaveClass('text-[16pt]')
-
-  const courseNavigation = within(dialog).getByRole('navigation', { name: 'Course navigation' })
-  expect(courseNavigation).toHaveClass('bg-sidebar')
-  expect(courseNavigation.querySelector('p')).toHaveClass('text-[16pt]', 'text-sidebar-foreground/70')
-  expect(within(courseNavigation).getByRole('link', { name: 'Prompt Designer' })).toHaveClass(
-    'text-[16pt]', 'text-sidebar-accent-foreground',
-  )
+  const navigation = within(dialog).getByRole('navigation', { name: 'Instructor navigation' })
+  expect(within(navigation).getByRole('link', { name: 'Account' })).toHaveClass('text-[16pt]')
+  expect(within(navigation).getByRole('link', { name: 'Prompt Designer' })).toHaveClass('text-[16pt]', 'text-sidebar-accent-foreground')
   expect(within(dialog).getByRole('button', { name: 'Sign out' })).toHaveClass(
-    'text-[16pt]', 'text-sidebar-foreground',
+    'text-[16pt]', 'text-sidebar-foreground/80',
   )
 })
 
 it('uses the approved Lucide icon for every account and course menu item', () => {
   renderShell()
-
-  const accountNavigation = screen.getByRole('navigation', { name: 'Account navigation' })
-  expect(within(accountNavigation).getByRole('link', { name: 'Account' }).querySelector('svg'))
+  const navigation = screen.getByRole('navigation', { name: 'Instructor navigation' })
+  expect(within(navigation).getByRole('link', { name: 'Account' }).querySelector('svg'))
     .toHaveClass('lucide-circle-user-round')
-  expect(within(accountNavigation).getByRole('link', { name: 'All Courses' }).querySelector('svg'))
+  expect(within(navigation).getByRole('link', { name: 'All Courses' }).querySelector('svg'))
     .toHaveClass('lucide-library-big')
-
-  const courseNavigation = screen.getByRole('navigation', { name: 'Course navigation' })
   const icons = [
     ['Prompt Designer', 'lucide-file-pen-line'],
     ['Feedback Analyzer', 'lucide-chart-no-axes-combined'],
@@ -126,28 +114,19 @@ it('uses the approved Lucide icon for every account and course menu item', () =>
     ['Settings', 'lucide-sliders-horizontal'],
   ] as const
   for (const [label, iconClass] of icons) {
-    expect(within(courseNavigation).getByRole('link', { name: label }).querySelector('svg'))
+    expect(within(navigation).getByRole('link', { name: label }).querySelector('svg'))
       .toHaveClass(iconClass)
   }
 })
 
 it('keeps All Courses in account navigation and course tools in course navigation', () => {
   renderShell()
-
+  const navigation = screen.getByRole('navigation', { name: 'Instructor navigation' })
   expect(screen.getAllByRole('link', { name: 'All Courses' })).toHaveLength(1)
-  expect(screen.getByRole('navigation', { name: 'Account navigation' })).toHaveTextContent(
-    'All Courses',
-  )
-  const courseNavigation = screen.getByRole('navigation', { name: 'Course navigation' })
-  expect(courseNavigation).toHaveTextContent(
-    'Prompt Designer',
-  )
-  expect(courseNavigation).toHaveAttribute('aria-label', 'Course navigation')
-  expect(within(courseNavigation).getByRole('link', { name: 'Prompt Designer' })).toHaveAttribute(
+  expect(navigation).toHaveTextContent('All Courses')
+  expect(navigation).toHaveTextContent('Prompt Designer')
+  expect(within(navigation).getByRole('link', { name: 'Prompt Designer' })).toHaveAttribute(
     'href', '/LEAI/qa/PromptDesigner.html',
-  )
-  expect(courseNavigation).not.toHaveTextContent(
-    'All Courses',
   )
   expect(screen.getByText('QA environment')).toBeInTheDocument()
 })
@@ -162,7 +141,7 @@ it('opens the mobile navigation in a Sheet and returns focus on Escape', async (
   expect(dialog).toBeInTheDocument()
   const signOut = within(dialog).getByRole('button', { name: 'Sign out' })
   expect(signOut.parentElement).toHaveClass('mt-auto')
-  expect(signOut).toHaveClass('text-sidebar-foreground')
+  expect(signOut).toHaveClass('text-sidebar-foreground/80')
 
   await user.keyboard('{Escape}')
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())

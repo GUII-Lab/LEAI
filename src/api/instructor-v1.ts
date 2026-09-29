@@ -463,6 +463,11 @@ export function createInstructorApi(
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
       }), wizardPreviewSchema)
     },
+    async wizardRevision(courseId: string, revisionId: string) {
+      const id = z.string().uuid().parse(courseId)
+      const revision = z.string().uuid().parse(revisionId)
+      return parseResponse(await protectedRequest(`instructor_courses/${id}/revisions/${revision}/preview/`), wizardRevisionSchema)
+    },
     async wizardPreviewAnswer(courseId: string, previewId: string, itemId: string, content: string) {
       const id = z.string().uuid().parse(courseId)
       const preview = z.string().uuid().parse(previewId)

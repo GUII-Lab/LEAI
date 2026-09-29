@@ -88,7 +88,7 @@ it('does not render a participation percentage without a valid denominator', () 
 
   expect(screen.getByText('3')).toBeInTheDocument()
   expect(screen.getByText('7')).toBeInTheDocument()
-  expect(screen.getByText('Participation unavailable')).toBeInTheDocument()
+  expect(screen.getByText(/Participation unavailable:/)).toBeInTheDocument()
   expect(screen.getByText(/Eligible participant count is unavailable/)).toBeInTheDocument()
   expect(screen.queryByText(/%/)).not.toBeInTheDocument()
 })
@@ -107,7 +107,7 @@ it('shows participation only when the participant numerator fits its eligible de
     averageWordsPerResponse: null,
     participation: { status: 'available', participantCount: 5, eligibleParticipantCount: 4 },
   }} />)
-  expect(screen.getByText('Participation unavailable')).toBeInTheDocument()
+  expect(screen.getByText('An eligible participant denominator is required.')).toBeInTheDocument()
   expect(screen.queryByText(/%/)).not.toBeInTheDocument()
 })
 

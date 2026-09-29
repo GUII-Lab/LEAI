@@ -5,6 +5,7 @@ it('maps every real HTML entry to an application page', () => {
   expect(entryNames).toEqual([
     'InstructorHome',
     'PromptDesigner',
+    'WizardPreview',
     'FeedbackAnalyzer',
     'FeedbackChat',
     'CourseBanner',

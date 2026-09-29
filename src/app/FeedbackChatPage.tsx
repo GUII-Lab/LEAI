@@ -10,8 +10,13 @@ import type {
 } from '@/api/contracts/feedback-chat'
 import { loginHref } from '@/auth/navigation'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import { Input } from '@/components/ui/input'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { ChevronDown, MessagesSquare, SlidersHorizontal } from 'lucide-react'
 import { ChatComposer } from '@/components/chat/ChatComposer'
 import { ChatMessage } from '@/components/chat/ChatMessage'
 import { ChatTranscript } from '@/components/chat/ChatTranscript'
@@ -20,6 +25,7 @@ import { ChatSessionList } from './feedback-chat/ChatSessionList'
 import { qualifyBrowserKey, toAppHref, type PublicEnvironment } from '@/config/environment'
 
 type Id = string
+const emptyChats: FeedbackChatSummary[] = []
 export type FeedbackChatApi = {
   courses(signal?: AbortSignal): Promise<{ courses: CanonicalCourse[] }>
   occurrences(courseId: Id, signal?: AbortSignal): Promise<{ occurrences: FeedbackChatOccurrence[] }>
@@ -34,9 +40,20 @@ export type FeedbackChatApi = {
   logout(): Promise<void>
 }
 
-function inlineMarkdown(text: string) {
-  const tokenPattern = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g
+type AssistantCitation = FeedbackChatDetail['messages'][number]['citations'][number]
+
+function asCitationSource(citation: AssistantCitation): ChatCitationSource {
+  return { citationId: citation.id, citationNumber: citation.citation_number, responseExcerpt: citation.evidence_quote,
+    weekLabel: citation.week_label ?? undefined, surveyLabel: citation.survey_label ?? undefined,
+    questionLabel: citation.question_label ?? undefined }
+}
+
+function inlineMarkdown(text: string, citations: readonly AssistantCitation[], onOpenSource: (citation: ChatCitationSource) => void) {
+  const tokenPattern = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[\d+\])/g
   return text.split(tokenPattern).filter(Boolean).map((part, index) => {
+    const number = /^\[(\d+)\]$/.exec(part)?.[1]
+    const citation = number ? citations.find((item) => item.citation_number === Number(number)) : undefined
+    if (citation) return <ChatCitation citation={asCitationSource(citation)} key={index} onOpenSource={onOpenSource} />
     if (part.startsWith('**') && part.endsWith('**')) return <strong key={index}>{part.slice(2, -2)}</strong>
     if (part.startsWith('*') && part.endsWith('*')) return <em key={index}>{part.slice(1, -1)}</em>
     if (part.startsWith('`') && part.endsWith('`')) return <code className="rounded bg-muted px-1" key={index}>{part.slice(1, -1)}</code>
@@ -44,7 +61,7 @@ function inlineMarkdown(text: string) {
   })
 }
 
-function renderAssistantMarkdown(markdown: string) {
+function renderAssistantMarkdown(markdown: string, citations: readonly AssistantCitation[], onOpenSource: (citation: ChatCitationSource) => void) {
   const blocks: Array<{ type: 'paragraph' | 'heading' | 'list'; text: string; level?: number }> = []
   let paragraph: string[] = []
   let list: string[] = []
@@ -68,12 +85,12 @@ function renderAssistantMarkdown(markdown: string) {
   return blocks.map((block, index) => {
     if (block.type === 'heading') {
       const className = 'font-semibold'
-      if (block.level === 1) return <h3 className={className} key={index}>{inlineMarkdown(block.text)}</h3>
-      if (block.level === 2) return <h4 className={className} key={index}>{inlineMarkdown(block.text)}</h4>
-      return <h5 className={className} key={index}>{inlineMarkdown(block.text)}</h5>
+      if (block.level === 1) return <h3 className={className} key={index}>{inlineMarkdown(block.text, citations, onOpenSource)}</h3>
+      if (block.level === 2) return <h4 className={className} key={index}>{inlineMarkdown(block.text, citations, onOpenSource)}</h4>
+      return <h5 className={className} key={index}>{inlineMarkdown(block.text, citations, onOpenSource)}</h5>
     }
-    if (block.type === 'list') return <ul className="list-disc space-y-1 pl-5" key={index}>{block.text.split('\n').map((item, itemIndex) => <li key={itemIndex}>{inlineMarkdown(item)}</li>)}</ul>
-    return <p className="whitespace-pre-wrap" key={index}>{inlineMarkdown(block.text)}</p>
+    if (block.type === 'list') return <ul className="list-disc space-y-1 pl-5" key={index}>{block.text.split('\n').map((item, itemIndex) => <li key={itemIndex}>{inlineMarkdown(item, citations, onOpenSource)}</li>)}</ul>
+    return <p className="whitespace-pre-wrap" key={index}>{inlineMarkdown(block.text, citations, onOpenSource)}</p>
   })
 }
 
@@ -104,7 +121,14 @@ export function FeedbackChatPage({ api, environment, verified }: {
   const [selectedChatId, setSelectedChatId] = useState(() => params.get('chat_id') ?? '')
   const [selectedOccurrenceId, setSelectedOccurrenceId] = useState(() => params.get('occurrence_id') ?? '')
   const [composerText, setComposerText] = useState('')
+  const [sessionsOpen, setSessionsOpen] = useState(false)
   const [promptDraft, setPromptDraft] = useState<string | null>(null)
+  const [promptOpen, setPromptOpen] = useState(false)
+  const [scopeOpen, setScopeOpen] = useState(false)
+  const [scopeSelection, setScopeSelection] = useState<string[]>([])
+  const [renameOpen, setRenameOpen] = useState(false)
+  const [titleDraft, setTitleDraft] = useState('')
+  const [archiveTarget, setArchiveTarget] = useState('')
   const [activeJobId, setActiveJobId] = useState('')
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
@@ -150,7 +174,7 @@ export function FeedbackChatPage({ api, environment, verified }: {
     enabled: verified && canUse && Boolean(activeCourseId) && !signedOut,
     retry: false,
   })
-  const summaries = chatsQuery.data?.chats ?? []
+  const summaries = chatsQuery.data?.chats ?? emptyChats
   const selectedChatSummary = summaries.find((chat) => chat.id === selectedChatId)
   const activeChatId = selectedChatSummary?.id ?? (selectedChatId ? '' : summaries[0]?.id ?? '')
   const chatQuery = useQuery({
@@ -160,6 +184,7 @@ export function FeedbackChatPage({ api, environment, verified }: {
     retry: false,
   })
   const chat = chatQuery.data
+  const maxNewSources = Math.max(0, 20 - (chat?.sources.length ?? 0))
   const storedJobKey = activeChatId ? qualifyBrowserKey(environment.name, `feedback-chat-job:${activeChatId}`) : ''
   const jobQuery = useQuery({
     queryKey: ['feedback-chat-job', environment.name, activeCourseId, activeJobId],
@@ -204,9 +229,11 @@ export function FeedbackChatPage({ api, environment, verified }: {
     onError: (cause) => handleMutationError(cause),
   })
   const scopeMutation = useMutation({
-    mutationFn: ({ chatId, occurrenceId }: { chatId: string; occurrenceId: string }) => api.addChatScope(activeCourseId, chatId, { occurrence_ids: [occurrenceId] }),
+    mutationFn: ({ chatId, occurrenceIds }: { chatId: string; occurrenceIds: string[] }) => api.addChatScope(activeCourseId, chatId, { occurrence_ids: occurrenceIds }),
     onSuccess: async (updated) => {
       setSelectedOccurrenceId('')
+      setScopeOpen(false)
+      setScopeSelection([])
       setNotice('Source added for future questions in this Chat.')
       queryClient.setQueryData(['feedback-chat', environment.name, activeCourseId, updated.id], updated)
       await queryClient.invalidateQueries({ queryKey: ['feedback-chat', environment.name, activeCourseId, activeChatId] })
@@ -263,9 +290,9 @@ export function FeedbackChatPage({ api, environment, verified }: {
   useEffect(() => {
     if (!chat || !selectedOccurrenceId || deepLinkApplied.current || !activeChatId) return
     if (chat.sources.some((source) => source.id === selectedOccurrenceId)) { deepLinkApplied.current = true; return }
-    if (occurrencesQuery.data?.occurrences.some((source) => source.id === selectedOccurrenceId)) {
+    if (chat.sources.length < 20 && occurrencesQuery.data?.occurrences.some((source) => source.id === selectedOccurrenceId)) {
       deepLinkApplied.current = true
-      scopeMutation.mutate({ chatId: activeChatId, occurrenceId: selectedOccurrenceId })
+      scopeMutation.mutate({ chatId: activeChatId, occurrenceIds: [selectedOccurrenceId] })
     }
   }, [activeChatId, chat, occurrencesQuery.data, scopeMutation, selectedOccurrenceId])
 
@@ -310,8 +337,9 @@ export function FeedbackChatPage({ api, environment, verified }: {
     }
   }
   function addSelectedSource() {
-    if (!selectedOccurrenceId || !activeChatId || chat?.sources.some((source) => source.id === selectedOccurrenceId)) return
-    scopeMutation.mutate({ chatId: activeChatId, occurrenceId: selectedOccurrenceId })
+    const ids = scopeSelection.filter((id) => !chat?.sources.some((source) => source.id === id)).slice(0, maxNewSources)
+    if (!ids.length || !activeChatId) return
+    scopeMutation.mutate({ chatId: activeChatId, occurrenceIds: ids })
   }
   async function savePrompt() {
     if (!chat || promptDraft === null) return
@@ -319,6 +347,7 @@ export function FeedbackChatPage({ api, environment, verified }: {
       await api.renameChat(activeCourseId, chat.id, { prompt_override: promptDraft.trim() || null })
       setNotice('Chat instructions saved.')
       await queryClient.invalidateQueries({ queryKey: ['feedback-chat', environment.name, activeCourseId, chat.id] })
+      setPromptOpen(false)
     } catch (cause) { handleMutationError(cause) }
   }
   function openCitation(citation: ChatCitationSource) {
@@ -342,59 +371,58 @@ export function FeedbackChatPage({ api, environment, verified }: {
     await renameMutation.mutateAsync({ chatId, title })
   }
   function archiveChat(chatId: string) {
-    if (window.confirm('Archive this Chat? Its message and citation history will remain available only in stored records.')) archiveMutation.mutate(chatId)
+    setArchiveTarget(chatId)
   }
   const job = jobQuery.data
   const busy = turnMutation.isPending || job?.status === 'pending' || job?.status === 'running'
   const latestUserMessage = [...(chat?.messages ?? [])].reverse().find((message) => message.role === 'user')
-  const alreadyScoped = chat?.sources.some((source) => source.id === selectedOccurrenceId) ?? false
+  const availableSources = occurrencesQuery.data?.occurrences ?? []
+  const sessionList = (mobile: boolean) => <ChatSessionList sessions={summaries} selectedSessionId={activeChatId || null} status={chatsQuery.isPending ? 'loading' : chatsQuery.isError ? 'error' : 'ready'} onCreateSession={() => { if (mobile) setSessionsOpen(false); createChatMutation.mutate() }} onSelectSession={(id) => { setSelectedChatId(id); setError(''); if (mobile) setSessionsOpen(false) }} onRenameSession={saveRename} onArchiveSession={(id) => { if (mobile) setSessionsOpen(false); archiveChat(id) }} onRetry={() => void chatsQuery.refetch()} />
 
   if (!verified) return <p className="mt-6 text-base text-muted-foreground">Waiting for backend identity verification before opening instructor feedback.</p>
   if (signedOut) return <p className="mt-6 text-base text-muted-foreground" role="status">Returning to sign-in…</p>
   const visibleError = error || (courseQuery.isError && !(courseQuery.error instanceof AuthenticationRequiredError) ? 'Could not load your courses. Please retry.' : '')
   const firstLoad = courseQuery.isPending
-  return <div className="mt-6 space-y-5">
+  return <div className="mt-4 space-y-3">
     {visibleError && <p className="text-base text-destructive" role="alert">{visibleError}</p>}
     {notice && <p className="text-sm text-muted-foreground" role="status">{notice}</p>}
-    {firstLoad ? <p className="text-base" role="status">Loading courses…</p> : courseQuery.isError ? <Button onClick={() => void courseQuery.refetch()} type="button" variant="outline">Retry loading courses</Button> : !courses.length ? <p className="text-base text-muted-foreground">No active courses are available for this account.</p> : !canUse ? <p className="text-base text-muted-foreground">You do not have permission to use Feedback Chat for this course.</p> : (
-      <section aria-label="Feedback Chat workspace" className="grid min-w-0 gap-4 lg:grid-cols-[13rem_minmax(0,1fr)]">
-        <Card className="min-w-0 self-start">
-          <CardHeader><CardTitle>Feedback Chat</CardTitle><CardDescription>Ask questions about anonymous course feedback.</CardDescription></CardHeader>
-          <CardContent><ChatSessionList sessions={summaries} selectedSessionId={activeChatId || null} status={chatsQuery.isPending ? 'loading' : chatsQuery.isError ? 'error' : 'ready'} onCreateSession={() => createChatMutation.mutate()} onSelectSession={(id) => { setSelectedChatId(id); setError('') }} onRenameSession={saveRename} onArchiveSession={archiveChat} onRetry={() => void chatsQuery.refetch()} /></CardContent>
-        </Card>
-        <div className="min-w-0 space-y-4">
-          {!activeChatId ? <Card><CardContent className="py-8 text-base text-muted-foreground">Choose a Chat or create a new one to start.</CardContent></Card> : chatQuery.isPending ? <p className="text-base" role="status">Loading conversation…</p> : chatQuery.isError || !chat ? <Card><CardContent className="space-y-3 py-6"><p className="text-base text-destructive">This Chat could not be loaded.</p><Button onClick={() => void chatQuery.refetch()} type="button" variant="outline">Retry loading Chat</Button></CardContent></Card> : (
+    {firstLoad ? <p className="text-base" role="status">Loading courses…</p> : courseQuery.isError ? <Button onClick={() => void courseQuery.refetch()} type="button" variant="outline">Retry loading courses</Button> : !courses.length ? <p className="text-base text-muted-foreground">No active courses are available for this account.</p> : !canUse ? <p className="text-base text-muted-foreground">You do not have permission to use Feedback Chat for this course.</p> : (<>
+      <Button className="lg:hidden" onClick={() => setSessionsOpen(true)} type="button" variant="outline"><MessagesSquare aria-hidden="true" className="size-4" />Show sessions</Button>
+      <Sheet onOpenChange={setSessionsOpen} open={sessionsOpen}><SheetContent className="w-[min(20rem,88vw)] gap-0 bg-muted p-0" side="left"><SheetHeader className="border-b border-border bg-card"><SheetTitle>Chats</SheetTitle><SheetDescription>Select or create a Feedback Chat session.</SheetDescription></SheetHeader>{sessionList(true)}</SheetContent></Sheet>
+      <section aria-label="Feedback Chat workspace" className="grid min-h-[38rem] min-w-0 overflow-hidden rounded-md border border-border bg-card lg:h-[calc(100svh-11rem)] lg:grid-cols-[13.75rem_minmax(0,1fr)]">
+        <div className="hidden min-h-0 min-w-0 border-r border-border bg-muted lg:block">
+          {sessionList(false)}
+        </div>
+        <div className="flex min-h-0 min-w-0 flex-col">
+          {!activeChatId ? <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center text-base text-muted-foreground"><MessagesSquare aria-hidden="true" className="size-12 text-border" /><h2 className="font-semibold text-foreground">Ask about your survey data</h2><p>Choose a Chat or create a new one to start.</p></div> : chatQuery.isPending ? <p className="p-6 text-base" role="status">Loading conversation…</p> : chatQuery.isError || !chat ? <Card><CardContent className="space-y-3 py-6"><p className="text-base text-destructive">This Chat could not be loaded.</p><Button onClick={() => void chatQuery.refetch()} type="button" variant="outline">Retry loading Chat</Button></CardContent></Card> : (
             <>
-              <Card>
-                <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
-                  <div><CardTitle>{chat.title}</CardTitle><CardDescription>Add sources here to use them for future questions in this Chat.</CardDescription></div>
-                  <div className="flex flex-wrap gap-2"><Button onClick={downloadMarkdown} type="button" variant="outline">Export Markdown</Button><Button aria-label="Create another Chat" onClick={() => { setError(''); setNotice(''); createChatMutation.mutate() }} type="button">New chat</Button></div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex flex-wrap items-end gap-2">
-                    <label className="min-w-48 flex-1 space-y-1.5 text-base font-medium">Add a course source
-                      <select aria-label="Add a course source" className="h-10 w-full rounded-lg border border-input bg-background px-3 text-base" disabled={occurrencesQuery.isPending || scopeMutation.isPending} onChange={(event) => setSelectedOccurrenceId(event.target.value)} value={selectedOccurrenceId}>
-                        <option value="">Select a week or survey</option>
-                        {(occurrencesQuery.data?.occurrences ?? []).map((source) => <option key={source.id} value={source.id}>{source.label}</option>)}
-                      </select>
-                    </label>
-                    <Button disabled={!selectedOccurrenceId || alreadyScoped || scopeMutation.isPending} onClick={addSelectedSource} type="button" variant="outline">{scopeMutation.isPending ? 'Adding source…' : 'Add source'}</Button>
+              <div className="shrink-0 border-b border-border px-4 py-3 sm:px-7">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <h2 className="text-lg font-bold">{chat.title}</h2>
+                  <div className="flex flex-wrap gap-1">
+                    <Button onClick={() => { setTitleDraft(chat.title); setRenameOpen(true) }} size="sm" type="button" variant="ghost">Rename</Button>
+                    <Button onClick={downloadMarkdown} size="sm" type="button" variant="ghost">Export</Button>
+                    <Button onClick={() => archiveChat(chat.id)} size="sm" type="button" variant="ghost">Archive</Button>
+                    <Button aria-label="Create another Chat" onClick={() => { setError(''); setNotice(''); createChatMutation.mutate() }} size="sm" type="button" variant="outline">New chat</Button>
                   </div>
-                  {occurrencesQuery.isError && <p className="text-base text-destructive" role="alert">Course sources could not be loaded. <Button className="h-auto p-0" onClick={() => void occurrencesQuery.refetch()} type="button" variant="link">Retry</Button></p>}
-                  {chat.sources.length > 0 ? <ul aria-label="Chat sources" className="flex flex-wrap gap-2">{chat.sources.map((source) => <li className="rounded-full border border-border bg-muted px-3 py-1 text-sm" key={source.id}>{source.label}</li>)}</ul> : <p className="text-base text-muted-foreground">No feedback sources yet. Add a course source before asking about student responses.</p>}
-                </CardContent>
-              </Card>
-              <Card className="flex min-h-[32rem] min-w-0 flex-col overflow-hidden">
-                <CardHeader className="shrink-0"><CardTitle>Conversation</CardTitle><CardDescription>Each answer uses the sources captured when that question was sent.</CardDescription></CardHeader>
+                </div>
+                <Button className="mt-2 gap-2" onClick={() => { setScopeSelection([]); setScopeOpen(true) }} type="button" variant="outline">
+                  {chat.sources.length ? `${chat.sources.length} feedback source${chat.sources.length === 1 ? '' : 's'}` : 'Choose chat context'} <span className="text-sm text-muted-foreground">Change</span><ChevronDown aria-hidden="true" className="size-4" />
+                </Button>
+                {chat.sources.length > 0 && <ul aria-label="Chat sources" className="mt-2 flex flex-wrap gap-2">{chat.sources.map((source) => <li className="rounded-md bg-muted px-2 py-1 text-sm text-muted-foreground" key={source.id}>{source.label}</li>)}</ul>}
+                {occurrencesQuery.isError && <p className="mt-2 text-base text-destructive" role="alert">Course sources could not be loaded. <Button className="h-auto p-0" onClick={() => void occurrencesQuery.refetch()} type="button" variant="link">Retry</Button></p>}
+              </div>
+              <Card className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-none border-0 shadow-none">
                 <CardContent className="flex min-h-0 min-w-0 flex-1 flex-col gap-0 p-0">
                   <div className="min-h-0 flex-1 overflow-y-auto">
                     <ChatTranscript className="student-transcript mx-auto flex w-full max-w-[832px] flex-col gap-7 px-5 py-10 sm:gap-8 sm:px-0 sm:py-12">
+                      {chat.messages.length === 0 && <div className="flex flex-col items-center gap-3 py-16 text-center"><MessagesSquare aria-hidden="true" className="size-12 text-border" /><h3 className="font-semibold">Ask about your survey data</h3><p className="text-base text-muted-foreground">Choose a feedback source, then ask your first question.</p></div>}
                       {chat.messages.map((message) => <ChatMessage author={message.role === 'assistant' ? 'Feedback Chat' : 'Instructor'} className={message.role === 'assistant' ? 'student-assistant-message' : 'student-user-message'} key={message.id} metaClassName="student-message-meta" role={message.role} timestamp={message.created_at}>
                         <div className="w-full space-y-3 text-base leading-7">
                           {message.role === 'assistant'
-                            ? <div className="ml-1 border-l border-border/60 py-0.5 pl-7">{renderAssistantMarkdown(message.content)}</div>
+                            ? <div className="ml-1 border-l border-border/60 py-0.5 pl-7">{renderAssistantMarkdown(message.content, message.citations, openCitation)}</div>
                             : <p className="ml-auto w-full max-w-[83%] whitespace-pre-wrap break-words rounded bg-muted px-5 py-4 text-base leading-7">{message.content}</p>}
-                          {message.citations.length > 0 && <div className="flex flex-wrap items-center gap-1 border-t border-border pt-2"><span className="text-sm text-muted-foreground">Evidence:</span>{message.citations.map((citation) => <ChatCitation citation={{ citationId: citation.id, citationNumber: citation.citation_number, responseExcerpt: citation.evidence_quote, weekLabel: citation.week_label ?? undefined, surveyLabel: citation.survey_label ?? undefined, questionLabel: citation.question_label ?? undefined }} key={citation.id} onOpenSource={openCitation} />)}</div>}
+                          {message.citations.some((citation) => !message.content.includes(`[${citation.citation_number}]`)) && <div className="flex flex-wrap items-center gap-1 border-t border-border pt-2"><span className="text-sm text-muted-foreground">Evidence:</span>{message.citations.filter((citation) => !message.content.includes(`[${citation.citation_number}]`)).map((citation) => <ChatCitation citation={asCitationSource(citation)} key={citation.id} onOpenSource={openCitation} />)}</div>}
                         </div>
                       </ChatMessage>)}
                     </ChatTranscript>
@@ -404,26 +432,61 @@ export function FeedbackChatPage({ api, environment, verified }: {
                       {chat.messages.length > 0 && latestUserMessage && job?.status !== 'failed' && <Button className="text-base" disabled={busy} onClick={() => send(latestUserMessage.content, latestUserMessage.id)} type="button" variant="link">Replay last question</Button>}
                     </div>
                   </div>
-                  <div className="shrink-0 space-y-3 border-t border-border bg-card p-4 sm:px-6">
+                  <div className="shrink-0 space-y-3 border-t border-border bg-card p-4 sm:px-7">
                     <div className="flex flex-wrap gap-2" aria-label="Suggested questions">{['What themes are emerging?', 'What could be clearer for students?'].map((prompt) => <Button key={prompt} onClick={() => setComposerText(prompt)} type="button" variant="outline">{prompt}</Button>)}</div>
                     <div className="legacy-student">
                       <form onSubmit={submit}>
                         <ChatComposer busy={busy} className="bg-background" disabled={!chat.sources.length || busy} maxLength={3000} onKeyDown={composerKeyDown} onValueChange={setComposerText} placeholder={chat.sources.length ? 'Ask about the selected feedback sources…' : 'Add a feedback source to begin'} sendDisabled={!composerText.trim() || !chat.sources.length} value={composerText} />
                       </form>
                     </div>
-                    <details className="rounded-lg border border-border px-3 py-2">
-                      <summary className="cursor-pointer text-base font-medium">Chat instructions</summary>
-                      <div className="mt-3 space-y-2"><label className="block space-y-1 text-base font-medium">Optional instructions for this Chat
-                        <Textarea maxLength={4000} onChange={(event) => setPromptDraft(event.target.value)} placeholder="Use plain language and focus on actionable themes." value={promptDraft ?? ''} />
-                      </label><Button disabled={promptDraft === null || promptDraft === (chat.prompt_override ?? '')} onClick={() => void savePrompt()} type="button" variant="outline">Save instructions</Button></div>
-                    </details>
+                    <div className="flex items-center justify-between text-sm text-muted-foreground"><Button className="h-auto gap-1 p-0 text-sm" onClick={() => setPromptOpen(true)} type="button" variant="link"><SlidersHorizontal aria-hidden="true" className="size-4" />Chat instructions</Button><span>Shift+Enter for newline</span></div>
                   </div>
                 </CardContent>
               </Card>
             </>
           )}
         </div>
-      </section>
+      </section></>
     )}
+    <Dialog onOpenChange={setScopeOpen} open={scopeOpen}>
+      <DialogContent className="max-h-[min(80vh,46rem)] overflow-hidden sm:max-w-xl">
+        <DialogHeader><DialogTitle className="text-lg font-bold">Choose chat context</DialogTitle>
+          <DialogDescription>Choose the surveys this Chat can use for future questions. Sources already used in earlier answers stay attached to those answers.</DialogDescription></DialogHeader>
+        <div className="flex gap-3 text-sm"><Button onClick={() => setScopeSelection(availableSources.filter((source) => !chat?.sources.some((current) => current.id === source.id)).slice(0, maxNewSources).map((source) => source.id))} type="button" variant="link">Select all available</Button><Button onClick={() => setScopeSelection([])} type="button" variant="link">Clear</Button></div>
+        <div className="min-h-32 max-h-80 space-y-1 overflow-y-auto rounded-md border border-border p-2">
+          {availableSources.length === 0 && <p className="p-4 text-base text-muted-foreground">No feedback surveys are available for this course.</p>}
+          {availableSources.map((source) => {
+            const existing = chat?.sources.some((current) => current.id === source.id) ?? false
+            return <label className="flex min-h-10 cursor-pointer items-center gap-3 rounded-md px-2 text-base hover:bg-muted" key={source.id}>
+              <input checked={existing || scopeSelection.includes(source.id)} disabled={existing || (!scopeSelection.includes(source.id) && scopeSelection.length >= maxNewSources)} onChange={(event) => setScopeSelection((selected) => event.target.checked ? [...selected, source.id].slice(0, maxNewSources) : selected.filter((id) => id !== source.id))} type="checkbox" />
+              <span className="min-w-0 flex-1 truncate">{source.label}</span>{existing && <span className="text-sm text-muted-foreground">Added</span>}
+            </label>
+          })}
+        </div>
+        <DialogFooter className="-mx-4 -mb-4"><span className="mr-auto text-sm text-muted-foreground">{scopeSelection.length} of {maxNewSources} new sources selected</span><Button onClick={() => setScopeOpen(false)} type="button" variant="outline">Cancel</Button><Button disabled={!scopeSelection.length || scopeMutation.isPending} onClick={addSelectedSource} type="button">{scopeMutation.isPending ? 'Saving…' : 'Save'}</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+    <Dialog onOpenChange={setPromptOpen} open={promptOpen}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader><DialogTitle className="text-lg font-bold">Chat instructions</DialogTitle><DialogDescription>Customize how LEAI responds. Changes apply to future messages in this Chat.</DialogDescription></DialogHeader>
+        <label className="block space-y-2 text-base font-medium">Optional instructions for this Chat
+          <Textarea className="min-h-44 font-mono text-base" maxLength={4000} onChange={(event) => setPromptDraft(event.target.value)} placeholder="Use plain language and focus on actionable themes." value={promptDraft ?? ''} />
+        </label>
+        <DialogFooter className="-mx-4 -mb-4"><Button onClick={() => setPromptDraft('')} type="button" variant="ghost">Restore default</Button><Button disabled={!latestUserMessage || busy} onClick={() => { if (latestUserMessage) send(latestUserMessage.content, latestUserMessage.id); setPromptOpen(false) }} type="button" variant="ghost">Replay last turn</Button><Button disabled={promptDraft === null || promptDraft === (chat?.prompt_override ?? '')} onClick={() => { void savePrompt() }} type="button">Save instructions</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+    <Dialog onOpenChange={setRenameOpen} open={renameOpen}>
+      <DialogContent><DialogHeader><DialogTitle>Rename Chat</DialogTitle></DialogHeader>
+        <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); if (chat && titleDraft.trim()) void saveRename(chat.id, titleDraft.trim()).then(() => setRenameOpen(false)).catch(handleMutationError) }}>
+          <Input aria-label="Chat title" maxLength={120} onChange={(event) => setTitleDraft(event.target.value)} value={titleDraft} />
+          <DialogFooter className="-mx-4 -mb-4"><Button onClick={() => setRenameOpen(false)} type="button" variant="outline">Cancel</Button><Button disabled={!titleDraft.trim() || renameMutation.isPending} type="submit">Save title</Button></DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+    <AlertDialog onOpenChange={(open) => { if (!open) setArchiveTarget('') }} open={Boolean(archiveTarget)}>
+      <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Archive this Chat?</AlertDialogTitle><AlertDialogDescription>The Chat will leave your recent list. Its stored messages and citations remain available to administrators.</AlertDialogDescription></AlertDialogHeader>
+        <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => { archiveMutation.mutate(archiveTarget); setArchiveTarget('') }}>Archive Chat</AlertDialogAction></AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </div>
 }

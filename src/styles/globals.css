@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
@@ -140,6 +141,104 @@ body {
   min-width: 20rem;
   margin: 0;
   background: var(--background);
+}
+
+/* The instructor tools keep the visual language of the pinned GUII Lab QA
+   release while their data and controls remain React/shadcn components. */
+.legacy-instructor-ui {
+  --radius: 0.375rem;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --muted: #f0f4f6;
+  --border: #e1e9ec;
+  --input: #a9b4b7;
+  font-family: 'Inter', 'Avenir Next', sans-serif;
+}
+
+.legacy-instructor-ui > :last-child > main > header {
+  padding-bottom: 1rem;
+  border-color: #e8eff1;
+}
+
+.legacy-instructor-ui:not(.legacy-analyzer):not(.legacy-prompt-designer) > :last-child > main > header h1 {
+  font-size: 1.5rem;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.legacy-instructor-ui > :last-child > main > header p {
+  margin-top: 0.25rem;
+  color: #566164;
+  font-size: 0.875rem;
+}
+
+.legacy-analyzer-main > * {
+  max-width: 1100px;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.legacy-prompt-main > * {
+  max-width: 1400px;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.legacy-instructor-ui .legacy-prompt-main > header {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.legacy-instructor-ui .legacy-prompt-main > header h1 {
+  font-size: 2.75rem;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.legacy-instructor-ui .legacy-prompt-main > header p {
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+@media (max-width: 767px) {
+  .legacy-instructor-ui .legacy-prompt-main > header h1 {
+    font-size: 1.75rem;
+  }
+}
+
+.legacy-instructor-ui .legacy-analyzer-main > header {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.legacy-instructor-ui .legacy-analyzer-main > header h1 {
+  font-size: 2.75rem;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+@media (max-width: 767px) {
+  .legacy-instructor-ui .legacy-analyzer-main > header h1 {
+    font-size: 1.75rem;
+  }
+}
+
+.legacy-instructor-ui .legacy-analyzer-main > header p {
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.legacy-builder {
+  --builder-preview-start: #075d79;
+  --builder-preview-end: #00888b;
+  --primary: #007f80;
+  --primary-foreground: #ffffff;
+  --ring: #007f80;
+  --secondary: #e7f5f3;
+  --secondary-foreground: #006667;
+  --builder-surface: #f7fafb;
+  font-family: 'Inter', 'Avenir Next', sans-serif;
 }
 
 :focus-visible {

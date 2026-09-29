@@ -3,6 +3,7 @@ import type { WizardConversationMessage } from '@/api/contracts/wizard'
 import { ChatComposer } from '@/components/chat/ChatComposer'
 import { ChatMessage } from '@/components/chat/ChatMessage'
 import { ChatTranscript } from '@/components/chat/ChatTranscript'
+import { InfoPopover } from '@/components/product/InfoPopover'
 import '@/app/student-legacy.css'
 
 export function AuthoringConversation({ messages, value, onValueChange, onSend, busy, disabled }: {
@@ -46,7 +47,7 @@ export function AuthoringConversation({ messages, value, onValueChange, onSend, 
       input.form?.requestSubmit()
     }
   }
-  return <section aria-label="AI collaboration" className="legacy-student flex min-h-[30rem] flex-col overflow-hidden rounded-xl border border-border bg-card xl:sticky xl:top-0 xl:h-[calc(100dvh-18rem)] xl:max-h-[38rem]">
+  return <section aria-label="AI collaboration" className="legacy-student flex min-h-[30rem] flex-col overflow-hidden border-b border-border bg-[#fbfcfc] xl:h-full xl:border-r xl:border-b-0">
     <header className="border-b border-border px-4 py-3">
       <h3 className="font-semibold">Design together</h3>
       <p className="text-sm text-muted-foreground">Describe the change you want. The draft updates after validation.</p>
@@ -63,7 +64,9 @@ export function AuthoringConversation({ messages, value, onValueChange, onSend, 
               </div>
             </ChatMessage>)}
       </ChatTranscript>
-      {messages.length === 0 && <p className="text-base text-muted-foreground">Try “make the questions shorter” or “add one question about course support.”</p>}
+      {messages.length === 0 && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-base leading-relaxed">
+        <strong>Build with AI when you need it</strong><p className="mt-2 text-muted-foreground">Ask for a rewrite, a new question, a reorganization, or a deletion. Every applied change is saved in History.</p>
+      </div>}
       {busy && <p aria-live="polite" className="mt-3 text-sm text-muted-foreground">LEAI is reviewing the draft…</p>}
     </div>
     <form className="student-chat-footer shrink-0 border-t border-border/50 bg-card px-4 py-3 sm:px-6 sm:py-4" onSubmit={submit}>
@@ -73,6 +76,7 @@ export function AuthoringConversation({ messages, value, onValueChange, onSend, 
           sendHint={{ content: <span>Enter sends. <kbd data-slot="kbd">⌘+Enter</kbd> or <kbd data-slot="kbd">Ctrl+Enter</kbd> adds a new line. Shift+Enter also works.</span>,
             open: keyboardHintOpen, onOpenChange: setKeyboardHintOpen }}
           sendDisabled={!value.trim()} value={value} />
+        <div className="mt-2 flex items-center justify-end gap-2 text-sm text-muted-foreground">AI collaborator <InfoPopover label="What AI can use" variant="builder">LEAI can use this draft, authorized templates, and course context. It cannot access student rosters, grades, or other courses.</InfoPopover></div>
       </div>
     </form>
   </section>

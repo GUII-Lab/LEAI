@@ -3,17 +3,16 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, ArrowRight, ClipboardCopy, FilePenLine, Plus } from 'lucide-react'
 import { AuthenticationRequiredError, InstructorApiError, type createInstructorApi } from '@/api/instructor-v1'
 import type {
-  WizardConversationMessage, WizardDraft, WizardPreview, WizardProtocol,
+  WizardConversationMessage, WizardDraft, WizardProtocol,
   WizardRevision, WizardSurvey, WizardTemplate, WizardVersion,
 } from '@/api/contracts/wizard'
 import { protocolSchema } from '@/api/contracts/wizard'
 import { loginHref } from '@/auth/navigation'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { qualifyBrowserKey, toAppHref, type PublicEnvironment } from '@/config/environment'
@@ -55,6 +54,7 @@ export function PromptDesignerPage({ api, environment, verified }: {
   const [closeOpen, setCloseOpen] = useState(false)
   const [step, setStep] = useState<WizardStep>(0)
   const [source, setSource] = useState<'leai' | 'my' | 'community' | 'scratch'>('leai')
+  const [howOpen, setHowOpen] = useState(false)
   const [templateId, setTemplateId] = useState('')
   const [audience, setAudience] = useState<Audience>('individual')
   const [style, setStyle] = useState<Style>('guided')
@@ -66,7 +66,7 @@ export function PromptDesignerPage({ api, environment, verified }: {
   const [composer, setComposer] = useState('')
   const [aiJobId, setAiJobId] = useState('')
   const [revision, setRevision] = useState<WizardRevision | null>(null)
-  const [preview, setPreview] = useState<WizardPreview | null>(null)
+  const [previewOpened, setPreviewOpened] = useState(false)
   const [previewBusy, setPreviewBusy] = useState(false)
   const [publishLabel, setPublishLabel] = useState('')
   const [opensAt, setOpensAt] = useState('')
@@ -118,7 +118,27 @@ export function PromptDesignerPage({ api, environment, verified }: {
   const surveys = surveysQuery.data?.surveys ?? []
   const visibleSurveys = surveys.filter((row) => surveyFilter === 'all' || row.audience === surveyFilter)
   const templates = templatesQuery.data?.templates ?? []
-  const visibleTemplates = templates.filter((row) => row.source === source)
+  const visibleTemplates = templates.filter((row) => row.source === source && row.audience === audience && row.collection_style === style)
+
+  useEffect(() => {
+    if (step !== 3 || !revision || !courseId) return
+    let active = true
+    const refresh = () => {
+      void api.wizardRevision(courseId, revision.id).then((updated) => {
+        if (active && updated.id === revision.id) setRevision(updated)
+      }).catch(() => { /* The existing revision stays visible until a later refresh. */ })
+    }
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin === window.location.origin && event.data?.type === 'leai:wizard-preview-completed' && event.data.revisionId === revision.id) refresh()
+    }
+    window.addEventListener('focus', refresh)
+    window.addEventListener('message', onMessage)
+    return () => {
+      active = false
+      window.removeEventListener('focus', refresh)
+      window.removeEventListener('message', onMessage)
+    }
+  }, [api, courseId, revision?.id, step])
 
   const handleError = useCallback((cause: unknown) => {
     if (cause instanceof AuthenticationRequiredError) {
@@ -137,7 +157,7 @@ export function PromptDesignerPage({ api, environment, verified }: {
     draftIdRef.current = ''
     dirtyRef.current = false
     setRevision(null)
-    setPreview(null)
+    setPreviewOpened(false)
     setAiJobId('')
     setError('')
   }
@@ -298,28 +318,18 @@ export function PromptDesignerPage({ api, environment, verified }: {
       await saveNow()
       const frozen = await api.freezeWizardDraft(courseId, draft.id, versionRef.current)
       setRevision(frozen.revision)
-      setPreview(null)
+      setPreviewOpened(false)
       setStep(3)
     } catch (cause) { handleError(cause) }
     finally { setBusy(false) }
   }
 
-  async function launchPreview() {
+  function launchPreview() {
     if (!revision) return
-    setPreviewBusy(true)
-    try { setPreview(await api.wizardPreview(courseId, revision.id)) }
-    catch (cause) { handleError(cause) }
-    finally { setPreviewBusy(false) }
-  }
-
-  async function answerPreview(itemId: string, content: string) {
-    if (!revision || !preview) return
-    setPreviewBusy(true)
-    try {
-      await api.wizardPreviewAnswer(courseId, preview.preview_id, itemId, content)
-      setPreview(await api.wizardPreview(courseId, revision.id))
-    } catch (cause) { handleError(cause) }
-    finally { setPreviewBusy(false) }
+    const href = toAppHref(environment, `WizardPreview.html?revision=${encodeURIComponent(revision.id)}`)
+    const opened = window.open(href, '_blank')
+    if (!opened) { setError('Your browser blocked the preview tab. Allow pop-ups for this site and try again.'); return }
+    setPreviewOpened(true)
   }
 
   async function decidePreview(decision: 'completed' | 'skipped') {
@@ -414,14 +424,16 @@ export function PromptDesignerPage({ api, environment, verified }: {
   return <section className="space-y-6" aria-label="Prompt Designer">
     {notice && <p aria-live="polite" className="rounded-lg border border-border bg-muted/50 p-3 text-base">{notice}</p>}
     {error && !builderOpen && <p role="alert" className="text-destructive">{error}</p>}
-    <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(18rem,0.9fr)_minmax(0,1.5fr)]">
-      <Card className="min-w-0">
-        <CardHeader><CardTitle>Create feedback</CardTitle><CardDescription>Design a new student feedback experience for {course.course_name}.</CardDescription></CardHeader>
+    <div className="grid min-w-0 items-start gap-7 md:grid-cols-2">
+      <Card className="min-w-0 rounded-none border-0 bg-card py-7 shadow-none ring-0">
+        <CardHeader className="px-7"><CardTitle className="text-sm font-bold tracking-widest text-muted-foreground uppercase">Feedback Builder</CardTitle></CardHeader>
         <CardContent className="space-y-5">
+          <p className="rounded-sm bg-muted px-4 py-3 text-base text-muted-foreground">Create guided or open feedback for individual students, or guided feedback for teams.</p>
+          <p className="text-sm text-muted-foreground">{latestDraft ? 'Your latest unfinished setup is ready to continue. Published feedback appears on the right.' : `Start a new feedback experience for ${course.course_name}. Published feedback appears on the right.`}</p>
           <Button disabled={!verified} onClick={() => {
             setError(''); setNotice(''); setStep(0); setDraft(null); setBody(null)
             setTemplateId(''); setSource('leai'); setAudience('individual'); setStyle('guided')
-            setRevision(null); setPreview(null); setNewTitle('New feedback'); setBuilderOpen(true)
+            setRevision(null); setPreviewOpened(false); setNewTitle('New feedback'); setBuilderOpen(true)
           }} type="button"><Plus className="size-4" />Create new feedback</Button>
           {latestDraft && <div className="rounded-lg border border-border p-4">
             <p className="font-medium">{latestDraft.title}</p>
@@ -433,8 +445,8 @@ export function PromptDesignerPage({ api, environment, verified }: {
           {draftsQuery.isError && <p role="alert">Could not load saved drafts. Retry by reloading the page.</p>}
         </CardContent>
       </Card>
-      <Card className="min-w-0">
-        <CardHeader><CardTitle>Published feedback</CardTitle><CardDescription>Links and current survey status for this course.</CardDescription></CardHeader>
+      <Card className="min-w-0 rounded-none border-0 bg-card py-7 shadow-none ring-0">
+        <CardHeader className="flex flex-row items-center justify-between gap-3 px-7"><CardTitle className="text-sm font-bold tracking-widest text-muted-foreground uppercase">Your Feedback Surveys</CardTitle><Button onClick={() => { void surveysQuery.refetch() }} size="sm" type="button" variant="outline">Refresh</Button></CardHeader>
         <CardContent>
           <div aria-label="Survey filter" className="mb-4 flex flex-wrap gap-2" role="group">
             {(['all', 'individual', 'team'] as const).map((filter) => <Button aria-pressed={surveyFilter === filter}
@@ -444,12 +456,12 @@ export function PromptDesignerPage({ api, environment, verified }: {
           </div>
           {surveysQuery.isLoading ? <p role="status">Loading surveys…</p>
             : surveysQuery.isError ? <p role="alert">Could not load surveys.</p>
-              : visibleSurveys.length === 0 ? <p className="text-muted-foreground">No feedback in this view.</p>
-                : <ul className="space-y-3">{visibleSurveys.map((survey) => <li className={`rounded-lg border p-4 ${highlightId === survey.id ? 'border-primary bg-primary/5' : 'border-border'}`}
+              : visibleSurveys.length === 0 ? <p className="py-8 text-center text-base text-muted-foreground">No published feedback yet. Create one on the left.</p>
+                : <ul className="divide-y divide-border">{visibleSurveys.map((survey) => <li className={`py-5 ${highlightId === survey.id ? 'bg-primary/5' : ''}`}
                   id={`survey-${survey.id}`} key={survey.id} tabIndex={-1}>
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="font-semibold">{survey.label}</p>
+                      <p className="font-semibold text-primary">{survey.label}</p>
                       <p className="text-sm text-muted-foreground">{survey.audience} · {survey.collection_style} · {survey.state}</p>
                       {survey.team_setup_required && <p className="mt-1 text-sm text-amber-700">Team setup required</p>}
                     </div>
@@ -477,73 +489,78 @@ export function PromptDesignerPage({ api, environment, verified }: {
 
     {builderOpen && <BuilderFrame footer={footer()} onClose={() => setCloseOpen(true)} step={step} title={draft?.title ?? 'Feedback Builder'}>
       {error && <p role="alert" className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-destructive">{error}</p>}
-      {step === 0 && <div className="mx-auto max-w-4xl space-y-5">
-        <div><h3 className="text-xl font-semibold">How would you like to start?</h3>
-          <p className="mt-1 text-base text-muted-foreground">Choose a starting point. You can edit every question later.</p></div>
+      {step === 0 && <div className="mx-auto max-w-4xl space-y-6">
+        <div><p className="text-sm font-extrabold tracking-widest text-primary">Step 1</p>
+          <h3 className="mt-1 text-3xl font-semibold tracking-tight">Who are you collecting feedback from?</h3>
+          <p className="mt-2 text-base text-muted-foreground">Choose the purpose. Neither option is preferred over the other.</p></div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {(['individual', 'team'] as const).map((value) => <label className={`flex cursor-pointer items-start gap-4 rounded-xl border bg-card p-5 hover:border-primary ${audience === value ? 'border-primary ring-2 ring-primary/10' : 'border-border'}`} key={value}>
+            <input checked={audience === value} className="sr-only" disabled={!!draft} name="wizard-audience" onChange={() => {
+              setAudience(value); setTemplateId(''); if (value === 'team') setStyle('guided')
+            }} type="radio" value={value} />
+            <span aria-hidden="true" className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-secondary text-xl font-bold text-secondary-foreground">{value === 'individual' ? 'I' : 'T'}</span>
+            <span><strong className="block text-lg">{value === 'individual' ? 'Individual feedback' : 'Team feedback'}</strong>
+              <span className="mt-1 block text-base leading-relaxed text-muted-foreground">{value === 'individual' ? 'Collect each student’s own learning experience, needs, and suggestions.' : 'Collect private feedback about collaboration inside the team each student selects.'}</span></span>
+          </label>)}
+        </div>
+        <div className="text-center"><Button onClick={() => setHowOpen(!howOpen)} type="button" variant="link">How LEAI works</Button></div>
+        {howOpen && <div className="rounded-xl border border-border bg-card p-5">
+          <h4 className="text-lg font-semibold">How LEAI works</h4>
+          <ol className="mt-4 grid gap-3 text-base sm:grid-cols-4">{['Choose a purpose', 'Select a starting point', 'Design together', 'Preview and publish'].map((label, index) => <li className="rounded-lg bg-muted p-3" key={label}><span className="mr-2 font-bold text-primary">{index + 1}.</span>{label}</li>)}</ol>
+        </div>}
+      </div>}
+      {step === 1 && <div className="mx-auto max-w-4xl space-y-6">
+        <div><p className="text-sm font-extrabold tracking-widest text-primary">Step 2</p>
+          <h3 className="mt-1 text-3xl font-semibold tracking-tight">How should the conversation work?</h3>
+          <p className="mt-2 text-base text-muted-foreground">Both paths open the same editable workspace.</p></div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {(['guided', 'open'] as const).map((value) => <label className={`flex cursor-pointer items-start gap-4 rounded-xl border bg-card p-5 hover:border-primary ${style === value ? 'border-primary ring-2 ring-primary/10' : 'border-border'} ${audience === 'team' && value === 'open' ? 'opacity-50' : ''}`} key={value}>
+            <input checked={style === value} className="sr-only" disabled={!!draft || (audience === 'team' && value === 'open')} name="wizard-style" onChange={() => { setStyle(value); setTemplateId('') }} type="radio" value={value} />
+            <span aria-hidden="true" className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-secondary text-xl font-bold text-secondary-foreground">{value === 'guided' ? 'G' : 'O'}</span>
+            <span><strong className="block text-lg">{value === 'guided' ? 'Guided feedback' : 'Open conversation'}</strong>
+              <span className="mt-1 block text-base leading-relaxed text-muted-foreground">{value === 'guided' ? 'Every student encounters a planned set of questions and optional follow-ups.' : 'Set one opening question and a listening goal, then follow what the student raises.'}</span></span>
+          </label>)}
+        </div>
+        <label className="block space-y-2"><span className="font-medium">Working title</span>
+          <Input maxLength={200} onChange={(event) => setNewTitle(event.target.value)} value={newTitle} /></label>
+        <div><h4 className="text-lg font-semibold">Choose a starting point</h4><p className="text-base text-muted-foreground">You can edit every question after opening the Builder.</p></div>
         <Tabs onValueChange={(value) => { setSource(value as typeof source); setTemplateId('') }} value={source}>
-          <TabsList className="h-auto flex-wrap">
+          <TabsList className="h-auto w-full flex-wrap justify-start border-b border-border bg-transparent" variant="line">
             <TabsTrigger value="leai">LEAI</TabsTrigger><TabsTrigger value="my">My templates</TabsTrigger>
             <TabsTrigger value="community">Community</TabsTrigger><TabsTrigger value="scratch">Start from scratch</TabsTrigger>
           </TabsList>
           {(['leai', 'my', 'community'] as const).map((kind) => <TabsContent className="min-h-56 pt-4" key={kind} value={kind}>
             {templatesQuery.isLoading ? <p role="status">Loading templates…</p>
               : visibleTemplates.length ? <div className="grid gap-3 sm:grid-cols-2">{visibleTemplates.map((template: WizardTemplate) =>
-                <button aria-pressed={templateId === template.id} className={`min-w-0 rounded-lg border p-4 text-left hover:border-primary/60 ${templateId === template.id ? 'border-primary bg-primary/5' : 'border-border'}`}
+                <button aria-pressed={templateId === template.id} className={`min-w-0 rounded-xl border bg-card p-5 text-left hover:border-primary/60 ${templateId === template.id ? 'border-primary ring-2 ring-primary/10' : 'border-border'}`}
                   key={template.id} onClick={() => {
-                    setTemplateId(template.id); setAudience(template.audience); setStyle(template.collection_style); setNewTitle(template.name)
+                    setTemplateId(template.id); setNewTitle(template.name)
                   }} type="button">
                   <strong className="block">{template.name}</strong>
                   <span className="mt-1 block text-sm text-muted-foreground">{template.description || 'Saved question set'}</span>
                 </button>)}</div> : <p className="text-muted-foreground">No templates in this collection yet. Start from scratch or choose LEAI.</p>}
           </TabsContent>)}
           <TabsContent className="min-h-56 pt-4" value="scratch">
-            <p className="rounded-lg border border-border p-4">Start with one editable question and add sections as you design.</p>
+            <p className="rounded-xl border border-border bg-card p-5">Start with one editable question and add sections as you design.</p>
           </TabsContent>
         </Tabs>
+        {audience === 'team' && <p className="text-sm text-muted-foreground">Team feedback currently uses Guided feedback.</p>}
+        {draft && <p className="text-sm text-muted-foreground">The audience and format are fixed for this draft. Create a new draft to change them.</p>}
       </div>}
-      {step === 1 && <div className="mx-auto max-w-2xl space-y-6">
-        <div><h3 className="text-xl font-semibold">Audience and format</h3>
-          <p className="mt-1 text-base text-muted-foreground">Choose who will respond and how the conversation is guided.</p></div>
-        <label className="block space-y-2"><span className="font-medium">Working title</span>
-          <Input maxLength={200} onChange={(event) => setNewTitle(event.target.value)} value={newTitle} /></label>
-        <fieldset className="space-y-2"><legend className="font-medium">Audience</legend>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {(['individual', 'team'] as const).map((value) => <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-border p-4" key={value}>
-              <input checked={audience === value} disabled={!!draft} name="wizard-audience" onChange={() => {
-                setAudience(value); if (value === 'team') { setStyle('guided'); setTemplateId('') }
-              }} type="radio" value={value} />
-              {value === 'individual' ? 'Individual feedback' : 'Team feedback'}
-            </label>)}
-          </div>
-        </fieldset>
-        <fieldset className="space-y-2"><legend className="font-medium">Collection style</legend>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {(['guided', 'open'] as const).map((value) => <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-border p-4" key={value}>
-              <input checked={style === value} disabled={!!draft || (audience === 'team' && value === 'open')} name="wizard-style"
-                onChange={() => { setStyle(value); if (value === 'open') setTemplateId('') }} type="radio" value={value} />
-              {value === 'guided' ? 'Guided feedback' : 'Open conversation'}
-            </label>)}
-          </div>
-          {audience === 'team' && <p className="text-sm text-muted-foreground">Team feedback currently uses Guided feedback.</p>}
-          {draft && <p className="text-sm text-muted-foreground">The audience and format are fixed for this draft. Create a new draft to change them.</p>}
-        </fieldset>
-      </div>}
-      {step === 2 && body && <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(18rem,0.85fr)_minmax(0,1.15fr)]">
+      {step === 2 && body && <div className="grid min-w-0 gap-0 overflow-hidden rounded-xl border border-border bg-card xl:h-[min(38rem,calc(100dvh-18rem))] xl:min-h-[30rem] xl:grid-cols-[minmax(17rem,34%)_minmax(0,66%)]">
         <AuthoringConversation busy={!!aiJobId} disabled={!draft} messages={conversation} onSend={() => { void sendAi() }}
           onValueChange={setComposer} value={composer} />
-        <ArtifactEditor body={body} collectionStyle={draft?.collection_style ?? 'guided'} disabled={false} onChange={editBody} onRestore={(version) => { void restoreVersion(version) }}
-          saveStatus={saveStatus} versions={versions} />
+        <div className="min-w-0 bg-card p-4 xl:h-full xl:overflow-y-auto xl:p-5"><ArtifactEditor body={body} collectionStyle={draft?.collection_style ?? 'guided'} disabled={false} onChange={editBody} onRestore={(version) => { void restoreVersion(version) }}
+          saveStatus={saveStatus} versions={versions} /></div>
       </div>}
-      {step === 3 && revision && <PreviewStep busy={previewBusy} onAnswer={(itemId, content) => { void answerPreview(itemId, content) }}
+      {step === 3 && revision && <PreviewStep busy={previewBusy}
         onDecision={(decision) => { void decidePreview(decision) }} onLaunch={() => { void launchPreview() }}
-        preview={preview} revision={revision} />}
-      {step === 4 && revision && <div className="mx-auto max-w-2xl space-y-5">
+        previewOpened={previewOpened} revision={revision} certificateEnabled={certificateEnabled} downloadEnabled={downloadEnabled}
+        onCertificateChange={setCertificateEnabled} onDownloadChange={setDownloadEnabled} />}
+      {step === 4 && revision && <div className="mx-auto max-w-5xl space-y-5">
         <div><h3 className="text-xl font-semibold">Publish feedback</h3>
           <p className="mt-1 text-base text-muted-foreground">Publish this exact revision. Its questions will remain unchanged for students.</p></div>
-        <div className="rounded-lg border border-border bg-muted/30 p-4">
-          <p className="font-medium">{revision.body.title}</p>
-          <p className="text-sm text-muted-foreground">Revision {revision.revision_number} · Preview {revision.preview_decision}</p>
-        </div>
+        <div className="grid gap-5 md:grid-cols-[minmax(0,1.4fr)_minmax(17.5rem,0.8fr)]"><div className="space-y-4 rounded-xl border border-border bg-card p-5">
         <label className="block space-y-2"><span className="font-medium">Survey label</span>
           <Input maxLength={200} onChange={(event) => setPublishLabel(event.target.value)} value={publishLabel} /></label>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -552,13 +569,7 @@ export function PromptDesignerPage({ api, environment, verified }: {
           <label className="block space-y-2"><span className="font-medium">Closes at (optional)</span>
             <Input onChange={(event) => setClosesAt(event.target.value)} type="datetime-local" value={closesAt} /></label>
         </div>
-        <div className="space-y-3 rounded-lg border border-border p-4">
-          <h4 className="font-medium">Student outputs</h4>
-          <label className="flex items-center justify-between gap-4"><span>Completion certificate</span>
-            <Switch checked={certificateEnabled} onCheckedChange={setCertificateEnabled} /></label>
-          <label className="flex items-center justify-between gap-4"><span>Download completed responses</span>
-            <Switch checked={downloadEnabled} onCheckedChange={setDownloadEnabled} /></label>
-        </div>
+        </div><aside className="rounded-xl border border-border bg-card p-5"><p className="text-sm font-bold tracking-widest text-primary uppercase">Publication summary</p><dl className="mt-3 divide-y divide-border text-base"><div className="py-3"><dt className="text-sm font-bold text-muted-foreground uppercase">Audience</dt><dd>{audience === 'team' ? 'Team members' : 'Individual students'}</dd></div><div className="py-3"><dt className="text-sm font-bold text-muted-foreground uppercase">Format</dt><dd>{style === 'open' ? 'Open conversation' : 'Guided feedback'}</dd></div><div className="py-3"><dt className="text-sm font-bold text-muted-foreground uppercase">Preview</dt><dd>{revision.preview_decision}</dd></div><div className="py-3"><dt className="text-sm font-bold text-muted-foreground uppercase">Outputs</dt><dd>Certificate {certificateEnabled ? 'on' : 'off'} · response form {downloadEnabled ? 'on' : 'off'}</dd></div></dl></aside></div>
         {audience === 'team' && <p className="text-sm text-muted-foreground">You can publish now and set up teams from the survey card before students begin.</p>}
       </div>}
     </BuilderFrame>}
