@@ -6,7 +6,7 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: 'Avenir Next', Avenir, 'Segoe UI', sans-serif;
+  --font-sans: 'Inter', sans-serif;
   --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
   --font-heading: var(--font-sans);
 
@@ -135,7 +135,7 @@
   --shadow-card: 0 1px 2px rgb(42 52 55 / 0.06);
   --shadow-dialog: 0 12px 32px rgb(42 52 55 / 0.16);
 
-  font-family: 'Avenir Next', Avenir, 'Segoe UI', sans-serif;
+  font-family: 'Inter', sans-serif;
   color: var(--foreground);
   background: var(--background);
   text-rendering: optimizeLegibility;
@@ -165,7 +165,7 @@ body {
   --muted: #f0f4f6;
   --border: #e1e9ec;
   --input: #a9b4b7;
-  font-family: 'Inter', 'Avenir Next', sans-serif;
+  font-family: 'Inter', sans-serif;
 }
 
 .legacy-instructor-ui > :last-child > main > header {
@@ -227,7 +227,7 @@ body {
   --builder-preview-start: #006493;
   --builder-preview-end: #4d9fbe;
   --builder-surface: #f7fafb;
-  font-family: 'Inter', 'Avenir Next', sans-serif;
+  font-family: 'Inter', sans-serif;
 }
 
 :focus-visible {

@@ -75,6 +75,8 @@ for (const width of [390, 820, 1022, 1440]) {
 
     await page.goto('/PromptDesigner.html')
     await expect(page.getByRole('heading', { name: 'Prompt Designer' })).toBeVisible()
+    await expect.poll(() => page.getByRole('heading', { name: 'Prompt Designer' })
+      .evaluate(element => getComputedStyle(element).fontFamily)).toContain('Inter')
     await expect.poll(() => page.getByRole('heading', { name: 'Prompt Designer' }).evaluate(element => getComputedStyle(element).fontSize)).toBe(width === 390 ? '28px' : '44px')
     await assertInstructorHomeNavigationTheme()
     await fit()
@@ -96,6 +98,8 @@ for (const width of [390, 820, 1022, 1440]) {
 
     await page.goto('/FeedbackChat.html')
     await expect(page.getByRole('heading', { name: 'Feedback Chat' })).toBeVisible()
+    await expect.poll(() => page.getByRole('heading', { name: 'Feedback Chat' })
+      .evaluate(element => getComputedStyle(element).fontFamily)).toContain('Inter')
     await expect.poll(() => page.getByRole('heading', { name: 'Feedback Chat' }).evaluate(element => getComputedStyle(element).fontSize)).toBe(width === 390 ? '28px' : '44px')
     await assertInstructorHomeNavigationTheme()
     await expect(page.getByRole('region', { name: 'Feedback Chat workspace' })).toBeVisible()
@@ -138,6 +142,8 @@ for (const width of [390, 820, 1022, 1440]) {
 
     await page.goto('/FeedbackAnalyzer.html')
     await expect(page.getByRole('heading', { name: 'Feedback Analyzer' })).toBeVisible()
+    await expect.poll(() => page.getByRole('heading', { name: 'Feedback Analyzer' })
+      .evaluate(element => getComputedStyle(element).fontFamily)).toContain('Inter')
     await assertInstructorHomeNavigationTheme()
     await expect.poll(() => page.getByRole('heading', { name: 'Feedback Analyzer' }).evaluate(element => getComputedStyle(element).fontSize)).toBe(width === 390 ? '28px' : '44px')
     await expect(page.getByRole('region', { name: 'Analysis metrics' })).toBeVisible()

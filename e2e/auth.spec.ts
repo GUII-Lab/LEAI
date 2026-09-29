@@ -31,6 +31,15 @@ for (const { path, title } of protectedPages) {
   })
 }
 
+test('sign-in uses the Inter typeface from the pinned LEAI interface', async ({ page }) => {
+  await page.goto('/InstructorLogin.html')
+
+  await expect(page.getByRole('heading', { name: 'Instructor sign in' })).toBeVisible()
+  await expect.poll(() => page.getByRole('heading', { name: 'Instructor sign in' })
+    .evaluate(element => getComputedStyle(element).fontFamily))
+    .toContain('Inter')
+})
+
 test('keeps student feedback public', async ({ page }) => {
   await page.goto('/feedback.html')
   await expect(page).not.toHaveURL(/InstructorLogin\.html/)
