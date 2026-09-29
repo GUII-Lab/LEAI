@@ -305,8 +305,10 @@ export function FeedbackChatPage({ api, environment, verified }: {
       setActiveJobId('')
       setNotice('Answer complete.')
     }
-    if (status === 'failed') setError('This answer could not be completed. You can retry the same question.')
-  }, [activeChatId, activeCourseId, environment.name, jobQuery.data?.status, queryClient, storedJobKey])
+    if (status === 'failed') setError(jobQuery.data?.error_code === 'provider_outcome_unknown'
+      ? 'The AI provider may have received this question. Review the Chat before retrying; retrying sends a new request.'
+      : 'This answer could not be completed. You can retry the same question.')
+  }, [activeChatId, activeCourseId, environment.name, jobQuery.data?.error_code, jobQuery.data?.status, queryClient, storedJobKey])
 
   function send(text = composerText, retryMessageId?: string) {
     const value = text.trim()

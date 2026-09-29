@@ -156,6 +156,24 @@ it('builds in five steps, uses the artifact and chat components, and publishes t
   expect(publishedCard).toHaveClass('ring-2', 'ring-primary')
 })
 
+it('warns when the Wizard AI provider outcome is unknown without resending', async () => {
+  const jobId = '550e8400-e29b-41d4-a716-446655440060'
+  vi.mocked(api.startWizardAi).mockResolvedValue({ job_id: jobId })
+  vi.mocked(api.job).mockResolvedValue({ id: jobId, status: 'failed', error_code: 'provider_outcome_unknown', result: null })
+  const user = userEvent.setup()
+  renderPage()
+  await user.click(await screen.findByRole('button', { name: 'Create new feedback' }))
+  const builder = screen.getByRole('dialog', { name: 'Feedback Builder' })
+  await user.click(within(builder).getByRole('button', { name: /^Continue$/ }))
+  await user.click(await within(builder).findByRole('button', { name: /Weekly reflection/ }))
+  await user.click(within(builder).getByRole('button', { name: /^Continue$/ }))
+  const input = await within(builder).findByRole('textbox', { name: 'Ask LEAI to edit this feedback draft' })
+  await user.type(input, 'Shorten the introduction')
+  await user.click(within(builder).getByRole('button', { name: 'Send' }))
+  expect(await within(builder).findByText(/LEAI could not confirm whether its AI request finished/, {}, { timeout: 3000 })).toBeInTheDocument()
+  expect(api.startWizardAi).toHaveBeenCalledTimes(1)
+})
+
 it('keeps Team Open unavailable and leaves the prior draft when closing', async () => {
   const user = userEvent.setup()
   renderPage()
