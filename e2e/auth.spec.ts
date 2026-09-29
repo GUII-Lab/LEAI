@@ -31,6 +31,41 @@ for (const { path, title } of protectedPages) {
   })
 }
 
+test('signed-out cited-response link preserves its authorized return parameters', async ({ page }) => {
+  const deepLink = '/FeedbackAnalyzer.html?course_id=11111111-1111-4111-8111-111111111111&occurrence_id=22222222-2222-4222-8222-222222222222&response_id=33333333-3333-4333-8333-333333333333&response_message_id=55'
+  await page.goto(deepLink)
+  await expect(page.getByRole('heading', { name: 'Instructor sign in' })).toBeVisible()
+  expect(new URL(page.url()).searchParams.get('next')).toBe(deepLink)
+})
+
+test('sign-in returns to an authorized Analyzer course deep link', async ({ page }) => {
+  const courseId = '11111111-1111-4111-8111-111111111111'
+  const deepLink = `/FeedbackAnalyzer.html?course_id=${courseId}`
+  const api = '**/datapipeline/api/v1/'
+  const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' }
+  let authenticated = false
+  await page.route(`${api}instructor_sessions/`, async (route) => {
+    authenticated = true
+    await route.fulfill({ status: 201, headers, json: { expires_at: '2026-09-29T20:00:00Z', must_change_password: false } })
+  })
+  await page.route(`${api}instructor_csrf/`, (route) => route.fulfill({ headers, json: { csrf_token: 'safe-csrf-token' } }))
+  await page.route(`${api}instructor_me/`, (route) => authenticated
+    ? route.fulfill({ headers, json: { id: '550e8400-e29b-41d4-a716-446655440001', email: 'teacher@ucsc.edu', display_name: 'Teacher', platform_role: 'member', must_change_password: false, institutions: [] } })
+    : route.fulfill({ status: 401, headers, json: { error: 'authentication_required' } }))
+  await page.route(`${api}instructor_courses/`, (route) => route.fulfill({ headers, json: { courses: [{
+    course_id: courseId, course_code: 'cmpm-80h', course_name: 'Game Design', institution_slug: 'ucsc',
+    lifecycle_state: 'active', role: 'owner', allowed_actions: ['analysis.use', 'responses.view'],
+  }] } }))
+  await page.goto(deepLink)
+  await expect(page.getByRole('heading', { name: 'Instructor sign in' })).toBeVisible()
+  await page.getByRole('textbox', { name: 'Email' }).fill('teacher@ucsc.edu')
+  await page.getByLabel('Password').fill('Test-Password-Only-2026!')
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  await expect(page).toHaveURL(new RegExp(`FeedbackAnalyzer\\.html\\?course_id=${courseId}$`))
+  await expect(page.getByRole('heading', { name: 'Feedback Analyzer' })).toBeVisible()
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem('leai:local:selected-course'))).toBe(courseId)
+})
+
 test('sign-in uses the Inter typeface from the pinned LEAI interface', async ({ page }) => {
   await page.goto('/InstructorLogin.html')
 

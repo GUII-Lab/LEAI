@@ -15,7 +15,7 @@ export function InstructorAuthGate({ children, environment }: {
   const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
-    const next = safeInstructorDestination(environment, window.location.pathname)
+    const next = safeInstructorDestination(environment, window.location.pathname + window.location.search)
     const tokenKey = qualifyBrowserKey(environment.name, 'instructor-token')
     sessionStorage.removeItem(tokenKey)
     if (!verified) return

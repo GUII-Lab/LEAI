@@ -145,7 +145,7 @@ export function FeedbackChatPage({ api, environment, verified }: {
     setSelectedChatId('')
     setActiveJobId('')
     setError(message)
-    window.location.replace(loginHref(environment, window.location.pathname))
+    window.location.replace(loginHref(environment, window.location.pathname + window.location.search))
   }, [courseKey, environment, queryClient, tokenKey])
   const protectedRequest = useCallback(async <T,>(request: () => Promise<T>) => {
     try { return await request() }

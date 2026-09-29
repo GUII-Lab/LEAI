@@ -48,7 +48,7 @@ export function CourseRouteGate({ environment, children }: {
       if (error instanceof AuthenticationRequiredError) {
         sessionStorage.removeItem(qualifyBrowserKey(environment.name, 'instructor-token'))
         sessionStorage.removeItem(selectionKey)
-        window.location.replace(loginHref(environment, window.location.pathname))
+        window.location.replace(loginHref(environment, window.location.pathname + window.location.search))
         return
       }
       if (error instanceof InstructorApiError && error.status === 403) {
