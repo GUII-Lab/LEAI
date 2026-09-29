@@ -18,6 +18,7 @@ test('QA deployment continues from the current QA release commit after verifying
   const workflow = await readFile(path.join(root, '.github/workflows/ci.yml'), 'utf8')
 
   assert.match(workflow, /git -C "\$backend_dir" fetch --no-tags heroku main/)
+  assert.match(workflow, /HOME="\$heroku_home" GIT_TERMINAL_PROMPT=0 git -C "\$backend_dir" fetch --no-tags heroku main/)
   assert.match(workflow, /git -C "\$backend_dir" diff --quiet "\$LEAI_QA_BACKEND_SHA" refs\/remotes\/heroku\/main/)
   assert.match(workflow, /git -C "\$backend_dir" checkout --detach refs\/remotes\/heroku\/main/)
   assert.match(workflow, /https:\/\/git\.heroku\.com\/guiidata-leai-qa\.git HEAD:main/)

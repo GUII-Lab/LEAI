@@ -122,8 +122,13 @@ jobs:
             echo "LEAI_QA_BACKEND_SHA does not match the active Heroku QA backend build." >&2
             exit 1
           fi
+          heroku_home="$RUNNER_TEMP/heroku-home"
+          mkdir -p "$heroku_home"
+          printf 'machine git.heroku.com login _ password %s\n' "$HEROKU_API_KEY" > "$heroku_home/.netrc"
+          chmod 600 "$heroku_home/.netrc"
+
           git -C "$backend_dir" remote add heroku https://git.heroku.com/guiidata-leai-qa.git
-          git -C "$backend_dir" fetch --no-tags heroku main
+          HOME="$heroku_home" GIT_TERMINAL_PROMPT=0 git -C "$backend_dir" fetch --no-tags heroku main
           if ! git -C "$backend_dir" diff --quiet "$LEAI_QA_BACKEND_SHA" refs/remotes/heroku/main -- \
             . \
             ':(exclude)frontend_dist' \
@@ -157,10 +162,6 @@ jobs:
           git -C "$backend_dir" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git -C "$backend_dir" commit -m "build: package LEAI QA frontend ${GITHUB_SHA}"
 
-          heroku_home="$RUNNER_TEMP/heroku-home"
-          mkdir -p "$heroku_home"
-          printf 'machine git.heroku.com login _ password %s\n' "$HEROKU_API_KEY" > "$heroku_home/.netrc"
-          chmod 600 "$heroku_home/.netrc"
           HOME="$heroku_home" GIT_TERMINAL_PROMPT=0 git -C "$backend_dir" push https://git.heroku.com/guiidata-leai-qa.git HEAD:main
 
       - name: Verify deployed QA frontend and backend
