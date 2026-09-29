@@ -430,11 +430,10 @@ body {
   width: 18px;
   height: 18px;
   background: white;
-  translate: none;
-  transform: translateX(0);
+  translate: 0 0;
 }
 .legacy-builder .legacy-builder-output-switch[data-state="checked"] [data-slot="switch-thumb"] {
-  transform: translateX(20px);
+  translate: 20px 0;
 }
 
 /* V12 regular actions are rectangular; icon controls keep their own shape. */

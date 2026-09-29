@@ -71,6 +71,11 @@ jobs:
       - name: Run Chromium, Firefox, and WebKit acceptance
         run: npm run test:e2e
 
+      - name: Verify V12 switches and skip flow in the minified build
+        run: |
+          npm run build
+          LEAI_E2E_BUILT=1 npx playwright test e2e/legacy-parity.spec.ts --grep "V12 preview keeps"
+
   deploy-qa:
     name: Deploy frontend to Heroku QA
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
