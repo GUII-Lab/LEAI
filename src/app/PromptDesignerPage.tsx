@@ -43,6 +43,14 @@ function elapsedSave(updatedAt: string) {
   return `Saved ${Math.floor(seconds / 3600)} hr ago`
 }
 
+function displayDateTime(value: string | null) {
+  if (!value) return null
+  const timestamp = Date.parse(value)
+  return Number.isNaN(timestamp) ? null : new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium', timeStyle: 'short',
+  }).format(timestamp)
+}
+
 export function PromptDesignerPage({ api, environment, verified }: {
   api: Api
   environment: PublicEnvironment
@@ -73,6 +81,7 @@ export function PromptDesignerPage({ api, environment, verified }: {
   const [templateSaveStatus, setTemplateSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [templateSaveError, setTemplateSaveError] = useState('')
   const [publishLabel, setPublishLabel] = useState('')
+  const [publishedSurvey, setPublishedSurvey] = useState<WizardSurvey | null>(null)
   const [opensAt, setOpensAt] = useState('')
   const [closesAt, setClosesAt] = useState('')
   const [certificateEnabled, setCertificateEnabled] = useState(false)
@@ -83,6 +92,7 @@ export function PromptDesignerPage({ api, environment, verified }: {
   const [saveStatus, setSaveStatus] = useState('')
   const [highlightId, setHighlightId] = useState('')
   const [surveyFilter, setSurveyFilter] = useState<'all' | 'individual' | 'team'>('all')
+  const [individualStyleFilter, setIndividualStyleFilter] = useState<'all' | Style>('all')
   const [teamSurvey, setTeamSurvey] = useState<WizardSurvey | null>(null)
   const [teamLabels, setTeamLabels] = useState('')
   const bodyRef = useRef<WizardProtocol | null>(null)
@@ -92,6 +102,8 @@ export function PromptDesignerPage({ api, environment, verified }: {
   const draftIdRef = useRef('')
   const templateSaveRequestRef = useRef('')
   const templateSaveKeyRef = useRef('')
+  const publishRequestRef = useRef('')
+  const publishKeyRef = useRef('')
 
   const coursesQuery = useQuery({
     queryKey: ['wizard-courses', environment.name],
@@ -122,7 +134,10 @@ export function PromptDesignerPage({ api, environment, verified }: {
   })
   const latestDraft = draftsQuery.data?.question_sets.find((row) => row.resumable)
   const surveys = surveysQuery.data?.surveys ?? []
-  const visibleSurveys = surveys.filter((row) => surveyFilter === 'all' || row.audience === surveyFilter)
+  const visibleSurveys = surveys.filter((row) =>
+    (surveyFilter === 'all' || row.audience === surveyFilter) &&
+    (surveyFilter !== 'individual' || individualStyleFilter === 'all' || row.collection_style === individualStyleFilter),
+  )
   const templates = templatesQuery.data?.templates ?? []
   const visibleTemplates = templates.filter((row) => row.source === source && row.audience === audience && row.collection_style === style)
 
@@ -146,6 +161,17 @@ export function PromptDesignerPage({ api, environment, verified }: {
     }
   }, [api, courseId, revision?.id, step])
 
+  useEffect(() => {
+    if (!highlightId) return
+    const card = document.getElementById(`survey-${highlightId}`)
+    if (!card) return
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
+    card.scrollIntoView?.({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'center' })
+    card.focus({ preventScroll: true })
+    const timeout = window.setTimeout(() => setHighlightId((current) => current === highlightId ? '' : current), 3500)
+    return () => window.clearTimeout(timeout)
+  }, [highlightId, surveys])
+
   const handleError = useCallback((cause: unknown) => {
     if (cause instanceof AuthenticationRequiredError) {
       sessionStorage.removeItem(qualifyBrowserKey(environment.name, 'selected-course'))
@@ -163,6 +189,7 @@ export function PromptDesignerPage({ api, environment, verified }: {
     draftIdRef.current = ''
     dirtyRef.current = false
     setRevision(null)
+    setPublishedSurvey(null)
     setPreviewOpened(false)
     setAiJobId('')
     setError('')
@@ -348,26 +375,40 @@ export function PromptDesignerPage({ api, environment, verified }: {
 
   async function publish() {
     if (!revision || !canPublish) return
+    const payload = {
+      label: publishLabel.trim() || revision.body.title,
+      opens_at: opensAt ? new Date(opensAt).toISOString() : null,
+      closes_at: closesAt ? new Date(closesAt).toISOString() : null,
+      completion_certificate_enabled: certificateEnabled,
+      completed_response_download_enabled: downloadEnabled,
+    }
+    const requestIdentity = JSON.stringify([courseId, revision.id, payload])
+    if (publishRequestRef.current !== requestIdentity) {
+      publishRequestRef.current = requestIdentity
+      publishKeyRef.current = crypto.randomUUID()
+    }
     setBusy(true)
     setError('')
     try {
-      const published = await api.publishWizard(courseId, revision.id, {
-        label: publishLabel.trim() || revision.body.title,
-        opens_at: opensAt ? new Date(opensAt).toISOString() : null,
-        closes_at: closesAt ? new Date(closesAt).toISOString() : null,
-        completion_certificate_enabled: certificateEnabled,
-        completed_response_download_enabled: downloadEnabled,
-      }, crypto.randomUUID())
-      resetBuilder()
+      const published = await api.publishWizard(courseId, revision.id, payload, publishKeyRef.current)
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['wizard-surveys', courseId] }),
         queryClient.invalidateQueries({ queryKey: ['wizard-drafts', courseId] }),
       ])
-      setHighlightId(published.id)
-      setNotice('Feedback published. Copy the link from its survey card.')
-      window.setTimeout(() => document.getElementById(`survey-${published.id}`)?.focus(), 0)
+      publishRequestRef.current = ''
+      publishKeyRef.current = ''
+      setPublishedSurvey(published)
     } catch (cause) { handleError(cause) }
     finally { setBusy(false) }
+  }
+
+  function completePublication() {
+    if (!publishedSurvey) return
+    const publishedId = publishedSurvey.id
+    resetBuilder()
+    setSurveyFilter('all')
+    setIndividualStyleFilter('all')
+    setHighlightId(publishedId)
   }
 
   async function saveTemplate() {
@@ -438,6 +479,9 @@ export function PromptDesignerPage({ api, environment, verified }: {
   }
 
   function footer() {
+    if (publishedSurvey) return <Button className="ml-auto" disabled={busy} onClick={completePublication} type="button">
+      Complete / Return to surveys<ArrowRight className="size-4" />
+    </Button>
     const back = <Button disabled={busy || step === 0} onClick={() => setStep((step - 1) as WizardStep)} type="button" variant="outline">
       <ArrowLeft className="size-4" />Back
     </Button>
@@ -480,7 +524,7 @@ export function PromptDesignerPage({ api, environment, verified }: {
           <Button disabled={!verified} onClick={() => {
             setError(''); setNotice(''); setStep(0); setDraft(null); setBody(null)
             setTemplateId(''); setSource('leai'); setAudience('individual'); setStyle('guided')
-            setRevision(null); setPreviewOpened(false); setNewTitle('New feedback'); setBuilderOpen(true)
+            setRevision(null); setPublishedSurvey(null); setPreviewOpened(false); setNewTitle('New feedback'); setBuilderOpen(true)
           }} type="button"><Plus className="size-4" />Create new feedback</Button>
           {latestDraft && <div className="rounded-lg border border-border p-4">
             <p className="font-medium">{latestDraft.title}</p>
@@ -497,19 +541,49 @@ export function PromptDesignerPage({ api, environment, verified }: {
         <CardContent>
           <div aria-label="Survey filter" className="mb-4 flex flex-wrap gap-2" role="group">
             {(['all', 'individual', 'team'] as const).map((filter) => <Button aria-pressed={surveyFilter === filter}
-              key={filter} onClick={() => setSurveyFilter(filter)} size="sm" type="button" variant={surveyFilter === filter ? 'default' : 'outline'}>
+              key={filter} onClick={() => {
+                setSurveyFilter(filter)
+                if (filter !== 'individual') setIndividualStyleFilter('all')
+              }} size="sm" type="button" variant={surveyFilter === filter ? 'default' : 'outline'}>
               {filter === 'all' ? 'All' : filter === 'individual' ? 'Individual' : 'Team'}
             </Button>)}
           </div>
+          {surveyFilter === 'individual' && <div aria-label="Individual survey format" className="mb-4 flex flex-wrap gap-2" role="group">
+            {(['all', 'guided', 'open'] as const).map((filter) => <Button aria-pressed={individualStyleFilter === filter}
+              key={filter} onClick={() => setIndividualStyleFilter(filter)} size="sm" type="button" variant={individualStyleFilter === filter ? 'secondary' : 'ghost'}>
+              {filter === 'all' ? 'All individual' : filter === 'guided' ? 'Guided' : 'Open'}
+            </Button>)}
+          </div>}
           {surveysQuery.isLoading ? <p role="status">Loading surveys…</p>
             : surveysQuery.isError ? <p role="alert">Could not load surveys.</p>
-              : visibleSurveys.length === 0 ? <p className="py-8 text-center text-base text-muted-foreground">No published feedback yet. Create one on the left.</p>
-                : <ul className="divide-y divide-border">{visibleSurveys.map((survey) => <li className={`py-5 ${highlightId === survey.id ? 'bg-primary/5' : ''}`}
+              : visibleSurveys.length === 0 ? <p className="py-8 text-center text-base text-muted-foreground">
+                {surveyFilter === 'all' ? 'No published feedback yet. Create one on the left.'
+                  : surveyFilter === 'team' ? 'No team feedback yet.'
+                    : individualStyleFilter === 'all' ? 'No individual feedback yet.'
+                      : `No ${individualStyleFilter} individual feedback yet.`}
+              </p>
+                : <ul className="divide-y divide-border">{visibleSurveys.map((survey) => {
+                  const surveyType = survey.audience === 'team' ? 'Team Guided'
+                    : survey.collection_style === 'guided' ? 'Individual Guided' : 'Individual Open'
+                  const tint = survey.audience === 'team' ? 'border-l-success bg-success/5'
+                    : survey.collection_style === 'guided' ? 'border-l-primary bg-primary/5' : 'border-l-info bg-info/5'
+                  const surveyHref = new URL(toAppHref(environment, survey.direct_url), window.location.href).href
+                  const opensLabel = displayDateTime(survey.opens_at)
+                  const closesLabel = displayDateTime(survey.closes_at)
+                  return <li className={`border-l-4 px-4 py-5 ${tint} ${highlightId === survey.id ? 'ring-2 ring-primary ring-inset' : ''}`}
                   id={`survey-${survey.id}`} key={survey.id} tabIndex={-1}>
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="font-semibold text-primary">{survey.label}</p>
-                      <p className="text-sm text-muted-foreground">{survey.audience} · {survey.collection_style} · {survey.state}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold text-primary">{survey.label}</p>
+                        <span className="inline-flex rounded-full border border-current/20 px-2 py-0.5 text-xs font-medium">{surveyType}</span>
+                      </div>
+                      <p className="text-sm capitalize text-muted-foreground">{survey.state} · {survey.response_count} {survey.response_count === 1 ? 'response' : 'responses'}</p>
+                      {(opensLabel || closesLabel) && <p className="mt-1 text-sm text-muted-foreground">
+                        {opensLabel && <span>Opens {opensLabel}</span>}
+                        {opensLabel && closesLabel && <span> · </span>}
+                        {closesLabel && <span>Closes {closesLabel}</span>}
+                      </p>}
                       {survey.team_setup_required && <p className="mt-1 text-sm text-amber-700">Team setup required</p>}
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -520,9 +594,11 @@ export function PromptDesignerPage({ api, environment, verified }: {
                       {survey.allowed_actions.includes('copy_link') && <Button onClick={() => { void copyLink(survey) }} type="button" variant="outline">
                         <ClipboardCopy className="size-4" />Copy link
                       </Button>}
+                      <a className="inline-flex min-h-9 items-center rounded-lg border border-border px-3 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                        href={surveyHref} rel="noreferrer" target="_blank">Open survey</a>
                     </div>
                   </div>
-                </li>)}</ul>}
+                </li>})}</ul>}
         </CardContent>
       </Card>
     </div>
@@ -537,7 +613,10 @@ export function PromptDesignerPage({ api, environment, verified }: {
       </DialogContent>
     </Dialog>
 
-    {builderOpen && <BuilderFrame footer={footer()} onClose={() => setCloseOpen(true)} step={step} title={draft?.title ?? 'Feedback Builder'}>
+    {builderOpen && <BuilderFrame footer={footer()} onClose={() => {
+      if (publishedSurvey) completePublication()
+      else setCloseOpen(true)
+    }} step={step} title={draft?.title ?? 'Feedback Builder'}>
       {notice && <p aria-live="polite" className="mb-4 rounded-lg border border-border bg-muted/50 p-3 text-base">{notice}</p>}
       {error && <p role="alert" className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-destructive">{error}</p>}
       {step === 0 && <div className="mx-auto max-w-4xl space-y-6">
@@ -608,7 +687,11 @@ export function PromptDesignerPage({ api, environment, verified }: {
         onDecision={(decision) => { void decidePreview(decision) }} onLaunch={() => { void launchPreview() }}
         previewOpened={previewOpened} revision={revision} certificateEnabled={certificateEnabled} downloadEnabled={downloadEnabled}
         onCertificateChange={setCertificateEnabled} onDownloadChange={setDownloadEnabled} />}
-      {step === 4 && revision && <div className="mx-auto max-w-5xl space-y-5">
+      {step === 4 && publishedSurvey && <div aria-live="polite" className="mx-auto max-w-3xl rounded-xl border border-success/30 bg-success/5 p-8 text-center">
+        <h3 className="text-2xl font-semibold">Feedback published</h3>
+        <p className="mt-3 text-base text-muted-foreground"><span className="font-medium text-foreground">{publishedSurvey.label}</span> is published. Return to the survey list to review the new card and copy its link.</p>
+      </div>}
+      {step === 4 && revision && !publishedSurvey && <div className="mx-auto max-w-5xl space-y-5">
         <div><h3 className="text-xl font-semibold">Publish feedback</h3>
           <p className="mt-1 text-base text-muted-foreground">Publish this exact revision. Its questions will remain unchanged for students.</p></div>
         <div className="grid gap-5 md:grid-cols-[minmax(0,1.4fr)_minmax(17.5rem,0.8fr)]"><div className="space-y-4 rounded-xl border border-border bg-card p-5">

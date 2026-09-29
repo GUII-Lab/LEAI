@@ -33,7 +33,7 @@ const revision: WizardRevision = {
 const survey: WizardSurvey = {
   id: surveyId, question_set_id: questionSetId, revision_id: revisionId, label: 'Week 1',
   audience: 'individual', collection_style: 'guided', state: 'open',
-  direct_url: `feedback.html?id=${surveyId}`, opens_at: null, closes_at: null,
+  direct_url: `feedback.html?id=${surveyId}`, opens_at: null, closes_at: null, response_count: 3,
   team_setup_required: false, completion_certificate_enabled: false,
   completed_response_download_enabled: false, allowed_actions: ['copy_link'],
 }
@@ -109,8 +109,16 @@ it('shows resume only for a valid resumable draft and keeps published surveys se
 })
 
 it('builds in five steps, uses the artifact and chat components, and publishes to a survey card', async () => {
+  let publishedSurveys: WizardSurvey[] = []
+  vi.mocked(api.wizardSurveys).mockImplementation(async () => ({ surveys: publishedSurveys }))
+  vi.mocked(api.publishWizard).mockRejectedValueOnce(new Error('network response lost'))
+    .mockImplementationOnce(async () => {
+    publishedSurveys = [survey]
+    return survey
+  })
   const user = userEvent.setup()
   renderPage()
+  await user.click(await screen.findByRole('button', { name: 'Team' }))
   await user.click(await screen.findByRole('button', { name: 'Create new feedback' }))
   const builder = screen.getByRole('dialog', { name: 'Feedback Builder' })
   expect(within(builder).getByRole('list', { name: 'Feedback Builder steps' })).toHaveTextContent('Audience')
@@ -135,8 +143,17 @@ it('builds in five steps, uses the artifact and chat components, and publishes t
   await waitFor(() => expect(within(builder).getByRole('button', { name: 'Continue to publish' })).toBeEnabled())
   await user.click(within(builder).getByRole('button', { name: 'Continue to publish' }))
   await user.click(within(builder).getByRole('button', { name: 'Publish feedback' }))
+  expect(await within(builder).findByRole('alert')).toHaveTextContent('Could not complete this action. Please try again.')
+  await user.click(within(builder).getByRole('button', { name: 'Publish feedback' }))
   await waitFor(() => expect(api.publishWizard).toHaveBeenCalledWith(courseId, revisionId, expect.objectContaining({ opens_at: null, closes_at: null }), expect.any(String)))
-  expect(await screen.findByText('Feedback published. Copy the link from its survey card.')).toBeInTheDocument()
+  expect(vi.mocked(api.publishWizard).mock.calls[1]?.[3]).toBe(vi.mocked(api.publishWizard).mock.calls[0]?.[3])
+  expect(await within(builder).findByRole('heading', { name: 'Feedback published' })).toBeInTheDocument()
+  await user.click(within(builder).getByRole('button', { name: 'Complete / Return to surveys' }))
+  expect(await screen.findByText('Week 1')).toBeInTheDocument()
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Feedback Builder' })).not.toBeInTheDocument())
+  const publishedCard = screen.getByText('Week 1').closest('li')
+  await waitFor(() => expect(publishedCard).toHaveFocus())
+  expect(publishedCard).toHaveClass('ring-2', 'ring-primary')
 })
 
 it('keeps Team Open unavailable and leaves the prior draft when closing', async () => {
@@ -252,4 +269,68 @@ it('creates and opens a revised draft only when the survey allows that action', 
   expect(within(builder).getByText('Created a new draft from “Week 1”. The published survey and its responses are unchanged.')).toBeInTheDocument()
   expect(api.wizardDraft).toHaveBeenCalledWith(courseId, questionSetId)
   expect(api.publishWizard).not.toHaveBeenCalled()
+})
+
+it('filters surveys by audience and individual collection style with specific empty states', async () => {
+  const individualOpen: WizardSurvey = {
+    ...survey,
+    id: '550e8400-e29b-41d4-a716-446655440031',
+    revision_id: '550e8400-e29b-41d4-a716-446655440021',
+    label: 'Open week',
+    collection_style: 'open',
+  }
+  const teamSurvey: WizardSurvey = {
+    ...survey,
+    id: '550e8400-e29b-41d4-a716-446655440032',
+    revision_id: '550e8400-e29b-41d4-a716-446655440022',
+    label: 'Team week',
+    audience: 'team',
+  }
+  vi.mocked(api.wizardSurveys).mockResolvedValue({ surveys: [survey, individualOpen, teamSurvey] })
+  const user = userEvent.setup()
+  renderPage()
+
+  const audienceFilters = await screen.findByRole('group', { name: 'Survey filter' })
+  await user.click(within(audienceFilters).getByRole('button', { name: 'Individual' }))
+  const styleFilters = screen.getByRole('group', { name: 'Individual survey format' })
+  expect(screen.getByText('Week 1')).toBeInTheDocument()
+  expect(screen.getByText('Open week')).toBeInTheDocument()
+  expect(screen.queryByText('Team week')).not.toBeInTheDocument()
+
+  await user.click(within(styleFilters).getByRole('button', { name: 'Open' }))
+  expect(screen.queryByText('Week 1')).not.toBeInTheDocument()
+  expect(screen.getByText('Open week')).toBeInTheDocument()
+
+  await user.click(within(audienceFilters).getByRole('button', { name: 'Team' }))
+  expect(screen.getByText('Team week')).toBeInTheDocument()
+  expect(screen.queryByRole('group', { name: 'Individual survey format' })).not.toBeInTheDocument()
+
+  await user.click(within(audienceFilters).getByRole('button', { name: 'Individual' }))
+  await user.click(within(screen.getByRole('group', { name: 'Individual survey format' })).getByRole('button', { name: 'Guided' }))
+  expect(screen.getByText('Week 1')).toBeInTheDocument()
+  expect(screen.queryByText('Open week')).not.toBeInTheDocument()
+})
+
+it('uses a filter-specific empty state when an audience has no published surveys', async () => {
+  const user = userEvent.setup()
+  renderPage()
+  await user.click(await screen.findByRole('button', { name: 'Team' }))
+  expect(await screen.findByText('No team feedback yet.')).toBeInTheDocument()
+})
+
+it('keeps response count, schedule dates, and the student link on the survey card', async () => {
+  vi.mocked(api.wizardSurveys).mockResolvedValue({ surveys: [{
+    ...survey,
+    state: 'scheduled',
+    response_count: 2,
+    opens_at: '2026-10-01T15:30:00Z',
+    closes_at: '2026-10-08T23:59:00Z',
+  }] })
+  renderPage()
+
+  const card = (await screen.findByText('Week 1')).closest('li')
+  expect(card).toHaveTextContent('scheduled · 2 responses')
+  expect(card).toHaveTextContent('Opens')
+  expect(card).toHaveTextContent('Closes')
+  expect(within(card as HTMLElement).getByRole('link', { name: 'Open survey' })).toHaveAttribute('href', expect.stringContaining('feedback.html?id='))
 })

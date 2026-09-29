@@ -104,6 +104,7 @@ export const wizardSurveySchema = z.object({
   direct_url: z.string().startsWith('feedback.html?id='),
   opens_at: date.nullable(),
   closes_at: date.nullable(),
+  response_count: z.number().int().nonnegative(),
   team_setup_required: z.boolean(),
   completion_certificate_enabled: z.boolean().default(false),
   completed_response_download_enabled: z.boolean().default(false),
