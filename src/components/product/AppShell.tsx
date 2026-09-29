@@ -78,7 +78,7 @@ export function AppShell({
             </>}
           </SheetContent>
         </Sheet>
-        {legacyWorkspace ? <span className="text-base font-bold tracking-widest">LEAI</span> : activeCourseItem && (
+        {legacyWorkspace ? <span className="text-[0.76rem] font-extrabold uppercase tracking-[0.14em]"><span className="text-sidebar-brand">LEAI</span> Instructor</span> : activeCourseItem && (
           <a
             aria-current="page"
             className="min-w-0 truncate text-base font-semibold text-foreground"

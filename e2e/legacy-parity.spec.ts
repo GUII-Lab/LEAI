@@ -57,9 +57,26 @@ for (const width of [390, 820, 1022, 1440]) {
       await testInfo.attach(name, { path, contentType: 'image/png' })
     }
     const fit = async () => expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+    const assertInstructorHomeNavigationTheme = async () => {
+      let navigation = page.getByRole('navigation', { name: 'Instructor navigation' })
+      if (width < 1024) {
+        await page.getByRole('button', { name: 'Open navigation' }).click()
+        navigation = page.getByRole('dialog', { name: 'Navigation' }).getByRole('navigation', { name: 'Instructor navigation' })
+      }
+      const active = navigation.locator('[aria-current="page"]')
+      await expect.poll(() => navigation.locator('..').evaluate(element => getComputedStyle(element).backgroundColor))
+        .toBe('rgb(23, 42, 51)')
+      await expect.poll(() => active.evaluate(element => getComputedStyle(element).backgroundColor))
+        .toBe('rgb(228, 243, 249)')
+      await expect.poll(() => active.evaluate(element => getComputedStyle(element).color))
+        .toBe('rgb(13, 80, 111)')
+      if (width < 1024) await page.keyboard.press('Escape')
+    }
 
     await page.goto('/PromptDesigner.html')
     await expect(page.getByRole('heading', { name: 'Prompt Designer' })).toBeVisible()
+    await expect.poll(() => page.getByRole('heading', { name: 'Prompt Designer' }).evaluate(element => getComputedStyle(element).fontSize)).toBe(width === 390 ? '28px' : '44px')
+    await assertInstructorHomeNavigationTheme()
     await fit()
     if (width === 390 || width === 1440) await shot('prompt-home')
     await page.getByRole('button', { name: 'Create new feedback' }).click()
@@ -79,6 +96,8 @@ for (const width of [390, 820, 1022, 1440]) {
 
     await page.goto('/FeedbackChat.html')
     await expect(page.getByRole('heading', { name: 'Feedback Chat' })).toBeVisible()
+    await expect.poll(() => page.getByRole('heading', { name: 'Feedback Chat' }).evaluate(element => getComputedStyle(element).fontSize)).toBe(width === 390 ? '28px' : '44px')
+    await assertInstructorHomeNavigationTheme()
     await expect(page.getByRole('region', { name: 'Feedback Chat workspace' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Open citation 1' })).toBeVisible()
     await fit()
@@ -119,6 +138,7 @@ for (const width of [390, 820, 1022, 1440]) {
 
     await page.goto('/FeedbackAnalyzer.html')
     await expect(page.getByRole('heading', { name: 'Feedback Analyzer' })).toBeVisible()
+    await assertInstructorHomeNavigationTheme()
     await expect.poll(() => page.getByRole('heading', { name: 'Feedback Analyzer' }).evaluate(element => getComputedStyle(element).fontSize)).toBe(width === 390 ? '28px' : '44px')
     await expect(page.getByRole('region', { name: 'Analysis metrics' })).toBeVisible()
     await expect(page.getByText('Traditional Analysis')).toBeVisible()
@@ -138,7 +158,7 @@ for (const width of [390, 820, 1022, 1440]) {
   })
 }
 
-test('Wizard uses the same student composer with its teal theme', async ({ page }, testInfo) => {
+test('Wizard uses the same student composer with the Instructor Home theme', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/PromptDesigner.html')
   await page.getByRole('button', { name: 'Create new feedback' }).click()
@@ -154,8 +174,8 @@ test('Wizard uses the same student composer with its teal theme', async ({ page 
   await input.fill('Make the opening question shorter.')
   await expect(composer.getByRole('button', { name: 'Send' })).toBeEnabled()
   await expect(composer.getByRole('button', { name: 'Send' })).toHaveCSS('opacity', '1')
-  await expect(composer.getByRole('button', { name: 'Send' })).toHaveCSS('background-color', 'rgb(0, 127, 128)')
-  await expect(composer.getByRole('button', { name: 'Dictate' })).toHaveCSS('background-color', 'rgb(0, 127, 128)')
+  await expect(composer.getByRole('button', { name: 'Send' })).toHaveCSS('background-color', 'rgb(0, 100, 147)')
+  await expect(composer.getByRole('button', { name: 'Dictate' })).toHaveCSS('background-color', 'rgb(0, 100, 147)')
   if (testInfo.project.name === 'chromium') {
     const desktop = join(process.cwd(), '.web-verify', 'screenshots', 'legacy-parity-wizard-composer-1440-chromium.png')
     await page.screenshot({ path: desktop, fullPage: true })

@@ -94,9 +94,9 @@ it('uses dark styling and 16pt type throughout the opened mobile sidebar', async
   expect(within(dialog).getByRole('button', { name: 'Close' })).toHaveClass('text-sidebar-foreground')
   const navigation = within(dialog).getByRole('navigation', { name: 'Instructor navigation' })
   expect(within(navigation).getByRole('link', { name: 'Account' })).toHaveClass('text-[16pt]')
-  expect(within(navigation).getByRole('link', { name: 'Prompt Designer' })).toHaveClass('text-[16pt]', 'text-sidebar-accent-foreground')
+  expect(within(navigation).getByRole('link', { name: 'Prompt Designer' })).toHaveClass('text-[16pt]', 'bg-sidebar-current', 'text-sidebar-current-foreground')
   expect(within(dialog).getByRole('button', { name: 'Sign out' })).toHaveClass(
-    'text-[16pt]', 'text-sidebar-foreground/80',
+    'text-[16pt]', 'text-sidebar-signout',
   )
 })
 
@@ -141,7 +141,7 @@ it('opens the mobile navigation in a Sheet and returns focus on Escape', async (
   expect(dialog).toBeInTheDocument()
   const signOut = within(dialog).getByRole('button', { name: 'Sign out' })
   expect(signOut.parentElement).toHaveClass('mt-auto')
-  expect(signOut).toHaveClass('text-sidebar-foreground/80')
+  expect(signOut).toHaveClass('text-sidebar-signout')
 
   await user.keyboard('{Escape}')
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
