@@ -709,10 +709,10 @@ export function PromptDesignerPage({ api, environment, verified }: {
     }} step={step} title={draft?.title ?? 'Feedback Builder'}>
       {notice && <p aria-live="polite" className="mb-4 rounded-lg border border-border bg-muted/50 p-3 text-base">{notice}</p>}
       {error && <p role="alert" className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-destructive">{error}</p>}
-      {step === 0 && <div className="mx-auto max-w-[1000px] space-y-6">
-        <div><p className="text-sm font-extrabold tracking-widest text-primary">Step 1</p>
-          <h3 className="legacy-builder-step-heading mt-1 font-semibold">Who are you collecting feedback from?</h3>
-          <p className="mt-2 text-base text-muted-foreground">Choose the purpose. Neither option is preferred over the other.</p></div>
+      {step === 0 && <div className="mx-auto max-w-[900px] space-y-6">
+        <WizardStepHeading eyebrow="Step 1" title="Who are you collecting feedback from?">
+          <p>Choose the purpose. Neither option is preferred over the other.</p>
+        </WizardStepHeading>
         <div aria-label="Feedback audience" className="grid gap-[18px] sm:grid-cols-2" role="radiogroup">
           {(['individual', 'team'] as const).map((value) => <WizardChoiceCard description={value === 'individual' ? 'Collect each student’s own learning experience, needs, and suggestions.' : 'Collect private feedback about collaboration inside the team each student selects.'}
             disabled={!!draft} groupName="wizard-audience" key={value} onSelect={() => {
@@ -725,20 +725,20 @@ export function PromptDesignerPage({ api, environment, verified }: {
           <ol className="mt-4 grid gap-3 text-base sm:grid-cols-4">{['Choose a purpose', 'Select a starting point', 'Design together', 'Preview and publish'].map((label, index) => <li className="rounded-lg bg-muted p-3" key={label}><span className="mr-2 font-bold text-primary">{index + 1}.</span>{label}</li>)}</ol>
         </div>}
       </div>}
-      {step === 1 && <div className="mx-auto max-w-[1000px] space-y-6">
+      {step === 1 && <div className="mx-auto max-w-[900px] space-y-6">
         {audience === 'individual' && !styleChosen ? <>
-          <div><p className="text-sm font-extrabold tracking-widest text-primary">Step 2</p>
-            <h3 className="legacy-builder-step-heading mt-1 font-semibold">How should the conversation work?</h3>
-            <p className="mt-2 text-base text-muted-foreground">Both paths open the same editable workspace.</p></div>
+          <WizardStepHeading eyebrow="Step 2" title="How should the conversation work?">
+            <p>Both paths open the same editable workspace.</p>
+          </WizardStepHeading>
           <div aria-label="Feedback format" className="grid gap-[18px] sm:grid-cols-2" role="radiogroup">
             {(['guided', 'open'] as const).map((value) => <WizardChoiceCard description={value === 'guided' ? 'Every student encounters a planned set of questions and optional follow-ups.' : 'Set one opening question and a listening goal, then follow what the student raises.'}
               disabled={!!draft} groupName="wizard-style" key={value} onSelect={() => { setStyle(value); setStyleChosen(true); setTemplateId(''); setSource(value === 'open' ? 'scratch' : 'leai') }} selected={false}
               title={value === 'guided' ? 'Guided feedback' : 'Open conversation'} value={value === 'guided' ? 'G' : 'O'} />)}
           </div>
         </> : <>
-        <div><p className="text-sm font-extrabold tracking-widest text-primary">Starting point</p>
-          <h3 className="legacy-builder-step-heading mt-1 font-semibold">{style === 'open' ? 'Start your open conversation' : 'Choose a starting point'}</h3>
-          <p className="mt-2 text-base text-muted-foreground">Everything remains editable after you choose.</p></div>
+        <WizardStepHeading eyebrow="Starting point" title={style === 'open' ? 'Start your open conversation' : 'Choose a starting point'}>
+          <p>Everything remains editable after you choose.</p>
+        </WizardStepHeading>
         <label className="block space-y-2"><span className="font-medium">Working title</span>
           <Input maxLength={200} onChange={(event) => setNewTitle(event.target.value)} value={newTitle} /></label>
         {style === 'guided' ? <>
@@ -786,7 +786,7 @@ export function PromptDesignerPage({ api, environment, verified }: {
         <h3 className="text-2xl font-semibold">Feedback published</h3>
         <p className="mt-3 text-base text-muted-foreground"><span className="font-medium text-foreground">{publishedSurvey.label}</span> is published. Return to the survey list to review the new card and copy its link.</p>
       </div>}
-      {step === 4 && revision && !publishedSurvey && <div className="mx-auto max-w-5xl space-y-5">
+      {step === 4 && revision && !publishedSurvey && <div className="mx-auto max-w-[1180px] space-y-5">
         <WizardStepHeading eyebrow="Final step" title="Publish this feedback">
           <p>It becomes available immediately unless you choose an opening time. Dates remain blank unless you set them.</p>
         </WizardStepHeading>

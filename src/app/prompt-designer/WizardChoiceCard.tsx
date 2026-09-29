@@ -11,6 +11,6 @@ export function WizardChoiceCard({ value, groupName, title, description, selecte
     <input checked={selected} className="sr-only" disabled={disabled} name={groupName} onChange={onSelect} type="radio" value={value} />
     <span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-[10px] bg-secondary text-xl font-extrabold text-secondary-foreground">{value}</span>
     <span><strong className="block text-[19px] leading-tight">{title}</strong>
-      <span className="mt-2 block text-sm leading-[1.48] text-muted-foreground">{description}</span></span>
+      <span className="mt-2 block text-[13px] leading-[1.48] text-muted-foreground">{description}</span></span>
   </label>
 }

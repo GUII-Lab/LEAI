@@ -309,21 +309,21 @@ body {
 
 .legacy-builder,
 .legacy-builder-theme {
-  --primary: #007f80;
+  --primary: #007f83;
   --primary-foreground: #ffffff;
-  --ring: #007f80;
-  --secondary: #e7f5f3;
-  --secondary-foreground: #006667;
-  --accent: #e7f5f3;
-  --accent-foreground: #006667;
-  --muted: #f4f8f9;
-  --muted-foreground: #60747b;
-  --foreground: #24363b;
-  --card-foreground: #24363b;
-  --border: #cbd9dc;
+  --ring: #007f83;
+  --secondary: #e6f5f3;
+  --secondary-foreground: #00656a;
+  --accent: #e6f5f3;
+  --accent-foreground: #00656a;
+  --muted: #f3f7f8;
+  --muted-foreground: #66787e;
+  --foreground: #26363a;
+  --card-foreground: #26363a;
+  --border: #d7e0e3;
   --builder-preview-start: #075a73;
   --builder-preview-end: #008b91;
-  --builder-surface: #f7fafb;
+  --builder-surface: #f7f9fa;
 }
 
 .legacy-builder {
@@ -331,9 +331,14 @@ body {
 }
 
 .legacy-builder-step-heading {
-  font-size: clamp(27px, 3vw, 40px);
-  line-height: 1.08;
-  letter-spacing: -0.045em;
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+}
+
+@media (max-width: 600px) {
+  .legacy-builder-step-heading { font-size: 28px; }
 }
 
 .legacy-prompt-create {
@@ -438,8 +443,14 @@ body {
 
 /* V12 regular actions are rectangular; icon controls keep their own shape. */
 .legacy-builder [data-slot="button"]:not([data-size^="icon"]),
-.legacy-builder-theme [data-slot="button"]:not([data-size^="icon"]) { border-radius: 8px; }
+.legacy-builder-theme [data-slot="button"]:not([data-size^="icon"]) { border-radius: 8px; font-weight: 750; }
 .legacy-builder [data-slot="button"][data-size="default"],
 .legacy-builder-theme [data-slot="button"][data-size="default"] { min-height: 40px; padding-inline: 16px; }
 .legacy-builder [data-slot="input"]:not(.border-transparent),
 .legacy-builder-theme [data-slot="input"]:not(.border-transparent) { height: 40px; border-radius: 7px; }
+
+/* V12 help and confirmation dialogs use the prototype's modal typography. */
+.legacy-builder-theme [data-slot="dialog-title"],
+.legacy-builder-theme [data-slot="alert-dialog-title"] { font-size: 23px; font-weight: 700; }
+.legacy-builder-theme [data-slot="dialog-description"],
+.legacy-builder-theme [data-slot="alert-dialog-description"] { font-size: 14px; }

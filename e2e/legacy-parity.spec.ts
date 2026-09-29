@@ -93,9 +93,12 @@ for (const width of [390, 820, 1022, 1440]) {
     await expect(page.getByRole('radio', { name: /Team feedback/ })).not.toBeChecked()
     if (width === 390) {
       const steps = page.getByRole('list', { name: 'Feedback Builder steps' })
+      for (const name of ['Audience', 'Format', 'Build', 'Preview', 'Publish']) await expect(steps.getByText(name, { exact: true })).toBeVisible()
+      const first = await steps.locator('li').first().boundingBox(), fourth = await steps.locator('li').nth(3).boundingBox()
+      expect(Boolean(first && fourth && fourth.y > first.y)).toBe(true)
       const label = await steps.locator('li[aria-current="step"] > span').last().boundingBox()
-      const nextCircle = await steps.locator('li').nth(1).locator('span').first().boundingBox()
-      expect(Boolean(label && nextCircle && label.x + label.width <= nextCircle.x)).toBe(true)
+      const nextNumber = await steps.locator('li').nth(1).locator('span').first().boundingBox()
+      expect(Boolean(label && nextNumber && label.x + label.width <= nextNumber.x)).toBe(true)
     }
     await page.waitForTimeout(250)
     await fit()
@@ -107,11 +110,11 @@ for (const width of [390, 820, 1022, 1440]) {
     if (width === 390 || width === 1440) await shot('prompt-format')
     await page.getByText('Guided feedback', { exact: true }).click()
     await expect(page.getByRole('heading', { name: 'Choose a starting point' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Continue', exact: true })).toHaveCSS('background-color', 'rgb(0, 127, 128)')
+    await expect(page.getByRole('button', { name: 'Continue', exact: true })).toHaveCSS('background-color', 'rgb(0, 127, 131)')
     if (width === 390 || width === 1440) await shot('prompt-starting-point')
     await page.getByRole('button', { name: 'Close builder' }).click()
     await expect(page.getByRole('alertdialog', { name: 'Leave the Builder?' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Save and close' })).toHaveCSS('background-color', 'rgb(0, 127, 128)')
+    await expect(page.getByRole('button', { name: 'Save and close' })).toHaveCSS('background-color', 'rgb(0, 127, 131)')
     if (width === 390 || width === 1440) { await page.waitForTimeout(200); await shot('prompt-close-dialog') }
     await page.getByRole('button', { name: 'Keep editing' }).click()
 
@@ -265,8 +268,8 @@ test('Wizard uses the shared student composer with the V12 Wizard theme', async 
   await input.fill('Make the opening question shorter.')
   await expect(composer.getByRole('button', { name: 'Send' })).toBeEnabled()
   await expect(composer.getByRole('button', { name: 'Send' })).toHaveCSS('opacity', '1')
-  await expect(composer.getByRole('button', { name: 'Send' })).toHaveCSS('background-color', 'rgb(0, 127, 128)')
-  await expect(composer.getByRole('button', { name: 'Dictate' })).toHaveCSS('background-color', 'rgb(0, 127, 128)')
+  await expect(composer.getByRole('button', { name: 'Send' })).toHaveCSS('background-color', 'rgb(0, 127, 131)')
+  await expect(composer.getByRole('button', { name: 'Dictate' })).toHaveCSS('background-color', 'rgb(0, 127, 131)')
   if (testInfo.project.name === 'chromium') {
     const desktop = join(process.cwd(), '.web-verify', 'screenshots', 'legacy-parity-wizard-composer-1440-chromium.png')
     await page.screenshot({ path: desktop, fullPage: true })
@@ -357,7 +360,10 @@ test('V12 preview keeps switch thumbs inside the track and warns only on the fir
   await page.getByRole('button', { name: 'Continue', exact: true }).click()
   await page.getByRole('button', { name: 'Generate preview' }).click()
   await expect(page.getByRole('heading', { name: 'Preview this exact version' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Preview this exact version' })).toHaveCSS('font-size', '32px')
+  await expect(page.getByRole('button', { name: /Open student preview/ })).toHaveCSS('color', 'rgb(38, 54, 58)')
   const certificate = page.getByRole('switch', { name: 'Completion certificate', exact: true })
+  await expect(certificate.locator('..').locator('span').first()).toHaveCSS('font-size', '14px')
   const thumb = certificate.locator('[data-slot="switch-thumb"]')
   const assertThumbFits = async () => expect.poll(async () => {
     const track = await certificate.boundingBox(), knob = await thumb.boundingBox()
@@ -380,6 +386,7 @@ test('V12 preview keeps switch thumbs inside the track and warns only on the fir
   await page.getByRole('button', { name: 'Skip', exact: true }).click()
   const warning = page.getByRole('alertdialog', { name: 'Skip the student preview?' })
   await expect(warning).toBeVisible()
+  await expect(warning.getByRole('heading', { name: 'Skip the student preview?' })).toHaveCSS('font-size', '23px')
   expect(decisions).toBe(0)
   await warning.getByRole('button', { name: 'Keep previewing' }).click()
   await expect(warning).toBeHidden()
