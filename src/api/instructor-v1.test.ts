@@ -251,3 +251,31 @@ it('saves an immutable Wizard revision privately with a course-scoped idempotent
   expect(new Headers(init?.headers).get('Idempotency-Key')).toBe('save-template-attempt-1')
   expect(new Headers(init?.headers).get('X-CSRFToken')).toBe('masked-csrf-token')
 })
+
+it('creates a revised Wizard draft through the managed survey action contract', async () => {
+  const surveyId = '22222222-2222-4222-8222-222222222229'
+  const draftId = '22222222-2222-4222-8222-222222222230'
+  const revisedDraft = {
+    id: draftId, title: 'Source survey', audience: 'individual', collection_style: 'guided',
+    draft_version: 1, body: {
+      version: 1, title: 'Source survey', intro: 'Share your experience.', scales: {},
+      sections: [{ id: 's1', title: 'Reflection', items: [{
+        id: 'q1', prompt: 'What stood out?', wording: 'adaptive', response: { kind: 'text' },
+        reflection_goal: 'Understand the experience.', coverage_targets: [], example_probes: [],
+        max_additional_probes: 1,
+      }] }],
+    }, updated_at: '2026-09-29T12:00:00+00:00', resumable: true,
+  }
+  const fetcher = vi.fn<typeof fetch>()
+    .mockResolvedValueOnce(csrf())
+    .mockResolvedValueOnce(new Response(JSON.stringify(revisedDraft), { status: 201 }))
+  const api = createInstructorApi(environment, () => true, fetcher)
+
+  await expect(api.reviseWizardSurvey(courseId, surveyId, 'revise-survey-attempt-1')).resolves.toMatchObject({ id: draftId })
+  const [url, init] = fetcher.mock.calls[1]
+  expect(String(url)).toMatch(new RegExp(`instructor_courses/${courseId}/surveys/${surveyId}/revise/$`))
+  expect(init?.method).toBe('POST')
+  expect(JSON.parse(init?.body as string)).toEqual({})
+  expect(new Headers(init?.headers).get('Idempotency-Key')).toBe('revise-survey-attempt-1')
+  expect(new Headers(init?.headers).get('X-CSRFToken')).toBe('masked-csrf-token')
+})

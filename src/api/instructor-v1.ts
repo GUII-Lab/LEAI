@@ -499,6 +499,14 @@ export function createInstructorApi(
       const id = z.string().uuid().parse(courseId)
       return parseResponse(await protectedRequest(`instructor_courses/${id}/surveys/`, { signal }), wizardSurveyListSchema)
     },
+    async reviseWizardSurvey(courseId: string, surveyId: string, key: string) {
+      const id = z.string().uuid().parse(courseId)
+      const survey = z.string().uuid().parse(surveyId)
+      return parseResponse(await protectedRequest(`instructor_courses/${id}/surveys/${survey}/revise/`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key },
+        body: JSON.stringify({}),
+      }), wizardDraftSchema)
+    },
     async setupWizardTeams(courseId: string, surveyId: string, labels: string[], key: string) {
       const id = z.string().uuid().parse(courseId)
       const survey = z.string().uuid().parse(surveyId)

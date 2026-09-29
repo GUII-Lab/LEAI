@@ -403,6 +403,22 @@ export function PromptDesignerPage({ api, environment, verified }: {
     } catch { setError('Could not copy the link. Please try again.') }
   }
 
+  async function createRevisedVersion(survey: WizardSurvey) {
+    if (busy || !survey.allowed_actions.includes('create_revised_version')) return
+    setError('')
+    setBusy(true)
+    try {
+      const revisedDraft = await api.reviseWizardSurvey(courseId, survey.id, crypto.randomUUID())
+      await queryClient.invalidateQueries({ queryKey: ['wizard-drafts', courseId] })
+      await loadDraft(revisedDraft.id)
+      setRevision(null)
+      setStep(2)
+      setBuilderOpen(true)
+      setNotice(`Created a new draft from “${survey.label}”. The published survey and its responses are unchanged.`)
+    } catch (cause) { handleError(cause) }
+    finally { setBusy(false) }
+  }
+
   async function setupTeams() {
     if (!teamSurvey) return
     const labels = teamLabels.split('\n').map((value) => value.trim()).filter(Boolean)
@@ -453,7 +469,7 @@ export function PromptDesignerPage({ api, environment, verified }: {
   if (!canAuthor) return <p role="alert">You do not have permission to design feedback for this course.</p>
 
   return <section className="space-y-6" aria-label="Prompt Designer">
-    {notice && <p aria-live="polite" className="rounded-lg border border-border bg-muted/50 p-3 text-base">{notice}</p>}
+    {notice && !builderOpen && <p aria-live="polite" className="rounded-lg border border-border bg-muted/50 p-3 text-base">{notice}</p>}
     {error && !builderOpen && <p role="alert" className="text-destructive">{error}</p>}
     <div className="grid min-w-0 items-start gap-7 md:grid-cols-2">
       <Card className="min-w-0 rounded-none border-0 bg-card py-7 shadow-none ring-0">
@@ -498,6 +514,9 @@ export function PromptDesignerPage({ api, environment, verified }: {
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {survey.team_setup_required && <Button onClick={() => { setError(''); setTeamSurvey(survey) }} type="button" variant="outline">Set up teams</Button>}
+                      {survey.allowed_actions.includes('create_revised_version') && <Button disabled={busy} onClick={() => { void createRevisedVersion(survey) }} type="button" variant="outline">
+                        <FilePenLine className="size-4" />Create revised version
+                      </Button>}
                       {survey.allowed_actions.includes('copy_link') && <Button onClick={() => { void copyLink(survey) }} type="button" variant="outline">
                         <ClipboardCopy className="size-4" />Copy link
                       </Button>}
@@ -519,6 +538,7 @@ export function PromptDesignerPage({ api, environment, verified }: {
     </Dialog>
 
     {builderOpen && <BuilderFrame footer={footer()} onClose={() => setCloseOpen(true)} step={step} title={draft?.title ?? 'Feedback Builder'}>
+      {notice && <p aria-live="polite" className="mb-4 rounded-lg border border-border bg-muted/50 p-3 text-base">{notice}</p>}
       {error && <p role="alert" className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-destructive">{error}</p>}
       {step === 0 && <div className="mx-auto max-w-4xl space-y-6">
         <div><p className="text-sm font-extrabold tracking-widest text-primary">Step 1</p>

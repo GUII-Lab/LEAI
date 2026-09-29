@@ -44,6 +44,7 @@ const api = {
   wizardDrafts: vi.fn(),
   wizardTemplates: vi.fn(),
   wizardSurveys: vi.fn(),
+  reviseWizardSurvey: vi.fn(),
   wizardDraft: vi.fn(),
   wizardVersions: vi.fn(),
   wizardConversation: vi.fn(),
@@ -234,4 +235,21 @@ it('shows save progress and a recoverable error for a failed private template sa
   await waitFor(() => expect(api.saveWizardTemplate).toHaveBeenCalledTimes(2))
   expect(vi.mocked(api.saveWizardTemplate).mock.calls[1]?.[3]).toBe(firstKey)
   expect(await within(dialog).findByRole('status')).toHaveTextContent('Saved privately to My templates.')
+})
+
+it('creates and opens a revised draft only when the survey allows that action', async () => {
+  const revisableSurvey: WizardSurvey = { ...survey, allowed_actions: ['copy_link', 'create_revised_version'] }
+  vi.mocked(api.wizardSurveys).mockResolvedValue({ surveys: [revisableSurvey] })
+  vi.mocked(api.reviseWizardSurvey).mockResolvedValue(draft)
+  const user = userEvent.setup()
+  renderPage()
+
+  await user.click(await screen.findByRole('button', { name: 'Create revised version' }))
+
+  await waitFor(() => expect(api.reviseWizardSurvey).toHaveBeenCalledWith(courseId, surveyId, expect.any(String)))
+  const builder = await screen.findByRole('dialog', { name: draft.title })
+  expect(await within(builder).findByRole('heading', { name: 'Feedback artifact' })).toBeInTheDocument()
+  expect(within(builder).getByText('Created a new draft from “Week 1”. The published survey and its responses are unchanged.')).toBeInTheDocument()
+  expect(api.wizardDraft).toHaveBeenCalledWith(courseId, questionSetId)
+  expect(api.publishWizard).not.toHaveBeenCalled()
 })

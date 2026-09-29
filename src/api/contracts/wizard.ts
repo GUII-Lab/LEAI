@@ -107,7 +107,7 @@ export const wizardSurveySchema = z.object({
   team_setup_required: z.boolean(),
   completion_certificate_enabled: z.boolean().default(false),
   completed_response_download_enabled: z.boolean().default(false),
-  allowed_actions: z.array(z.string()),
+  allowed_actions: z.array(z.enum(['copy_link', 'create_revised_version'])),
 }).strict()
 export const wizardSurveyListSchema = z.object({ surveys: z.array(wizardSurveySchema) }).strict()
 
