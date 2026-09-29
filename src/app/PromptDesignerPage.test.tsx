@@ -5,6 +5,7 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import type { createInstructorApi } from '@/api/instructor-v1'
 import type { WizardDraft, WizardProtocol, WizardRevision, WizardSurvey } from '@/api/contracts/wizard'
 import { getEnvironment } from '@/config/environment'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { PromptDesignerPage } from './PromptDesignerPage'
 
 const environment = getEnvironment({})
@@ -60,7 +61,7 @@ const api = {
 
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  render(<QueryClientProvider client={client}><PromptDesignerPage api={api} environment={environment} verified /></QueryClientProvider>)
+  render(<TooltipProvider><QueryClientProvider client={client}><PromptDesignerPage api={api} environment={environment} verified /></QueryClientProvider></TooltipProvider>)
 }
 
 beforeEach(() => {

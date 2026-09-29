@@ -1,4 +1,4 @@
-import type { FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import type { WizardConversationMessage } from '@/api/contracts/wizard'
 import { ChatComposer } from '@/components/chat/ChatComposer'
 import { ChatMessage } from '@/components/chat/ChatMessage'
@@ -13,9 +13,38 @@ export function AuthoringConversation({ messages, value, onValueChange, onSend, 
   busy: boolean
   disabled: boolean
 }) {
+  const [keyboardHintOpen, setKeyboardHintOpen] = useState(false)
+  const keyboardHintTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => {
+    if (keyboardHintTimeout.current) clearTimeout(keyboardHintTimeout.current)
+  }, [])
+
   function submit(event: FormEvent) {
     event.preventDefault()
     if (value.trim() && !disabled && !busy) onSend()
+  }
+
+  function handleComposerKeyDown(event: ReactKeyboardEvent<HTMLTextAreaElement>) {
+    if (event.nativeEvent.isComposing || event.keyCode === 229 || event.key !== 'Enter') return
+    const mobileViewport = window.innerWidth < 640
+    const input = event.currentTarget
+    if (!mobileViewport && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault()
+      const start = input.selectionStart
+      const end = input.selectionEnd
+      onValueChange(`${value.slice(0, start)}\n${value.slice(end)}`)
+      window.setTimeout(() => input.setSelectionRange(start + 1, start + 1), 0)
+      return
+    }
+    if (!mobileViewport && !event.shiftKey && !event.altKey) {
+      event.preventDefault()
+      if (!value.trim() || disabled || busy) return
+      setKeyboardHintOpen(false)
+      if (keyboardHintTimeout.current) clearTimeout(keyboardHintTimeout.current)
+      keyboardHintTimeout.current = setTimeout(() => setKeyboardHintOpen(false), 8000)
+      window.setTimeout(() => setKeyboardHintOpen(true), 40)
+      input.form?.requestSubmit()
+    }
   }
   return <section aria-label="AI collaboration" className="legacy-student flex min-h-[30rem] flex-col overflow-hidden rounded-xl border border-border bg-card xl:sticky xl:top-0 xl:h-[calc(100dvh-18rem)] xl:max-h-[38rem]">
     <header className="border-b border-border px-4 py-3">
@@ -40,7 +69,9 @@ export function AuthoringConversation({ messages, value, onValueChange, onSend, 
     <form className="student-chat-footer shrink-0 border-t border-border/50 bg-card px-4 py-3 sm:px-6 sm:py-4" onSubmit={submit}>
       <div className="mx-auto max-w-[832px]">
         <ChatComposer busy={busy} disabled={disabled || busy} inputLabel="Ask LEAI to edit this feedback draft"
-          maxLength={3000} onValueChange={onValueChange} placeholder="Ask for a change to the draft…"
+          maxLength={3000} onKeyDown={handleComposerKeyDown} onValueChange={onValueChange} placeholder="Ask for a change to the draft…"
+          sendHint={{ content: <span>Enter sends. <kbd data-slot="kbd">⌘+Enter</kbd> or <kbd data-slot="kbd">Ctrl+Enter</kbd> adds a new line. Shift+Enter also works.</span>,
+            open: keyboardHintOpen, onOpenChange: setKeyboardHintOpen }}
           sendDisabled={!value.trim()} value={value} />
       </div>
     </form>

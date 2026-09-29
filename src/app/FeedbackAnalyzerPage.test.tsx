@@ -152,9 +152,18 @@ beforeEach(() => {
 it('loads course analysis and composes response records using the existing presentation components', async () => {
   const user = userEvent.setup()
   renderPage()
-  expect(await screen.findByText('Week 1 feedback')).toBeInTheDocument()
+  expect(await screen.findByRole('button', { name: 'Week 1 feedback' })).toBeInTheDocument()
   expect(screen.queryByRole('combobox', { name: 'Course' })).not.toBeInTheDocument()
-  expect(await screen.findByText('Week 1 feedback')).toBeInTheDocument()
+  const modeTabs = await screen.findByRole('tablist', { name: 'Survey mode' })
+  expect(within(modeTabs).getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+    'General Course Feedback',
+    'Structured Reflection',
+    'In-Group Feedback',
+    'Student progress',
+    'Group progress',
+  ])
+  expect(screen.getByRole('navigation', { name: 'Survey week scope' })).toBeInTheDocument()
+  expect(screen.getByRole('region', { name: 'Analysis metrics' })).toBeInTheDocument()
   expect(await screen.findByText('The weekly instructions were clear.')).toBeInTheDocument()
   expect(screen.getByText('2')).toBeInTheDocument()
   expect(screen.getByText('Participation unavailable')).toBeInTheDocument()

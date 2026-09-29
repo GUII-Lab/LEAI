@@ -247,7 +247,7 @@ export function FeedbackAnalyzerPage({ api, environment, verified }: { api: Feed
   if (coursesQuery.isError) return <div className="mt-6 space-y-3" role="alert"><p className="text-base text-destructive">Could not load your courses.</p><Button onClick={() => void coursesQuery.refetch()} type="button" variant="outline">Retry loading courses</Button></div>
   if (courses.length === 0) return <p className="mt-6 text-base text-muted-foreground">No active courses are available for this account.</p>
 
-  return <div className="mt-6 space-y-5">
+  return <div className="mt-5 space-y-7">
     {!canAnalyze && <p className="text-base text-muted-foreground">You do not have permission to use Feedback Analyzer for this course.</p>}
     {canAnalyze && <>
       <AnalysisModeTabs mode={mode} modes={modes} onModeChange={(nextMode) => { setMode(nextMode); setSelectedScopeId('all'); setSelectedTeamId(''); setSelectedTerm('') }} />

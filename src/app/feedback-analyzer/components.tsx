@@ -29,12 +29,12 @@ export function AnalysisModeTabs({
   modes?: readonly AnalysisModeOption[]
   onModeChange: (mode: AnalysisMode) => void
 }) {
-  return <Tabs aria-label="Survey mode" onValueChange={(value) => {
+  return <Tabs onValueChange={(value) => {
     const selected = modes.find((option) => option.value === value)
     if (selected) onModeChange(selected.value)
   }} value={mode}>
-    <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1" variant="line">
-      {modes.map((option) => <TabsTrigger key={option.value} value={option.value}>{option.label}</TabsTrigger>)}
+    <TabsList aria-label="Survey mode" className="flex h-auto w-full flex-wrap justify-start gap-x-4 gap-y-1 border-b border-border" variant="line">
+      {modes.map((option) => <TabsTrigger className="h-10 rounded-none px-2" key={option.value} value={option.value}>{option.label}</TabsTrigger>)}
     </TabsList>
   </Tabs>
 }
@@ -87,7 +87,7 @@ export function MetricCards({ metrics }: { metrics: AnalyzerMetrics }) {
     ? { participantCount: participation.participantCount, eligibleParticipantCount: participation.eligibleParticipantCount }
     : null
 
-  return <section aria-label="Analysis metrics" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+  return <section aria-label="Analysis metrics" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
     <MetricCard label="Responses" value={metrics.responseCount.toLocaleString()} detail="Response-bearing sessions and PDF-only responses." />
     <MetricCard label="Student turns" value={metrics.studentTurnCount.toLocaleString()} detail="Student messages, counted separately from responses." />
     <MetricCard label="Average response length" value={metrics.averageWordsPerResponse == null ? 'Unavailable' : `${Math.round(metrics.averageWordsPerResponse).toLocaleString()} words`} detail="Average words per eligible response." />
@@ -104,12 +104,12 @@ export function MetricCards({ metrics }: { metrics: AnalyzerMetrics }) {
 }
 
 function MetricCard({ label, value, detail }: { label: string; value: string; detail: string }) {
-  return <Card>
-    <CardHeader className="gap-2">
+  return <Card className="rounded-lg border-l-4 border-l-primary">
+    <CardHeader className="gap-1.5">
       <CardDescription>{label}</CardDescription>
-      <CardTitle className="text-xl">{value}</CardTitle>
+      <CardTitle className="text-xl font-semibold tabular-nums">{value}</CardTitle>
     </CardHeader>
-    <CardContent><p className="text-base text-muted-foreground">{detail}</p></CardContent>
+    <CardContent><p className="text-sm leading-5 text-muted-foreground">{detail}</p></CardContent>
   </Card>
 }
 

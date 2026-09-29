@@ -357,7 +357,7 @@ export function FeedbackChatPage({ api, environment, verified }: {
     {visibleError && <p className="text-base text-destructive" role="alert">{visibleError}</p>}
     {notice && <p className="text-sm text-muted-foreground" role="status">{notice}</p>}
     {firstLoad ? <p className="text-base" role="status">Loading courses…</p> : courseQuery.isError ? <Button onClick={() => void courseQuery.refetch()} type="button" variant="outline">Retry loading courses</Button> : !courses.length ? <p className="text-base text-muted-foreground">No active courses are available for this account.</p> : !canUse ? <p className="text-base text-muted-foreground">You do not have permission to use Feedback Chat for this course.</p> : (
-      <div className="grid min-w-0 gap-5 lg:grid-cols-[17rem_minmax(0,1fr)]">
+      <section aria-label="Feedback Chat workspace" className="grid min-w-0 gap-4 lg:grid-cols-[13rem_minmax(0,1fr)]">
         <Card className="min-w-0 self-start">
           <CardHeader><CardTitle>Feedback Chat</CardTitle><CardDescription>Ask questions about anonymous course feedback.</CardDescription></CardHeader>
           <CardContent><ChatSessionList sessions={summaries} selectedSessionId={activeChatId || null} status={chatsQuery.isPending ? 'loading' : chatsQuery.isError ? 'error' : 'ready'} onCreateSession={() => createChatMutation.mutate()} onSelectSession={(id) => { setSelectedChatId(id); setError('') }} onRenameSession={saveRename} onArchiveSession={archiveChat} onRetry={() => void chatsQuery.refetch()} /></CardContent>
@@ -384,35 +384,46 @@ export function FeedbackChatPage({ api, environment, verified }: {
                   {chat.sources.length > 0 ? <ul aria-label="Chat sources" className="flex flex-wrap gap-2">{chat.sources.map((source) => <li className="rounded-full border border-border bg-muted px-3 py-1 text-sm" key={source.id}>{source.label}</li>)}</ul> : <p className="text-base text-muted-foreground">No feedback sources yet. Add a course source before asking about student responses.</p>}
                 </CardContent>
               </Card>
-              <Card>
-                <CardHeader><CardTitle>Conversation</CardTitle><CardDescription>Each answer uses the sources captured when that question was sent.</CardDescription></CardHeader>
-                <CardContent className="space-y-5">
-                  <ChatTranscript className="space-y-5">
-                    {chat.messages.map((message) => <ChatMessage author={message.role === 'assistant' ? 'Feedback Chat' : 'Instructor'} className="rounded-xl border border-border bg-background p-4" key={message.id} role={message.role} timestamp={message.created_at}>
-                      <div className="space-y-3 text-base leading-7">{message.role === 'assistant' ? renderAssistantMarkdown(message.content) : <p className="whitespace-pre-wrap">{message.content}</p>}
-                        {message.citations.length > 0 && <div className="flex flex-wrap items-center gap-1 border-t border-border pt-2"><span className="text-sm text-muted-foreground">Evidence:</span>{message.citations.map((citation) => <ChatCitation citation={{ citationId: citation.id, citationNumber: citation.citation_number, responseExcerpt: citation.evidence_quote, weekLabel: citation.week_label ?? undefined, surveyLabel: citation.survey_label ?? undefined, questionLabel: citation.question_label ?? undefined }} key={citation.id} onOpenSource={openCitation} />)}</div>}
-                      </div>
-                    </ChatMessage>)}
-                  </ChatTranscript>
-                  {busy && <p className="text-sm text-muted-foreground" role="status">Working on your answer…</p>}
-                  {job?.status === 'failed' && latestUserMessage && <Button disabled={turnMutation.isPending} onClick={() => send(latestUserMessage.content, latestUserMessage.id)} type="button" variant="outline">Retry last question</Button>}
-                  {chat.messages.length > 0 && latestUserMessage && job?.status !== 'failed' && <Button className="text-base" disabled={busy} onClick={() => send(latestUserMessage.content, latestUserMessage.id)} type="button" variant="link">Replay last question</Button>}
-                  <div className="flex flex-wrap gap-2" aria-label="Suggested questions">{['What themes are emerging?', 'What could be clearer for students?'].map((prompt) => <Button key={prompt} onClick={() => setComposerText(prompt)} type="button" variant="outline">{prompt}</Button>)}</div>
-                  <form onSubmit={submit}>
-                    <ChatComposer busy={busy} disabled={!chat.sources.length || busy} maxLength={3000} onKeyDown={composerKeyDown} onValueChange={setComposerText} placeholder={chat.sources.length ? 'Ask about the selected feedback sources…' : 'Add a feedback source to begin'} sendDisabled={!composerText.trim() || !chat.sources.length} value={composerText} />
-                  </form>
-                  <details className="rounded-lg border border-border p-3">
-                    <summary className="cursor-pointer text-base font-medium">Chat instructions</summary>
-                    <div className="mt-3 space-y-2"><label className="block space-y-1 text-base font-medium">Optional instructions for this Chat
-                      <Textarea maxLength={4000} onChange={(event) => setPromptDraft(event.target.value)} placeholder="Use plain language and focus on actionable themes." value={promptDraft ?? ''} />
-                    </label><Button disabled={promptDraft === null || promptDraft === (chat.prompt_override ?? '')} onClick={() => void savePrompt()} type="button" variant="outline">Save instructions</Button></div>
-                  </details>
+              <Card className="flex min-h-[32rem] min-w-0 flex-col overflow-hidden">
+                <CardHeader className="shrink-0"><CardTitle>Conversation</CardTitle><CardDescription>Each answer uses the sources captured when that question was sent.</CardDescription></CardHeader>
+                <CardContent className="flex min-h-0 min-w-0 flex-1 flex-col gap-0 p-0">
+                  <div className="min-h-0 flex-1 overflow-y-auto">
+                    <ChatTranscript className="student-transcript mx-auto flex w-full max-w-[832px] flex-col gap-7 px-5 py-10 sm:gap-8 sm:px-0 sm:py-12">
+                      {chat.messages.map((message) => <ChatMessage author={message.role === 'assistant' ? 'Feedback Chat' : 'Instructor'} className={message.role === 'assistant' ? 'student-assistant-message' : 'student-user-message'} key={message.id} metaClassName="student-message-meta" role={message.role} timestamp={message.created_at}>
+                        <div className="w-full space-y-3 text-base leading-7">
+                          {message.role === 'assistant'
+                            ? <div className="ml-1 border-l border-border/60 py-0.5 pl-7">{renderAssistantMarkdown(message.content)}</div>
+                            : <p className="ml-auto w-full max-w-[83%] whitespace-pre-wrap break-words rounded bg-muted px-5 py-4 text-base leading-7">{message.content}</p>}
+                          {message.citations.length > 0 && <div className="flex flex-wrap items-center gap-1 border-t border-border pt-2"><span className="text-sm text-muted-foreground">Evidence:</span>{message.citations.map((citation) => <ChatCitation citation={{ citationId: citation.id, citationNumber: citation.citation_number, responseExcerpt: citation.evidence_quote, weekLabel: citation.week_label ?? undefined, surveyLabel: citation.survey_label ?? undefined, questionLabel: citation.question_label ?? undefined }} key={citation.id} onOpenSource={openCitation} />)}</div>}
+                        </div>
+                      </ChatMessage>)}
+                    </ChatTranscript>
+                    <div className="mx-auto flex w-full max-w-[832px] flex-wrap items-center gap-2 px-5 pb-4 sm:px-8">
+                      {busy && <p className="text-sm text-muted-foreground" role="status">Working on your answer…</p>}
+                      {job?.status === 'failed' && latestUserMessage && <Button disabled={turnMutation.isPending} onClick={() => send(latestUserMessage.content, latestUserMessage.id)} type="button" variant="outline">Retry last question</Button>}
+                      {chat.messages.length > 0 && latestUserMessage && job?.status !== 'failed' && <Button className="text-base" disabled={busy} onClick={() => send(latestUserMessage.content, latestUserMessage.id)} type="button" variant="link">Replay last question</Button>}
+                    </div>
+                  </div>
+                  <div className="shrink-0 space-y-3 border-t border-border bg-card p-4 sm:px-6">
+                    <div className="flex flex-wrap gap-2" aria-label="Suggested questions">{['What themes are emerging?', 'What could be clearer for students?'].map((prompt) => <Button key={prompt} onClick={() => setComposerText(prompt)} type="button" variant="outline">{prompt}</Button>)}</div>
+                    <div className="legacy-student">
+                      <form onSubmit={submit}>
+                        <ChatComposer busy={busy} className="bg-background" disabled={!chat.sources.length || busy} maxLength={3000} onKeyDown={composerKeyDown} onValueChange={setComposerText} placeholder={chat.sources.length ? 'Ask about the selected feedback sources…' : 'Add a feedback source to begin'} sendDisabled={!composerText.trim() || !chat.sources.length} value={composerText} />
+                      </form>
+                    </div>
+                    <details className="rounded-lg border border-border px-3 py-2">
+                      <summary className="cursor-pointer text-base font-medium">Chat instructions</summary>
+                      <div className="mt-3 space-y-2"><label className="block space-y-1 text-base font-medium">Optional instructions for this Chat
+                        <Textarea maxLength={4000} onChange={(event) => setPromptDraft(event.target.value)} placeholder="Use plain language and focus on actionable themes." value={promptDraft ?? ''} />
+                      </label><Button disabled={promptDraft === null || promptDraft === (chat.prompt_override ?? '')} onClick={() => void savePrompt()} type="button" variant="outline">Save instructions</Button></div>
+                    </details>
+                  </div>
                 </CardContent>
               </Card>
             </>
           )}
         </div>
-      </div>
+      </section>
     )}
   </div>
 }
