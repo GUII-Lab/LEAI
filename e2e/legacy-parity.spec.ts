@@ -70,7 +70,10 @@ for (const width of [390, 820, 1022, 1440]) {
         .toBe('rgb(228, 243, 249)')
       await expect.poll(() => active.evaluate(element => getComputedStyle(element).color))
         .toBe('rgb(13, 80, 111)')
-      if (width < 1024) await page.keyboard.press('Escape')
+      if (width < 1024) {
+        await page.keyboard.press('Escape')
+        await expect(page.getByRole('dialog', { name: 'Navigation' })).toBeHidden()
+      }
     }
 
     await page.goto('/PromptDesigner.html')
@@ -105,7 +108,8 @@ for (const width of [390, 820, 1022, 1440]) {
     await expect(page.getByRole('heading', { name: 'Feedback Chat' })).toBeVisible()
     await expect.poll(() => page.getByRole('heading', { name: 'Feedback Chat' })
       .evaluate(element => getComputedStyle(element).fontFamily)).toContain('Inter')
-    await expect.poll(() => page.getByRole('heading', { name: 'Feedback Chat' }).evaluate(element => getComputedStyle(element).fontSize)).toBe(width === 390 ? '28px' : '44px')
+    await expect.poll(() => page.getByRole('heading', { name: 'Feedback Chat' }).evaluate(element => parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThanOrEqual(width === 390 ? 18.35 : 23.95)
+    await expect.poll(() => page.getByRole('heading', { name: 'Feedback Chat' }).evaluate(element => parseFloat(getComputedStyle(element).fontSize))).toBeLessThanOrEqual(width === 390 ? 18.45 : 24.05)
     await assertInstructorHomeNavigationTheme()
     await expect(page.getByRole('region', { name: 'Feedback Chat workspace' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Open citation 1' })).toBeVisible()
@@ -180,6 +184,34 @@ for (const width of [390, 820, 1022, 1440]) {
     if (width === 390 || width === 1440) await shot('analyzer-response-detail')
   })
 }
+
+test('Feedback Chat keeps the compact old QA heading and viewport-filling workspace', async ({ page }) => {
+  for (const width of [390, 820, 1022, 1440]) {
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto('/FeedbackChat.html')
+    const title = page.getByRole('heading', { name: 'Feedback Chat', exact: true })
+    await expect(title).toBeVisible()
+    const expectedSize = width < 768 ? 18.4 : 24
+    await expect.poll(() => title.evaluate((element) => parseFloat(getComputedStyle(element).fontSize)))
+      .toBeGreaterThanOrEqual(expectedSize - 0.5)
+    await expect.poll(() => title.evaluate((element) => parseFloat(getComputedStyle(element).fontSize)))
+      .toBeLessThanOrEqual(expectedSize + 0.5)
+    const workspace = page.getByRole('region', { name: 'Feedback Chat workspace' })
+    await expect(workspace).toBeVisible()
+    await expect.poll(async () => {
+      const bounds = await workspace.boundingBox()
+      return bounds ? Math.round(bounds.x) : -1
+    }).toBe(width >= 1024 ? 220 : 0)
+    await expect.poll(async () => {
+      const bounds = await workspace.boundingBox()
+      return bounds ? Math.round(bounds.x + bounds.width) : -1
+    }).toBe(width)
+    await expect.poll(async () => {
+      const bounds = await workspace.boundingBox()
+      return bounds ? Math.round(bounds.y + bounds.height) : -1
+    }).toBe(900)
+  }
+})
 
 test('Wizard uses the shared student composer with the V12 Wizard theme', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 900 })

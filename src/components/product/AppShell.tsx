@@ -47,7 +47,7 @@ export function AppShell({
   const legacyWorkspace = ['prompt-designer', 'feedback-analyzer', 'feedback-chat'].includes(activeItem)
 
   return (
-    <div className={`min-h-screen bg-background text-foreground lg:flex lg:h-svh lg:min-h-0 lg:flex-col lg:overflow-hidden ${legacyWorkspace ? 'legacy-instructor-ui' : ''} ${activeItem === 'feedback-analyzer' ? 'legacy-analyzer' : ''} ${activeItem === 'prompt-designer' ? 'legacy-prompt-designer' : ''}`}>
+    <div className={`min-h-screen bg-background text-foreground lg:flex lg:h-svh lg:min-h-0 lg:flex-col lg:overflow-hidden ${legacyWorkspace ? 'legacy-instructor-ui' : ''} ${activeItem === 'feedback-analyzer' ? 'legacy-analyzer' : ''} ${activeItem === 'prompt-designer' ? 'legacy-prompt-designer' : ''} ${activeItem === 'feedback-chat' ? 'legacy-feedback-chat-ui' : ''}`}>
       <EnvironmentBar environment={environment} />
       <div className="flex items-center gap-3 border-b border-border bg-card px-4 py-3 lg:hidden">
         <Sheet>
@@ -106,7 +106,7 @@ export function AppShell({
         {showCourseNavigation && !legacyWorkspace && <aside className="hidden min-h-0 overflow-y-auto border-r border-border bg-card lg:block">
           <CourseNavigation activeItem={activeItem} courseName={courseName} items={courseItems} />
         </aside>}
-        <main className={legacyWorkspace ? `min-w-0 px-4 py-6 sm:px-7 lg:min-h-0 lg:overflow-y-auto ${activeItem === 'feedback-analyzer' ? 'legacy-analyzer-main' : ''} ${activeItem === 'prompt-designer' ? 'legacy-prompt-main' : ''}` : 'min-w-0 px-5 py-8 sm:px-8 lg:min-h-0 lg:overflow-y-auto lg:px-10'}>
+        <main className={legacyWorkspace ? `min-w-0 px-4 py-6 sm:px-7 lg:min-h-0 lg:overflow-y-auto ${activeItem === 'feedback-analyzer' ? 'legacy-analyzer-main' : ''} ${activeItem === 'prompt-designer' ? 'legacy-prompt-main' : ''} ${activeItem === 'feedback-chat' ? 'legacy-chat-main' : ''}` : 'min-w-0 px-5 py-8 sm:px-8 lg:min-h-0 lg:overflow-y-auto lg:px-10'}>
           {signOutError && <p className="mb-4 text-sm text-destructive" role="alert">{signOutError}</p>}
           {children}
         </main>

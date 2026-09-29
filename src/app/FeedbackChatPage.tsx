@@ -389,13 +389,13 @@ export function FeedbackChatPage({ api, environment, verified }: {
   if (signedOut) return <p className="mt-6 text-base text-muted-foreground" role="status">Returning to sign-in…</p>
   const visibleError = error || (courseQuery.isError && !(courseQuery.error instanceof AuthenticationRequiredError) ? 'Could not load your courses. Please retry.' : '')
   const firstLoad = courseQuery.isPending
-  return <div className="mt-4 space-y-3">
+  return <div className="flex min-h-0 flex-1 flex-col">
     {visibleError && <p className="text-base text-destructive" role="alert">{visibleError}</p>}
     {notice && <p className="text-sm text-muted-foreground" role="status">{notice}</p>}
     {firstLoad ? <p className="text-base" role="status">Loading courses…</p> : courseQuery.isError ? <Button onClick={() => void courseQuery.refetch()} type="button" variant="outline">Retry loading courses</Button> : !courses.length ? <p className="text-base text-muted-foreground">No active courses are available for this account.</p> : !canUse ? <p className="text-base text-muted-foreground">You do not have permission to use Feedback Chat for this course.</p> : (<>
       <Button className="lg:hidden" onClick={() => setSessionsOpen(true)} type="button" variant="outline"><MessagesSquare aria-hidden="true" className="size-4" />Show sessions</Button>
       <Sheet onOpenChange={setSessionsOpen} open={sessionsOpen}><SheetContent className="w-[min(20rem,88vw)] gap-0 bg-muted p-0" side="left"><SheetHeader className="border-b border-border bg-card"><SheetTitle>Chats</SheetTitle><SheetDescription>Select or create a Feedback Chat session.</SheetDescription></SheetHeader>{sessionList(true)}</SheetContent></Sheet>
-      <section aria-label="Feedback Chat workspace" className="grid min-h-[38rem] min-w-0 overflow-hidden rounded-md border border-border bg-card lg:h-[calc(100svh-11rem)] lg:grid-cols-[13.75rem_minmax(0,1fr)]">
+      <section aria-label="Feedback Chat workspace" className="grid min-h-0 min-w-0 flex-1 overflow-hidden bg-card lg:grid-cols-[13.75rem_minmax(0,1fr)]">
         <div className="hidden min-h-0 min-w-0 border-r border-border bg-muted lg:block">
           {sessionList(false)}
         </div>

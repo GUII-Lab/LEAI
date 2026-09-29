@@ -223,6 +223,67 @@ body {
   line-height: 1.6;
 }
 
+/* Feedback Chat follows the compact, edge-to-edge QA workspace. */
+.legacy-feedback-chat-ui {
+  display: flex;
+  height: 100dvh;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.legacy-feedback-chat-ui.legacy-instructor-ui > :last-child {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.legacy-feedback-chat-ui.legacy-instructor-ui .legacy-chat-main {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
+.legacy-feedback-chat-ui.legacy-instructor-ui .legacy-chat-main > header {
+  flex-shrink: 0;
+  padding: 20px 28px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+
+.legacy-feedback-chat-ui.legacy-instructor-ui .legacy-chat-main > header h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.legacy-feedback-chat-ui.legacy-instructor-ui .legacy-chat-main > header p {
+  margin-top: 4px;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 767px) {
+  .legacy-feedback-chat-ui.legacy-instructor-ui .legacy-chat-main > header {
+    padding: 14px 16px 12px;
+  }
+
+  .legacy-feedback-chat-ui.legacy-instructor-ui .legacy-chat-main > header h1 {
+    font-size: 1.15rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .legacy-feedback-chat-ui.legacy-instructor-ui > :last-child {
+    display: grid;
+    grid-template-columns: 13.75rem minmax(0, 1fr);
+  }
+}
+
 .legacy-builder,
 .legacy-builder-theme {
   --primary: #007f80;
