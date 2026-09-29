@@ -148,3 +148,6 @@ jobs:
           printf 'machine git.heroku.com login _ password %s\n' "$HEROKU_API_KEY" > "$heroku_home/.netrc"
           chmod 600 "$heroku_home/.netrc"
           HOME="$heroku_home" GIT_TERMINAL_PROMPT=0 git -C "$backend_dir" push https://git.heroku.com/guiidata-leai-qa.git HEAD:main
+
+      - name: Verify deployed QA frontend and backend
+        run: node scripts/smoke-check-heroku-qa.mjs https://guiidata-leai-qa-f30daf4812c3.herokuapp.com "$GITHUB_SHA" "$LEAI_QA_BACKEND_SHA"
