@@ -23,7 +23,7 @@ it('shows exact anonymous source context in a dismissible popover', async () => 
   expect(screen.getByText('Course reflection survey')).toBeVisible()
   expect(screen.getByText('Week 2')).toBeVisible()
   expect(screen.getByText('What would you change?')).toBeVisible()
-  expect(screen.getByText('I would like more time to compare our approaches.')).toBeVisible()
+  expect(screen.getByText('“I would like more time to compare our approaches.”')).toBeVisible()
   expect(screen.queryByText('citation-internal-123')).not.toBeInTheDocument()
   expect(screen.queryByText(/session key|student name|api payload/i)).not.toBeInTheDocument()
 })

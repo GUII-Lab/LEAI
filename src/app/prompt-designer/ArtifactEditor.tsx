@@ -141,7 +141,7 @@ export function ArtifactEditor({ body, collectionStyle, onChange, saveStatus, ve
     </>}
 
     <Dialog onOpenChange={setHistoryOpen} open={historyOpen}>
-      <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-lg">
+      <DialogContent className="legacy-builder-theme max-h-[80vh] overflow-y-auto sm:max-w-lg">
         <DialogTitle>Version history</DialogTitle>
         <DialogDescription>Restoring a version creates a new saved version. Published revisions stay unchanged.</DialogDescription>
         <ol className="space-y-2">

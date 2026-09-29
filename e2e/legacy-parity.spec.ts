@@ -81,8 +81,12 @@ for (const width of [390, 820, 1022, 1440]) {
     await assertInstructorHomeNavigationTheme()
     await fit()
     if (width === 390 || width === 1440) await shot('prompt-home')
-    await page.getByRole('button', { name: 'Create new feedback' }).click()
+    const createFeedback = page.getByRole('button', { name: 'Create new feedback' })
+    await expect(createFeedback).toHaveCSS('background-image', 'linear-gradient(135deg, rgb(217, 119, 6), rgb(179, 97, 5))')
+    await expect(createFeedback).toHaveCSS('color', 'rgb(255, 255, 255)')
+    await createFeedback.click()
     await expect(page.getByRole('heading', { name: 'Who are you collecting feedback from?' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Continue', exact: true })).toHaveCSS('background-color', 'rgb(0, 127, 128)')
     await page.waitForTimeout(250)
     await fit()
     if (width === 390 || width === 1440) await shot('prompt-audience')
@@ -93,6 +97,7 @@ for (const width of [390, 820, 1022, 1440]) {
     if (width === 390 || width === 1440) await shot('prompt-starting-point')
     await page.getByRole('button', { name: 'Close builder' }).click()
     await expect(page.getByRole('alertdialog', { name: 'Leave the Builder?' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Save and close' })).toHaveCSS('background-color', 'rgb(0, 127, 128)')
     if (width === 390 || width === 1440) { await page.waitForTimeout(200); await shot('prompt-close-dialog') }
     await page.getByRole('button', { name: 'Keep editing' }).click()
 
@@ -131,9 +136,21 @@ for (const width of [390, 820, 1022, 1440]) {
     await expect(page.getByRole('dialog', { name: 'Choose chat context' })).toBeVisible()
     if (width === 390 || width === 1440) await shot('chat-context-dialog')
     await page.keyboard.press('Escape')
-    await page.getByRole('button', { name: 'Open citation 1' }).click()
+    const citation = page.getByRole('button', { name: 'Open citation 1' })
+    await expect(citation).toHaveText('1')
+    await expect(citation).toHaveCSS('height', '16px')
+    await expect(citation).toHaveCSS('border-radius', '3px')
+    await citation.click()
+    const citationPopover = page.getByRole('dialog', { name: 'Source 1' })
+    await expect(citationPopover).toBeVisible()
+    await expect(citationPopover).toHaveCSS('opacity', '1')
     await expect(page.getByText('The weekly instructions were clear.')).toBeVisible()
-    if (width === 390 || width === 1440) await shot('chat-citation')
+    if (width === 390 || width === 1440) {
+      await page.waitForTimeout(250)
+      const path = join(directory, `legacy-parity-chat-citation-${width}-${testInfo.project.name}.png`)
+      await page.screenshot({ path })
+      await testInfo.attach('chat-citation-popover', { path, contentType: 'image/png' })
+    }
     await page.keyboard.press('Escape')
     await page.getByRole('button', { name: 'Chat instructions' }).click()
     await expect(page.getByRole('dialog', { name: 'Chat instructions' })).toBeVisible()
@@ -164,7 +181,7 @@ for (const width of [390, 820, 1022, 1440]) {
   })
 }
 
-test('Wizard uses the same student composer with the Instructor Home theme', async ({ page }, testInfo) => {
+test('Wizard uses the shared student composer with the V12 Wizard theme', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/PromptDesigner.html')
   await page.getByRole('button', { name: 'Create new feedback' }).click()
@@ -180,8 +197,8 @@ test('Wizard uses the same student composer with the Instructor Home theme', asy
   await input.fill('Make the opening question shorter.')
   await expect(composer.getByRole('button', { name: 'Send' })).toBeEnabled()
   await expect(composer.getByRole('button', { name: 'Send' })).toHaveCSS('opacity', '1')
-  await expect(composer.getByRole('button', { name: 'Send' })).toHaveCSS('background-color', 'rgb(0, 100, 147)')
-  await expect(composer.getByRole('button', { name: 'Dictate' })).toHaveCSS('background-color', 'rgb(0, 100, 147)')
+  await expect(composer.getByRole('button', { name: 'Send' })).toHaveCSS('background-color', 'rgb(0, 127, 128)')
+  await expect(composer.getByRole('button', { name: 'Dictate' })).toHaveCSS('background-color', 'rgb(0, 127, 128)')
   if (testInfo.project.name === 'chromium') {
     const desktop = join(process.cwd(), '.web-verify', 'screenshots', 'legacy-parity-wizard-composer-1440-chromium.png')
     await page.screenshot({ path: desktop, fullPage: true })

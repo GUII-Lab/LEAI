@@ -79,7 +79,7 @@ it('creates a Chat and composes the existing transcript, messages, composer, and
   expect(within(composer).getByRole('button', { name: 'Dictate' })).toBeInTheDocument()
   expect(within(composer).getByRole('button', { name: 'Send' })).toHaveClass('chat-composer-send')
   await user.click(screen.getByRole('button', { name: 'Open citation 1' }))
-  expect(await screen.findByText('The steps were confusing.')).toBeInTheDocument()
+  expect(await screen.findByText('“The steps were confusing.”')).toBeInTheDocument()
   expect(screen.getByRole('textbox', { name: 'Message' })).toBeInTheDocument()
 })
 

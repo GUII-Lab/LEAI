@@ -525,7 +525,7 @@ export function PromptDesignerPage({ api, environment, verified }: {
             setError(''); setNotice(''); setStep(0); setDraft(null); setBody(null)
             setTemplateId(''); setSource('leai'); setAudience('individual'); setStyle('guided')
             setRevision(null); setPublishedSurvey(null); setPreviewOpened(false); setNewTitle('New feedback'); setBuilderOpen(true)
-          }} type="button"><Plus className="size-4" />Create new feedback</Button>
+          }} className="legacy-prompt-create" type="button"><Plus className="size-4" />Create new feedback</Button>
           {latestDraft && <div className="rounded-lg border border-border p-4">
             <p className="font-medium">{latestDraft.title}</p>
             <p className="text-sm text-muted-foreground">{latestDraft.audience} · {latestDraft.collection_style} · {elapsedSave(latestDraft.updated_at)}</p>
@@ -716,7 +716,7 @@ export function PromptDesignerPage({ api, environment, verified }: {
           <DialogTrigger asChild>
             <Button type="button" variant="outline">Save as My template</Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
+      <DialogContent className="legacy-builder-theme sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Save as My template</DialogTitle>
               <DialogDescription>Save this exact revision privately to My templates. It will not be shared with the community.</DialogDescription>
@@ -748,7 +748,7 @@ export function PromptDesignerPage({ api, environment, verified }: {
     </BuilderFrame>}
 
     <AlertDialog onOpenChange={setCloseOpen} open={closeOpen}>
-      <AlertDialogContent>
+      <AlertDialogContent className="legacy-builder-theme">
         <AlertDialogHeader><AlertDialogTitle>Leave the Builder?</AlertDialogTitle>
           <AlertDialogDescription>Saved draft work will be available from Prompt Designer. Recent edits will be saved before closing.</AlertDialogDescription>
         </AlertDialogHeader>

@@ -210,7 +210,7 @@ it('opens an insight citation with its exact response source', async () => {
   />)
 
   await user.click(screen.getByRole('button', { name: 'Open source R4' }))
-  expect(await screen.findByText('I liked seeing the prototype come together.')).toBeInTheDocument()
+  expect(await screen.findByText('“I liked seeing the prototype come together.”')).toBeInTheDocument()
   expect(screen.getByRole('list', { name: 'Sources for: Students valued making something tangible.' })).toBeInTheDocument()
   const sourceLink = screen.getByRole('link', { name: /Open response R4/ })
   expect(sourceLink).toHaveAttribute('href', '/courses/course-1/responses/response-exact-4')
