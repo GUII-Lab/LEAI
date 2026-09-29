@@ -56,8 +56,87 @@ jobs:
       - name: Scan tracked client source and QA candidate
         run: npm run check:client-secrets -- dist/heroku/qa
 
+      - name: Preserve QA release candidate
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: leai-heroku-qa-frontend
+          path: dist/heroku/qa/
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium firefox webkit
 
       - name: Run Chromium, Firefox, and WebKit acceptance
         run: npm run test:e2e
+
+  deploy-qa:
+    name: Deploy frontend to Heroku QA
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      LEAI_QA_BACKEND_SHA: ${{ vars.LEAI_QA_BACKEND_SHA }}
+      HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+    steps:
+      - name: Check out frontend source
+        uses: actions/checkout@v7
+
+      - name: Download verified QA frontend
+        uses: actions/download-artifact@v4
+        with:
+          name: leai-heroku-qa-frontend
+          path: dist/heroku/qa
+
+      - name: Assemble and deploy the pinned QA release
+        run: |
+          set -euo pipefail
+          if [ -z "$HEROKU_API_KEY" ]; then
+            echo "HEROKU_API_KEY is required in GUII-Lab/LEAI repository secrets to deploy QA." >&2
+            exit 1
+          fi
+          if ! [[ "$LEAI_QA_BACKEND_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "LEAI_QA_BACKEND_SHA must be the exact QA backend source commit." >&2
+            exit 1
+          fi
+
+          backend_dir="$RUNNER_TEMP/leai-backend-release"
+          git clone --no-checkout https://github.com/GUII-Lab/guiidatapipelines.git "$backend_dir"
+          git -C "$backend_dir" fetch --no-tags origin qa
+          qa_head="$(git -C "$backend_dir" rev-parse FETCH_HEAD)"
+          if [ "$qa_head" != "$LEAI_QA_BACKEND_SHA" ]; then
+            echo "LEAI_QA_BACKEND_SHA does not match the current guiidatapipelines/qa head." >&2
+            exit 1
+          fi
+          git -C "$backend_dir" checkout --detach "$LEAI_QA_BACKEND_SHA"
+          rm -rf "$backend_dir/frontend_dist"
+          mkdir -p "$backend_dir/frontend_dist"
+          cp -a dist/heroku/qa/. "$backend_dir/frontend_dist/"
+
+          node scripts/check-client-secrets.mjs "$backend_dir/frontend_dist"
+          node --input-type=module - "$backend_dir/frontend_dist/index.html" "$backend_dir/frontend_dist" <<'NODE'
+          import { readFileSync, existsSync } from 'node:fs'
+          import path from 'node:path'
+          const html = readFileSync(process.argv[2], 'utf8')
+          const root = process.argv[3]
+          const assets = [...html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map((match) => match[1])
+          if (assets.length === 0) throw new Error('Packaged index.html has no fingerprinted assets')
+          for (const asset of assets) {
+            if (!existsSync(path.join(root, asset.slice(1)))) throw new Error(`Missing packaged asset: ${asset}`)
+          }
+          NODE
+
+          git -C "$backend_dir" add -f frontend_dist/
+          git -C "$backend_dir" config user.name "github-actions[bot]"
+          git -C "$backend_dir" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C "$backend_dir" commit -m "build: package LEAI QA frontend ${GITHUB_SHA}"
+
+          heroku_home="$RUNNER_TEMP/heroku-home"
+          mkdir -p "$heroku_home"
+          printf 'machine git.heroku.com login _ password %s\n' "$HEROKU_API_KEY" > "$heroku_home/.netrc"
+          chmod 600 "$heroku_home/.netrc"
+          HOME="$heroku_home" GIT_TERMINAL_PROMPT=0 git -C "$backend_dir" push https://git.heroku.com/guiidata-leai-qa.git HEAD:main
