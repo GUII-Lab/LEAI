@@ -308,6 +308,7 @@ export function FeedbackChatPage({ api, environment, verified }: {
     if (status === 'failed') setError(jobQuery.data?.error_code === 'provider_outcome_unknown'
       ? 'The AI provider may have received this question. Review the Chat before retrying; retrying sends a new request.'
       : 'This answer could not be completed. You can retry the same question.')
+    if (status === 'cancelled') setError('This answer was cancelled by an administrator. Review the Chat before retrying.')
   }, [activeChatId, activeCourseId, environment.name, jobQuery.data?.error_code, jobQuery.data?.status, queryClient, storedJobKey])
 
   function send(text = composerText, retryMessageId?: string) {
@@ -433,8 +434,8 @@ export function FeedbackChatPage({ api, environment, verified }: {
                     </ChatTranscript>
                     <div className="mx-auto flex w-full max-w-[832px] flex-wrap items-center gap-2 px-5 pb-4 sm:px-8">
                       {busy && <p className="text-sm text-muted-foreground" role="status">Working on your answer…</p>}
-                      {job?.status === 'failed' && latestUserMessage && <Button disabled={turnMutation.isPending} onClick={() => send(latestUserMessage.content, latestUserMessage.id)} type="button" variant="outline">Retry last question</Button>}
-                      {chat.messages.length > 0 && latestUserMessage && job?.status !== 'failed' && <Button className="text-base" disabled={busy} onClick={() => send(latestUserMessage.content, latestUserMessage.id)} type="button" variant="link">Replay last question</Button>}
+                      {(job?.status === 'failed' || job?.status === 'cancelled') && latestUserMessage && <Button disabled={turnMutation.isPending} onClick={() => send(latestUserMessage.content, latestUserMessage.id)} type="button" variant="outline">Retry last question</Button>}
+                      {chat.messages.length > 0 && latestUserMessage && job?.status !== 'failed' && job?.status !== 'cancelled' && <Button className="text-base" disabled={busy} onClick={() => send(latestUserMessage.content, latestUserMessage.id)} type="button" variant="link">Replay last question</Button>}
                     </div>
                   </div>
                   <div className="shrink-0 space-y-3 border-t border-border bg-card p-4 sm:px-7">

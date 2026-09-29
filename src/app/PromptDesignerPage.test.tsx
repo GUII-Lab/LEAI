@@ -174,6 +174,23 @@ it('warns when the Wizard AI provider outcome is unknown without resending', asy
   expect(api.startWizardAi).toHaveBeenCalledTimes(1)
 })
 
+it('shows an administrator-cancelled Wizard edit without resending', async () => {
+  const jobId = '550e8400-e29b-41d4-a716-446655440061'
+  vi.mocked(api.startWizardAi).mockResolvedValue({ job_id: jobId })
+  vi.mocked(api.job).mockResolvedValue({ id: jobId, status: 'cancelled', error_code: 'admin_cancelled', result: null })
+  const user = userEvent.setup()
+  renderPage()
+  await user.click(await screen.findByRole('button', { name: 'Create new feedback' }))
+  const builder = screen.getByRole('dialog', { name: 'Feedback Builder' })
+  await user.click(within(builder).getByRole('button', { name: /^Continue$/ }))
+  await user.click(await within(builder).findByRole('button', { name: /Weekly reflection/ }))
+  await user.click(within(builder).getByRole('button', { name: /^Continue$/ }))
+  await user.type(await within(builder).findByRole('textbox', { name: 'Ask LEAI to edit this feedback draft' }), 'Shorten the introduction')
+  await user.click(within(builder).getByRole('button', { name: 'Send' }))
+  expect(await within(builder).findByText(/LEAI stopped this draft edit/, {}, { timeout: 3000 })).toBeInTheDocument()
+  expect(api.startWizardAi).toHaveBeenCalledTimes(1)
+})
+
 it('keeps Team Open unavailable and leaves the prior draft when closing', async () => {
   const user = userEvent.setup()
   renderPage()

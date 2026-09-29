@@ -170,6 +170,24 @@ it('warns before manually retrying a turn with an unknown provider outcome', asy
   await waitFor(() => expect(api.createTurn).toHaveBeenLastCalledWith(courseId, chatId, { content: 'What changed?', retry_message_id: '12' }, expect.any(String)))
 })
 
+it('shows administrator cancellation and permits only a deliberate retry', async () => {
+  const updatedChat = {
+    ...chat,
+    messages: [...chat.messages, { id: '12', sequence: 3, role: 'user' as const, content: 'What changed?', created_at: '2026-09-27T12:32:45Z', citations: [] }],
+  }
+  vi.mocked(api.chat).mockResolvedValue(updatedChat)
+  vi.mocked(api.createTurn).mockResolvedValue({ job_id: jobId })
+  vi.mocked(api.job).mockResolvedValue({ id: jobId, status: 'cancelled', error_code: 'admin_cancelled', result: null })
+  const user = userEvent.setup()
+  renderPage()
+  await user.click(await screen.findByRole('button', { name: 'New chat' }))
+  await user.type(screen.getByRole('textbox', { name: 'Message' }), 'What changed?')
+  await user.click(screen.getByRole('button', { name: 'Send' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('This answer was cancelled by an administrator.')
+  expect(api.createTurn).toHaveBeenCalledTimes(1)
+  expect(await screen.findByRole('button', { name: 'Retry last question' })).toBeInTheDocument()
+})
+
 it('loads each Chat instructions draft from the selected Chat', async () => {
   const otherChatId = '550e8400-e29b-41d4-a716-446655440011'
   const otherChat = { ...chat, id: otherChatId, title: 'Course themes', prompt_override: 'Focus on week-to-week changes.' }

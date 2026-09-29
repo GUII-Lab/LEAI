@@ -25,6 +25,7 @@ describe('Feedback Chat DTOs', () => {
     expect(feedbackChatDetailSchema.parse(detail).messages[0].citations[0].evidence_quote).toBe('The instructions were confusing.')
     expect(feedbackChatListSchema.parse({ chats: [{ id, title: 'Week 2 feedback', updated_at: detail.updated_at }] }).chats).toHaveLength(1)
     expect(feedbackChatJobSchema.parse({ id, status: 'pending', error_code: null, result: null }).status).toBe('pending')
+    expect(feedbackChatJobSchema.parse({ id, status: 'cancelled', error_code: 'admin_cancelled', result: null }).status).toBe('cancelled')
     expect(feedbackChatTurnResponseSchema.parse({ job_id: id }).job_id).toBe(id)
     expect(createFeedbackChatTurnRequestSchema.parse({ content: 'Repeat this turn', retry_message_id: '12' }).retry_message_id).toBe('12')
   })

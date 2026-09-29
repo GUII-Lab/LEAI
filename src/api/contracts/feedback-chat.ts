@@ -52,7 +52,7 @@ export const feedbackChatDetailSchema = z.object({
 
 export const feedbackChatJobSchema = z.object({
   id: uuid,
-  status: z.enum(['pending', 'running', 'completed', 'failed']),
+  status: z.enum(['pending', 'running', 'completed', 'failed', 'cancelled']),
   error_code: z.string().max(64).nullable(),
   result: z.object({ assistant_message_id: z.string().regex(/^\d+$/) }).strict().nullable(),
 }).strict()

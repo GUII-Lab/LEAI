@@ -273,11 +273,14 @@ export function PromptDesignerPage({ api, environment, verified }: {
           else setConversation((await api.wizardConversation(courseId, draft.id)).messages)
           setNotice('LEAI updated the saved draft.')
         } else {
-          setError(job.error_code === 'stale_draft'
-            ? 'The draft changed while LEAI was working. Your manual edits were preserved.'
-            : job.error_code === 'provider_outcome_unknown'
-              ? 'LEAI could not confirm whether its AI request finished. Review the saved draft before sending the instruction again.'
-              : 'LEAI could not update this draft. Please try again.')
+          const failureMessage = job.status === 'cancelled'
+            ? 'LEAI stopped this draft edit. Review the saved draft before trying again.'
+            : job.error_code === 'stale_draft'
+              ? 'The draft changed while LEAI was working. Your manual edits were preserved.'
+              : job.error_code === 'provider_outcome_unknown'
+                ? 'LEAI could not confirm whether its AI request finished. Review the saved draft before sending the instruction again.'
+                : 'LEAI could not update this draft. Please try again.'
+          setError(failureMessage)
           setConversation((await api.wizardConversation(courseId, draft.id)).messages)
         }
       }).catch(handleError)
