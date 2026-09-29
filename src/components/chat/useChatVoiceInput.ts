@@ -31,28 +31,39 @@ export function useChatVoiceInput({ value, onValueChange, disabled, contextKey, 
   maxLength?: number
   stoppedMessage?: string
   unavailableMessage?: string
-}): { voiceInput: ChatVoiceInput; error: string } {
+}): { voiceInput: ChatVoiceInput; error: string; resetTranscript: () => void } {
   const recognition = useRef<Recognition | null>(null)
   const speechBase = useRef('')
+  const lastResults = useRef<string[]>([])
+  const consumed = useRef<string[]>([])
+  const currentValue = useRef(value)
+  const lastPublished = useRef(value)
+  const wantsListening = useRef(false)
   const onValueChangeRef = useRef(onValueChange)
   const [listening, setListening] = useState(false)
   const [error, setError] = useState('')
   useEffect(() => { onValueChangeRef.current = onValueChange }, [onValueChange])
+  useEffect(() => { currentValue.current = value }, [value])
 
   useEffect(() => () => {
+    wantsListening.current = false
     const active = recognition.current
     if (active) { recognition.current = null; active.stop() }
+    setListening(false)
   }, [contextKey])
   useEffect(() => {
     if (disabled && recognition.current) {
+      wantsListening.current = false
       const active = recognition.current
       recognition.current = null
       active.stop()
+      setListening(false)
     }
   }, [disabled])
 
   function toggle() {
-    if (listening) {
+    if (wantsListening.current) {
+      wantsListening.current = false
       const active = recognition.current
       recognition.current = null
       active?.stop()
@@ -63,34 +74,59 @@ export function useChatVoiceInput({ value, onValueChange, disabled, contextKey, 
     if (!Recognition || disabled) return
     setError('')
     speechBase.current = value.trim()
+    lastPublished.current = value
+    lastResults.current = []
+    consumed.current = []
+    wantsListening.current = true
     const instance = new Recognition()
     instance.continuous = true
     instance.interimResults = true
     instance.lang = navigator.language || 'en-US'
+    const words = typeof Intl.Segmenter === 'function' ? new Intl.Segmenter(instance.lang, { granularity: 'word' }) : null
     instance.onresult = (event) => {
       if (recognition.current !== instance) return
-      let finalText = ''
-      let interimText = ''
+      if (currentValue.current !== lastPublished.current) {
+        speechBase.current = currentValue.current.trim()
+        consumed.current = [...lastResults.current]
+      }
+      const parts: string[] = []
+      const results: string[] = []
       for (let index = 0; index < event.results.length; index += 1) {
         const result = event.results[index]
-        if (result.isFinal) finalText += result[0].transcript
-        else interimText += result[0].transcript
+        const transcript = result[0].transcript
+        results.push(transcript)
+        const previous = consumed.current[index]
+        // Recognition sends cumulative results. Already submitted segments must
+        // never reappear, including interim segments that later become final.
+        const suffix = previous !== undefined && transcript.startsWith(previous) ? transcript.slice(previous.length) : ''
+        const atWordBoundary = suffix && previous !== undefined && words
+          && [...words.segment(transcript)].some(word => word.index === previous.length)
+        parts.push(previous === undefined ? transcript : /^\s/.test(suffix) || atWordBoundary ? suffix : '')
       }
-      onValueChangeRef.current([speechBase.current, finalText.trim(), interimText.trim()].filter(Boolean).join(' ').slice(0, maxLength))
+      lastResults.current = results
+      const next = [speechBase.current, ...parts.map(part => part.trim())].filter(Boolean).join(' ').slice(0, maxLength)
+      currentValue.current = next
+      lastPublished.current = next
+      onValueChangeRef.current(next)
     }
     instance.onerror = () => {
       if (recognition.current !== instance) return
       recognition.current = null
+      wantsListening.current = false
       setError(stoppedMessage)
       setListening(false)
     }
     instance.onend = () => {
-      if (recognition.current === instance) recognition.current = null
-      if (!recognition.current) setListening(false)
+      if (recognition.current !== instance || !wantsListening.current) return
+      speechBase.current = currentValue.current.trim()
+      consumed.current = []
+      lastResults.current = []
+      try { instance.start() }
+      catch { recognition.current = null; wantsListening.current = false; setListening(false); setError(unavailableMessage) }
     }
     recognition.current = instance
     try { instance.start(); setListening(true) }
-    catch { recognition.current = null; setError(unavailableMessage) }
+    catch { recognition.current = null; wantsListening.current = false; setListening(false); setError(unavailableMessage) }
   }
 
   return {
@@ -102,5 +138,11 @@ export function useChatVoiceInput({ value, onValueChange, disabled, contextKey, 
       unsupportedMessage: 'Voice input is not supported in this browser',
     },
     error,
+    resetTranscript: () => {
+      consumed.current = [...lastResults.current]
+      speechBase.current = ''
+      currentValue.current = ''
+      lastPublished.current = ''
+    },
   }
 }
