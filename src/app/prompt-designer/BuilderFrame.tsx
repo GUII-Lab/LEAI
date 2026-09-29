@@ -32,9 +32,9 @@ export function BuilderFrame({ step, title, onClose, footer, children }: {
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[var(--builder-surface)] px-4 py-5 sm:px-8 sm:py-8" data-testid="builder-content">
         {children}
       </div>
-      <footer className="flex min-h-16 shrink-0 items-center justify-between gap-3 border-t border-border bg-card px-4 py-3 sm:px-8">
+      {footer && <footer className="flex min-h-16 shrink-0 items-center justify-between gap-3 border-t border-border bg-card px-4 py-3 sm:px-8">
         {footer}
-      </footer>
+      </footer>}
     </DialogContent>
   </Dialog>
 }

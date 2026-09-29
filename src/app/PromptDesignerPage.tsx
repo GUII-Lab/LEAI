@@ -20,6 +20,7 @@ import { ArtifactEditor } from './prompt-designer/ArtifactEditor'
 import { AuthoringConversation } from './prompt-designer/AuthoringConversation'
 import { BuilderFrame } from './prompt-designer/BuilderFrame'
 import { PreviewStep } from './prompt-designer/PreviewStep'
+import { WizardChoiceCard } from './prompt-designer/WizardChoiceCard'
 import type { WizardStep } from './prompt-designer/WorkflowStepper'
 
 type Api = ReturnType<typeof createInstructorApi>
@@ -65,7 +66,9 @@ export function PromptDesignerPage({ api, environment, verified }: {
   const [howOpen, setHowOpen] = useState(false)
   const [templateId, setTemplateId] = useState('')
   const [audience, setAudience] = useState<Audience>('individual')
+  const [audienceChoice, setAudienceChoice] = useState<Audience | null>(null)
   const [style, setStyle] = useState<Style>('guided')
+  const [styleChosen, setStyleChosen] = useState(false)
   const [newTitle, setNewTitle] = useState('New feedback')
   const [draft, setDraft] = useState<WizardDraft | null>(null)
   const [body, setBody] = useState<WizardProtocol | null>(null)
@@ -84,7 +87,7 @@ export function PromptDesignerPage({ api, environment, verified }: {
   const [publishedSurvey, setPublishedSurvey] = useState<WizardSurvey | null>(null)
   const [opensAt, setOpensAt] = useState('')
   const [closesAt, setClosesAt] = useState('')
-  const [certificateEnabled, setCertificateEnabled] = useState(false)
+  const [certificateEnabled, setCertificateEnabled] = useState(true)
   const [downloadEnabled, setDownloadEnabled] = useState(false)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState('')
@@ -201,7 +204,9 @@ export function PromptDesignerPage({ api, environment, verified }: {
     ])
     setDraft(loaded)
     setAudience(loaded.audience)
+    setAudienceChoice(loaded.audience)
     setStyle(loaded.collection_style)
+    setStyleChosen(true)
     setPublishLabel(loaded.title)
     draftIdRef.current = loaded.id
     versionRef.current = loaded.draft_version
@@ -487,13 +492,18 @@ export function PromptDesignerPage({ api, environment, verified }: {
     if (publishedSurvey) return <Button className="ml-auto" disabled={busy} onClick={completePublication} type="button">
       Complete / Return to surveys<ArrowRight className="size-4" />
     </Button>
-    const back = <Button disabled={busy || step === 0} onClick={() => setStep((step - 1) as WizardStep)} type="button" variant="outline">
+    if (step === 0) return null
+    const back = <Button disabled={busy} onClick={() => {
+      if (step === 1 && audience === 'individual' && styleChosen) setStyleChosen(false)
+      else {
+        if (step === 1) setAudienceChoice(null)
+        setStep((step - 1) as WizardStep)
+      }
+    }} type="button" variant="outline">
       <ArrowLeft className="size-4" />Back
     </Button>
-    const next = step === 0
-      ? <Button onClick={() => setStep(1)} type="button">Continue<ArrowRight className="size-4" /></Button>
-      : step === 1
-        ? <Button disabled={busy || (audience === 'team' && style === 'open')} onClick={() => {
+    const next = step === 1
+        ? styleChosen && <Button disabled={busy} onClick={() => {
           if (draft) setStep(2)
           else void createDraft()
         }} type="button">
@@ -528,8 +538,8 @@ export function PromptDesignerPage({ api, environment, verified }: {
           <p className="text-sm text-muted-foreground">{latestDraft ? 'Your latest unfinished setup is ready to continue. Published feedback appears on the right.' : `Start a new feedback experience for ${course.course_name}. Published feedback appears on the right.`}</p>
           <Button disabled={!verified} onClick={() => {
             setError(''); setNotice(''); setStep(0); setDraft(null); setBody(null)
-            setTemplateId(''); setSource('leai'); setAudience('individual'); setStyle('guided')
-            setRevision(null); setPublishedSurvey(null); setPreviewOpened(false); setNewTitle('New feedback'); setBuilderOpen(true)
+            setTemplateId(''); setSource('leai'); setAudience('individual'); setAudienceChoice(null); setStyle('guided'); setStyleChosen(false)
+            setRevision(null); setPublishedSurvey(null); setPreviewOpened(false); setNewTitle('New feedback'); setCertificateEnabled(true); setDownloadEnabled(false); setHowOpen(false); setBuilderOpen(true)
           }} className="legacy-prompt-create" type="button"><Plus className="size-4" />Create new feedback</Button>
           {latestDraft && <div className="rounded-lg border border-border p-4">
             <p className="font-medium">{latestDraft.title}</p>
@@ -624,19 +634,15 @@ export function PromptDesignerPage({ api, environment, verified }: {
     }} step={step} title={draft?.title ?? 'Feedback Builder'}>
       {notice && <p aria-live="polite" className="mb-4 rounded-lg border border-border bg-muted/50 p-3 text-base">{notice}</p>}
       {error && <p role="alert" className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-destructive">{error}</p>}
-      {step === 0 && <div className="mx-auto max-w-4xl space-y-6">
+      {step === 0 && <div className="mx-auto max-w-[1000px] space-y-6">
         <div><p className="text-sm font-extrabold tracking-widest text-primary">Step 1</p>
           <h3 className="mt-1 text-3xl font-semibold tracking-tight">Who are you collecting feedback from?</h3>
           <p className="mt-2 text-base text-muted-foreground">Choose the purpose. Neither option is preferred over the other.</p></div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {(['individual', 'team'] as const).map((value) => <label className={`flex cursor-pointer items-start gap-4 rounded-xl border bg-card p-5 hover:border-primary ${audience === value ? 'border-primary ring-2 ring-primary/10' : 'border-border'}`} key={value}>
-            <input checked={audience === value} className="sr-only" disabled={!!draft} name="wizard-audience" onChange={() => {
-              setAudience(value); setTemplateId(''); if (value === 'team') setStyle('guided')
-            }} type="radio" value={value} />
-            <span aria-hidden="true" className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-secondary text-xl font-bold text-secondary-foreground">{value === 'individual' ? 'I' : 'T'}</span>
-            <span><strong className="block text-lg">{value === 'individual' ? 'Individual feedback' : 'Team feedback'}</strong>
-              <span className="mt-1 block text-base leading-relaxed text-muted-foreground">{value === 'individual' ? 'Collect each student’s own learning experience, needs, and suggestions.' : 'Collect private feedback about collaboration inside the team each student selects.'}</span></span>
-          </label>)}
+        <div aria-label="Feedback audience" className="grid gap-[18px] sm:grid-cols-2" role="radiogroup">
+          {(['individual', 'team'] as const).map((value) => <WizardChoiceCard description={value === 'individual' ? 'Collect each student’s own learning experience, needs, and suggestions.' : 'Collect private feedback about collaboration inside the team each student selects.'}
+            disabled={!!draft} groupName="wizard-audience" key={value} onSelect={() => {
+              setAudience(value); setAudienceChoice(value); setTemplateId(''); setStyle('guided'); setStyleChosen(value === 'team'); setStep(1)
+            }} selected={audienceChoice === value} title={value === 'individual' ? 'Individual feedback' : 'Team feedback'} value={value === 'individual' ? 'I' : 'T'} />)}
         </div>
         <div className="text-center"><Button onClick={() => setHowOpen(!howOpen)} type="button" variant="link">How LEAI works</Button></div>
         {howOpen && <div className="rounded-xl border border-border bg-card p-5">
@@ -644,21 +650,23 @@ export function PromptDesignerPage({ api, environment, verified }: {
           <ol className="mt-4 grid gap-3 text-base sm:grid-cols-4">{['Choose a purpose', 'Select a starting point', 'Design together', 'Preview and publish'].map((label, index) => <li className="rounded-lg bg-muted p-3" key={label}><span className="mr-2 font-bold text-primary">{index + 1}.</span>{label}</li>)}</ol>
         </div>}
       </div>}
-      {step === 1 && <div className="mx-auto max-w-4xl space-y-6">
-        <div><p className="text-sm font-extrabold tracking-widest text-primary">Step 2</p>
-          <h3 className="mt-1 text-3xl font-semibold tracking-tight">How should the conversation work?</h3>
-          <p className="mt-2 text-base text-muted-foreground">Both paths open the same editable workspace.</p></div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {(['guided', 'open'] as const).map((value) => <label className={`flex cursor-pointer items-start gap-4 rounded-xl border bg-card p-5 hover:border-primary ${style === value ? 'border-primary ring-2 ring-primary/10' : 'border-border'} ${audience === 'team' && value === 'open' ? 'opacity-50' : ''}`} key={value}>
-            <input checked={style === value} className="sr-only" disabled={!!draft || (audience === 'team' && value === 'open')} name="wizard-style" onChange={() => { setStyle(value); setTemplateId('') }} type="radio" value={value} />
-            <span aria-hidden="true" className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-secondary text-xl font-bold text-secondary-foreground">{value === 'guided' ? 'G' : 'O'}</span>
-            <span><strong className="block text-lg">{value === 'guided' ? 'Guided feedback' : 'Open conversation'}</strong>
-              <span className="mt-1 block text-base leading-relaxed text-muted-foreground">{value === 'guided' ? 'Every student encounters a planned set of questions and optional follow-ups.' : 'Set one opening question and a listening goal, then follow what the student raises.'}</span></span>
-          </label>)}
-        </div>
+      {step === 1 && <div className="mx-auto max-w-[1000px] space-y-6">
+        {audience === 'individual' && !styleChosen ? <>
+          <div><p className="text-sm font-extrabold tracking-widest text-primary">Step 2</p>
+            <h3 className="mt-1 text-3xl font-semibold tracking-tight">How should the conversation work?</h3>
+            <p className="mt-2 text-base text-muted-foreground">Both paths open the same editable workspace.</p></div>
+          <div aria-label="Feedback format" className="grid gap-[18px] sm:grid-cols-2" role="radiogroup">
+            {(['guided', 'open'] as const).map((value) => <WizardChoiceCard description={value === 'guided' ? 'Every student encounters a planned set of questions and optional follow-ups.' : 'Set one opening question and a listening goal, then follow what the student raises.'}
+              disabled={!!draft} groupName="wizard-style" key={value} onSelect={() => { setStyle(value); setStyleChosen(true); setTemplateId(''); setSource(value === 'open' ? 'scratch' : 'leai') }} selected={false}
+              title={value === 'guided' ? 'Guided feedback' : 'Open conversation'} value={value === 'guided' ? 'G' : 'O'} />)}
+          </div>
+        </> : <>
+        <div><p className="text-sm font-extrabold tracking-widest text-primary">Starting point</p>
+          <h3 className="mt-1 text-3xl font-semibold tracking-tight">{style === 'open' ? 'Start your open conversation' : 'Choose a starting point'}</h3>
+          <p className="mt-2 text-base text-muted-foreground">Everything remains editable after you choose.</p></div>
         <label className="block space-y-2"><span className="font-medium">Working title</span>
           <Input maxLength={200} onChange={(event) => setNewTitle(event.target.value)} value={newTitle} /></label>
-        <div><h4 className="text-lg font-semibold">Choose a starting point</h4><p className="text-base text-muted-foreground">You can edit every question after opening the Builder.</p></div>
+        {style === 'guided' ? <>
         <Tabs onValueChange={(value) => { setSource(value as typeof source); setTemplateId('') }} value={source}>
           <TabsList className="h-auto w-full flex-wrap justify-start border-b border-border bg-transparent" variant="line">
             <TabsTrigger value="leai">LEAI</TabsTrigger><TabsTrigger value="my">My templates</TabsTrigger>
@@ -679,8 +687,10 @@ export function PromptDesignerPage({ api, environment, verified }: {
             <p className="rounded-xl border border-border bg-card p-5">Start with one editable question and add sections as you design.</p>
           </TabsContent>
         </Tabs>
+        </> : <p className="rounded-xl border border-primary bg-card p-5">Start from scratch. Add the opening, listening goal, and closing in the workspace.</p>}
         {audience === 'team' && <p className="text-sm text-muted-foreground">Team feedback currently uses Guided feedback.</p>}
         {draft && <p className="text-sm text-muted-foreground">The audience and format are fixed for this draft. Create a new draft to change them.</p>}
+        </>}
       </div>}
       {step === 2 && body && <div className="grid min-w-0 gap-0 overflow-hidden rounded-xl border border-border bg-card xl:h-[min(38rem,calc(100dvh-18rem))] xl:min-h-[30rem] xl:grid-cols-[minmax(17rem,34%)_minmax(0,66%)]">
         <AuthoringConversation busy={!!aiJobId} disabled={!draft} messages={conversation} onSend={() => { void sendAi() }}
