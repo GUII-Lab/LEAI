@@ -715,9 +715,9 @@ export function PromptDesignerPage({ api, environment, verified }: {
       </div>}
       {step === 4 && revision && !publishedSurvey && <div className="mx-auto max-w-5xl space-y-5">
         <WizardStepHeading eyebrow="Final step" title="Publish this feedback">
-          <p>Blank dates mean available now with no automatic close.</p>
+          <p>It becomes available immediately unless you choose an opening time. Dates remain blank unless you set them.</p>
         </WizardStepHeading>
-        <div className="grid gap-[18px] min-[821px]:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)]"><div className="min-w-0 space-y-4 rounded-xl border border-border bg-card p-[18px] md:p-[22px]">
+        <div className="grid gap-[18px] min-[1101px]:grid-cols-[minmax(0,1fr)_320px]"><div className="min-w-0 space-y-4 rounded-xl border border-border bg-card p-[18px] md:p-[22px]">
         <label className="block space-y-2"><span className="text-[11px] font-extrabold tracking-wider text-muted-foreground uppercase">Feedback label</span>
           <Input maxLength={200} onChange={(event) => setPublishLabel(event.target.value)} value={publishLabel} /></label>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -726,7 +726,8 @@ export function PromptDesignerPage({ api, environment, verified }: {
           <label className="block space-y-2"><span className="text-[11px] font-extrabold tracking-wider text-muted-foreground uppercase">Closes (optional)</span>
             <Input onChange={(event) => setClosesAt(event.target.value)} type="datetime-local" value={closesAt} /></label>
         </div>
-        </div><aside className="min-w-0 rounded-xl border border-border bg-card p-[18px] md:p-[22px]"><p className="text-sm font-bold tracking-widest text-primary uppercase">Publication summary</p><dl className="mt-3 divide-y divide-border text-base"><div className="py-3"><dt className="text-sm font-bold text-muted-foreground uppercase">Audience</dt><dd>{audience === 'team' ? 'Team members' : 'Individual students'}</dd></div><div className="py-3"><dt className="text-sm font-bold text-muted-foreground uppercase">Format</dt><dd>{style === 'open' ? 'Open conversation' : 'Guided feedback'}</dd></div><div className="py-3"><dt className="text-sm font-bold text-muted-foreground uppercase">Preview</dt><dd>{revision.preview_decision === 'completed' ? 'Completed' : 'Skipped'}</dd></div><div className="py-3"><dt className="text-sm font-bold text-muted-foreground uppercase">Outputs</dt><dd>Certificate {certificateEnabled ? 'on' : 'off'} · response form {downloadEnabled ? 'on' : 'off'}</dd></div></dl></aside></div>
+        <p className="text-sm text-muted-foreground">Blank dates mean available now with no automatic close.</p>
+        </div><aside className="min-w-0 rounded-xl border border-border bg-card p-[18px] md:p-[22px]"><p className="text-sm font-bold tracking-widest text-primary uppercase">Publication summary</p><dl className="mt-3 divide-y divide-border text-base"><div className="py-3"><dt className="text-sm font-bold text-muted-foreground uppercase">Audience</dt><dd>{audience === 'team' ? 'Team members' : 'Individual students'}</dd></div><div className="py-3"><dt className="text-sm font-bold text-muted-foreground uppercase">Format</dt><dd>{style === 'open' ? 'Open conversation' : `Guided · ${revision.body.sections.reduce((count, section) => count + section.items.length, 0)} questions`}</dd></div><div className="py-3"><dt className="text-sm font-bold text-muted-foreground uppercase">Preview</dt><dd>{revision.preview_decision === 'completed' ? 'Completed' : 'Skipped'}</dd></div><div className="py-3"><dt className="text-sm font-bold text-muted-foreground uppercase">Student outputs</dt><dd>Certificate {certificateEnabled ? 'on' : 'off'} · response form {downloadEnabled ? 'on' : 'off'}</dd></div></dl></aside></div>
         {audience === 'team' && <p className="text-sm text-muted-foreground">You can publish now and set up teams from the survey card before students begin.</p>}
         <Dialog open={templateDialogOpen} onOpenChange={(open) => {
           setTemplateDialogOpen(open)

@@ -321,8 +321,8 @@ body {
   --foreground: #24363b;
   --card-foreground: #24363b;
   --border: #cbd9dc;
-  --builder-preview-start: #075d79;
-  --builder-preview-end: #00888b;
+  --builder-preview-start: #075a73;
+  --builder-preview-end: #008b91;
   --builder-surface: #f7fafb;
 }
 
@@ -421,14 +421,14 @@ body {
 
 /* V12 output toggles retain the native Radix switch interaction. */
 .legacy-builder .legacy-builder-output-switch[data-size="default"] {
-  width: 46px;
-  height: 26px;
+  width: 44px;
+  height: 24px;
   padding: 2px;
 }
-.legacy-builder .legacy-builder-output-switch[data-state="unchecked"] { background: #aebdc0; }
+.legacy-builder .legacy-builder-output-switch[data-state="unchecked"] { background: #aab8bc; }
 .legacy-builder .legacy-builder-output-switch [data-slot="switch-thumb"] {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   background: white;
   transform: translateX(0);
 }
