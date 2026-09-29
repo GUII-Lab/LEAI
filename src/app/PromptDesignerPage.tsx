@@ -700,7 +700,7 @@ export function PromptDesignerPage({ api, environment, verified }: {
       {step === 2 && body && <div className="grid min-w-0 gap-0 overflow-hidden rounded-xl border border-border bg-card xl:h-[min(38rem,calc(100dvh-18rem))] xl:min-h-[30rem] xl:grid-cols-[minmax(17rem,34%)_minmax(0,66%)]">
         <AuthoringConversation busy={!!aiJobId} disabled={!draft} messages={conversation} onSend={() => { void sendAi() }}
           onValueChange={setComposer} value={composer} />
-        <div className="min-w-0 bg-card p-4 xl:h-full xl:overflow-y-auto xl:p-5"><ArtifactEditor body={body} collectionStyle={draft?.collection_style ?? 'guided'} disabled={false} onChange={editBody} onRestore={(version) => { void restoreVersion(version) }}
+        <div className="min-w-0 bg-card p-4 xl:h-full xl:overflow-y-auto xl:p-5"><ArtifactEditor audience={draft?.audience ?? audience} body={body} collectionStyle={draft?.collection_style ?? 'guided'} disabled={false} onChange={editBody} onRestore={(version) => { void restoreVersion(version) }}
           saveStatus={saveStatus} versions={versions} /></div>
       </div>}
       {step === 3 && revision && <PreviewStep busy={previewBusy}
