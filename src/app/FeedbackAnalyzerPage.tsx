@@ -200,9 +200,14 @@ export function FeedbackAnalyzerPage({ api, environment, verified }: { api: Feed
   const progressQuery = useQuery({
     queryKey: ['feedback-analyzer-progress', courseId],
     queryFn: ({ signal }) => api.progress(courseId, (allOccurrences ?? []).map((occurrence) => occurrence.id), signal),
-    enabled: verified && Boolean(courseId) && canAnalyze && allOverviewQuery.isSuccess && (mode === 'student-progress' || mode === 'group-progress'),
+    enabled: verified && Boolean(courseId) && canAnalyze && allOverviewQuery.isSuccess,
     retry: false,
   })
+  const visibleModes = useMemo(() => modes.filter((option) => {
+    if (option.value === 'student-progress') return progressQuery.data?.state === 'available' && progressQuery.data.students.length > 0
+    if (option.value === 'group-progress') return progressQuery.data?.state === 'available' && progressQuery.data.groups.length > 0
+    return true
+  }), [progressQuery.data])
 
   const selectedTeamSurvey = allOverviewQuery.data?.team_surveys.find((survey) => survey.id === selectedSurveyId)
     ?? allOverviewQuery.data?.team_surveys[0]
@@ -250,7 +255,7 @@ export function FeedbackAnalyzerPage({ api, environment, verified }: { api: Feed
   return <div className="mt-5 space-y-7">
     {!canAnalyze && <p className="text-base text-muted-foreground">You do not have permission to use Feedback Analyzer for this course.</p>}
     {canAnalyze && <>
-      <AnalysisModeTabs mode={mode} modes={modes} onModeChange={(nextMode) => { setMode(nextMode); setSelectedScopeId('all'); setSelectedTeamId(''); setSelectedTerm('') }} />
+      <AnalysisModeTabs mode={mode} modes={visibleModes} onModeChange={(nextMode) => { setMode(nextMode); setSelectedScopeId('all'); setSelectedTeamId(''); setSelectedTerm('') }} />
       {allOverviewQuery.isPending && <p className="text-base text-muted-foreground" role="status">Loading course analysis…</p>}
       {allOverviewQuery.isError && <div className="flex flex-wrap items-center gap-3" role="alert"><p className="text-base text-destructive">Could not load course analysis.</p><Button onClick={() => void allOverviewQuery.refetch()} type="button" variant="outline">Retry analysis</Button></div>}
       {allOverviewQuery.data && <>

@@ -35,7 +35,7 @@ export function AnalysisModeTabs({
     if (selected) onModeChange(selected.value)
   }} value={mode}>
     <TabsList aria-label="Survey mode" className="flex h-auto w-full flex-wrap justify-start gap-0 border-b border-input bg-transparent" variant="line">
-      {modes.map((option) => <TabsTrigger className={`h-11 rounded-none px-4 text-base font-semibold ${option.value === 'team' || option.value === 'group-progress' ? 'data-active:text-team data-active:after:bg-team' : option.value === 'structured' ? 'data-active:text-guided data-active:after:bg-guided' : 'data-active:text-primary data-active:after:bg-primary'}`} key={option.value} value={option.value}>{option.label}</TabsTrigger>)}
+      {modes.map((option) => <TabsTrigger className={`h-auto flex-none rounded-none px-[22px] py-3 text-[0.85rem] font-semibold tracking-[0.02em] ${option.value === 'team' || option.value === 'group-progress' ? 'data-active:text-team data-active:after:bg-team' : option.value === 'structured' ? 'data-active:text-guided data-active:after:bg-guided' : 'data-active:text-primary data-active:after:bg-primary'}`} key={option.value} value={option.value}>{option.label}</TabsTrigger>)}
     </TabsList>
   </Tabs>
 }
@@ -293,20 +293,22 @@ export function InstructorInsightsCard({
   onRetry?: () => void
   onCitationOpen?: (responseId: string) => void
 }) {
-  return <Card className={`rounded-sm border-0 border-l-4 bg-card shadow-none ${state.status === 'unavailable' ? 'border-l-input' : 'border-l-primary'}`}>
-    <CardHeader className="gap-2">
+  return <Card className="gap-4 overflow-visible rounded-none bg-transparent py-0 ring-0 shadow-none">
+    <CardHeader className="gap-2 px-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2"><CardTitle className="text-sm font-bold tracking-widest text-muted-foreground uppercase">Instructor Insights</CardTitle><InfoPopover label="About Instructor Insights">Insights summarize evidence from the selected response population. Open each citation to inspect the exact source response. Check the response count and data cutoff before using a claim.</InfoPopover></div>
-        {state.status === 'ready' && <Button onClick={onGenerate} type="button" variant="outline">Regenerate insights</Button>}
-        {state.status === 'not-run' && <Button onClick={onGenerate} type="button">Generate Instructor Insights</Button>}
+        <CardTitle className="text-[0.68rem] font-bold tracking-[0.09em] text-muted-foreground uppercase">Instructor Insights</CardTitle>
+        <div className="ml-auto flex items-center gap-2">
+          {state.status === 'ready' && <Button onClick={onGenerate} type="button" variant="outline">Regenerate insights</Button>}
+          {state.status === 'not-run' && <Button onClick={onGenerate} type="button">Generate Instructor Insights</Button>}
+          <InfoPopover label="About Instructor Insights">Insights summarize evidence from the selected response population. Open each citation to inspect the exact source response. Check the response count and data cutoff before using a claim.</InfoPopover>
+        </div>
       </div>
-      <CardDescription>Evidence-linked themes from the selected response population.</CardDescription>
       {(state.status === 'ready' || state.status === 'pending' || state.status === 'not-run') && <p className="text-xs text-muted-foreground">
         {state.sourceCount.toLocaleString()} responses · cutoff <time dateTime={state.responseCutoff}>{state.responseCutoff}</time>
         {state.status === 'ready' && <> · generated <time dateTime={state.generatedAt}>{state.generatedAt}</time></>}
       </p>}
     </CardHeader>
-    <CardContent className="space-y-4">
+    <CardContent className="space-y-4 px-0">
       {state.status === 'not-run' && <p className="text-base text-muted-foreground">{state.message ?? 'Generate an evidence-linked summary for this scope.'}</p>}
       {state.status === 'pending' && <p className="text-base text-muted-foreground" role="status">Generating Instructor Insights for {state.sourceCount.toLocaleString()} responses through {state.responseCutoff}…</p>}
       {state.status === 'unavailable' && <p className="text-base text-muted-foreground" role="status">{state.message}</p>}
@@ -388,14 +390,40 @@ export function ResponseList({
   state: ResponseListState
   onRetry?: () => void
 }) {
+  const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const filteredResponses = responses.filter((response) => {
     const sourceMatches = sourceFilter === 'all' || response.kind === sourceFilter
     return sourceMatches && (!nudgedOnly || response.nudged)
   })
+  const allExpanded = filteredResponses.length > 0 && filteredResponses.every((response) => expandedIds.has(response.responseId))
+
+  function toggleAll() {
+    setExpandedIds((current) => {
+      const next = new Set(current)
+      for (const response of filteredResponses) {
+        if (allExpanded) next.delete(response.responseId)
+        else next.add(response.responseId)
+      }
+      return next
+    })
+  }
+
+  function setResponseExpanded(responseId: string, expanded: boolean) {
+    setExpandedIds((current) => {
+      if (current.has(responseId) === expanded) return current
+      const next = new Set(current)
+      if (expanded) next.add(responseId)
+      else next.delete(responseId)
+      return next
+    })
+  }
 
   return <section aria-labelledby="analyzer-response-heading" className="space-y-4">
-    <div className="flex flex-wrap items-end justify-between gap-3">
-      <div><h2 className="text-lg font-semibold" id="analyzer-response-heading">Student Responses</h2><p className="text-base text-muted-foreground">Each card is one response record; chat messages are student turns within it.</p></div>
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <h2 className="text-[0.68rem] font-bold tracking-[0.09em] text-muted-foreground uppercase" id="analyzer-response-heading">Student Responses</h2>
+      <Button disabled={filteredResponses.length === 0} onClick={toggleAll} size="sm" type="button" variant="outline">{allExpanded ? 'Collapse All' : 'Expand All'}</Button>
+    </div>
+    <div className="flex flex-wrap items-end justify-end gap-3">
       <div className="flex flex-wrap items-center gap-4">
         <div className="grid gap-1">
           <label className="text-base font-medium" htmlFor="response-source-filter">Response source</label>
@@ -421,14 +449,18 @@ export function ResponseList({
     </div>}
     {state.status === 'ready' && (filteredResponses.length === 0
       ? <p className="text-base text-muted-foreground">{nudgedOnly ? 'No nudged responses in this scope.' : 'No responses yet.'}</p>
-      : <ul className="space-y-3">{filteredResponses.map((response) => <li key={response.responseId}><ResponseCard response={response} /></li>)}</ul>)}
+      : <ul className="space-y-3">{filteredResponses.map((response) => <li key={response.responseId}><ResponseCard expanded={expandedIds.has(response.responseId)} onExpandedChange={(expanded) => setResponseExpanded(response.responseId, expanded)} response={response} /></li>)}</ul>)}
   </section>
 }
 
-export function ResponseCard({ response }: { response: AnalyzerResponse }) {
+export function ResponseCard({ response, expanded, onExpandedChange }: { response: AnalyzerResponse; expanded?: boolean; onExpandedChange?: (expanded: boolean) => void }) {
   const turnCount = response.kind === 'chat' ? response.transcript.length : response.answers.length
+  const [localExpanded, setLocalExpanded] = useState(response.kind === 'chat' && Boolean(response.highlightedMessageId))
   return <Card className="py-0">
-    <details className="group/response" open={response.kind === 'chat' && Boolean(response.highlightedMessageId)}>
+    <details className="group/response" onToggle={(event) => {
+      if (expanded === undefined) setLocalExpanded(event.currentTarget.open)
+      else onExpandedChange?.(event.currentTarget.open)
+    }} open={expanded ?? localExpanded}>
       <summary aria-label={`Show response ${response.label}`} className="flex cursor-pointer list-none flex-wrap items-center gap-2 p-4 focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
         <span aria-hidden="true" className="text-muted-foreground transition-transform group-open/response:rotate-180">⌄</span>
         <span className="font-medium">{response.label}</span>

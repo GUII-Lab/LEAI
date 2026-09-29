@@ -192,9 +192,21 @@ body {
 }
 
 .legacy-analyzer-main > * {
-  max-width: 1100px;
+  max-width: 1036px;
   margin-right: auto;
   margin-left: auto;
+}
+
+@media (min-width: 768px) and (max-width: 900px) {
+  .legacy-analyzer.legacy-instructor-ui .legacy-analyzer-main {
+    padding: 28px 20px;
+  }
+}
+
+@media (min-width: 901px) {
+  .legacy-analyzer.legacy-instructor-ui .legacy-analyzer-main {
+    padding: 40px 32px;
+  }
 }
 
 .legacy-prompt-main > * {

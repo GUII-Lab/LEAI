@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { afterAll, beforeAll, expect, it, vi } from 'vitest'
@@ -262,6 +262,8 @@ it('filters response cards by source and nudged state and drills into student tu
 
   const sourceSelect = screen.getByRole('combobox', { name: 'Response source' })
   await user.tab()
+  expect(screen.getByRole('button', { name: 'Expand All' })).toHaveFocus()
+  await user.tab()
   expect(sourceSelect).toHaveFocus()
   await user.keyboard('{Enter}{End}{Enter}')
   expect(onSourceFilterChange).toHaveBeenCalledWith('pdf')
@@ -277,6 +279,30 @@ it('filters response cards by source and nudged state and drills into student tu
   expect(screen.getByText('The project brief was clear.')).toBeInTheDocument()
   expect(screen.queryByText('Peer feedback.')).not.toBeInTheDocument()
   expect(screen.getByRole('link', { name: 'Open response R1' })).toHaveAttribute('href', '/courses/c1/responses/response-1')
+})
+
+it('expands and collapses all visible response cards while keeping individual control', async () => {
+  const user = userEvent.setup()
+  render(<InteractiveResponseList onSourceFilterChange={vi.fn()} onNudgedOnlyChange={vi.fn()} />)
+  const r1 = screen.getByLabelText('Show response R1').closest('details')
+  const r2 = screen.getByLabelText('Show response R2').closest('details')
+  expect(r1).not.toHaveAttribute('open')
+  expect(r2).not.toHaveAttribute('open')
+  await user.click(screen.getByRole('button', { name: 'Expand All' }))
+  await waitFor(() => {
+    expect(r1).toHaveAttribute('open')
+    expect(r2).toHaveAttribute('open')
+  })
+  await user.click(screen.getByRole('button', { name: 'Collapse All' }))
+  await waitFor(() => {
+    expect(r1).not.toHaveAttribute('open')
+    expect(r2).not.toHaveAttribute('open')
+  })
+  await user.click(screen.getByLabelText('Show response R1'))
+  await waitFor(() => {
+    expect(r1).toHaveAttribute('open')
+    expect(r2).not.toHaveAttribute('open')
+  })
 })
 
 it('shows PDF-only answer rows and filtered empty states', async () => {

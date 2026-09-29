@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, it, vi } from 'vitest'
 import type {
@@ -155,12 +155,12 @@ it('loads course analysis and composes response records using the existing prese
   expect(await screen.findByRole('button', { name: 'Week 1 feedback' })).toBeInTheDocument()
   expect(screen.queryByRole('combobox', { name: 'Course' })).not.toBeInTheDocument()
   const modeTabs = await screen.findByRole('tablist', { name: 'Survey mode' })
+  await screen.findByRole('tab', { name: 'Student progress' })
   expect(within(modeTabs).getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
     'General Course Feedback',
     'In-Group Feedback',
     'Structured Reflection',
     'Student progress',
-    'Group progress',
   ])
   expect(screen.getByRole('navigation', { name: 'Survey week scope' })).toBeInTheDocument()
   expect(screen.getByRole('region', { name: 'Analysis metrics' })).toBeInTheDocument()
@@ -174,6 +174,17 @@ it('loads course analysis and composes response records using the existing prese
   expect(responseLink).toHaveAttribute('href', expect.stringContaining(`/FeedbackAnalyzer.html?course_id=${courseId}`))
   expect(responseLink).toHaveAttribute('href', expect.stringContaining(`occurrence_id=${generalOccurrenceId}`))
   expect(responseLink).toHaveAttribute('href', expect.stringContaining(`response_id=${responseId}`))
+})
+
+it('hides progress tabs when anonymous matching is unavailable', async () => {
+  vi.mocked(api.progress).mockResolvedValueOnce({ state: 'unavailable', reason: 'matching_disabled', occurrences: [], students: [], groups: [], unlinked_by_occurrence: [] })
+  const client = renderPage()
+  await screen.findByRole('button', { name: 'Week 1 feedback' })
+  await waitFor(() => expect(client.getQueryState(['feedback-analyzer-progress', courseId])?.status).toBe('success'))
+  const tabs = screen.getByRole('tablist', { name: 'Survey mode' })
+  expect(within(tabs).getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+    'General Course Feedback', 'In-Group Feedback', 'Structured Reflection',
+  ])
 })
 
 it('exposes anonymous progress only when selected', async () => {

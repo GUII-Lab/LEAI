@@ -216,6 +216,22 @@ test('Feedback Chat keeps the compact old QA heading and viewport-filling worksp
   }
 })
 
+test('Feedback Analyzer keeps the old QA content width and response expansion control', async ({ page }) => {
+  for (const [width, expectedLeft] of [[390, 16], [820, 20], [1022, 32], [1440, 312]]) {
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto('/FeedbackAnalyzer.html')
+    const heading = page.getByRole('heading', { name: 'Feedback Analyzer' })
+    await expect(heading).toBeVisible()
+    await expect.poll(async () => Math.round((await heading.boundingBox())?.x ?? -1)).toBe(expectedLeft)
+  }
+  const expandAll = page.getByRole('button', { name: 'Expand All' })
+  await expect(expandAll).toBeVisible()
+  await expandAll.click()
+  await expect(page.getByRole('region', { name: 'Transcript for response R1' })).toBeVisible()
+  await page.getByRole('button', { name: 'Collapse All' }).click()
+  await expect(page.getByRole('region', { name: 'Transcript for response R1' })).toBeHidden()
+})
+
 test('Wizard uses the shared student composer with the V12 Wizard theme', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/PromptDesigner.html')
