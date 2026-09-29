@@ -1,10 +1,12 @@
 import fs from 'node:fs'
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type BrowserContext, type Page } from '@playwright/test'
 
 const base = process.env.LEAI_CHAT_VERIFY_BASE
 const credentialFile = process.env.LEAI_CHAT_VERIFY_FIXTURE
 test.skip(!base || !credentialFile, 'Requires a disposable isolated or QA chat fixture')
 test.setTimeout(120_000)
+test.describe.configure({ mode: 'serial' })
+let instructorCookies: Awaited<ReturnType<BrowserContext['cookies']>> | undefined
 
 async function dictationDouble(page: Page) {
   // Browser SpeechRecognition plumbing, not microphone/acoustic acceptance.
@@ -22,16 +24,25 @@ async function dictationDouble(page: Page) {
 }
 async function instructor(page: Page) {
   const credentials = JSON.parse(fs.readFileSync(credentialFile!, 'utf8'))
-  await page.goto(`${base}/InstructorLogin.html`)
-  await page.getByLabel('Email', { exact: true }).fill(credentials.email)
-  await page.getByLabel('Password', { exact: true }).fill(credentials.password)
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
-  await page.waitForURL(/InstructorHome/)
+  if (instructorCookies) {
+    await page.context().addCookies(instructorCookies)
+    await page.goto(`${base}/InstructorHome.html`)
+  } else {
+    await page.goto(`${base}/InstructorLogin.html`)
+    await page.getByLabel('Email', { exact: true }).fill(credentials.email)
+    await page.getByLabel('Password', { exact: true }).fill(credentials.password)
+    const response = page.waitForResponse(reply => reply.url().includes('/instructor_sessions/') && reply.request().method() === 'POST', { timeout: 30_000 })
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+    expect((await response).status()).toBe(201)
+    await page.waitForURL(/InstructorHome/)
+    instructorCookies = await page.context().cookies()
+  }
   await page.getByRole('link', { name: 'Open QA Conversational Likert Validation', exact: true }).click()
 }
 async function exercise(page: Page, endpoint: RegExp, text: string, testInfo: import('@playwright/test').TestInfo) {
   const input = page.getByRole('textbox', { name: /^(Message|Ask LEAI to edit this feedback draft)$/ })
   const log = page.getByRole('log', { name: 'Conversation' })
+  const previousAssistantCount = await log.locator('[data-chat-role="assistant"]').count()
   let release!: () => void
   const gate = new Promise<void>(resolve => { release = resolve })
   let requests = 0
@@ -69,6 +80,8 @@ async function exercise(page: Page, endpoint: RegExp, text: string, testInfo: im
   } finally { release() }
   await expect.poll(() => responseStatus !== undefined && [200, 202].includes(responseStatus), { timeout: 90_000 }).toBe(true)
   await expect(page.getByRole('status', { name: 'LEAI is responding' })).toHaveCount(0, { timeout: 90_000 })
+  await expect.poll(() => log.locator('[data-chat-role="assistant"]').count()).toBeGreaterThan(previousAssistantCount)
+  await expect(log.locator('[data-chat-role="assistant"]').last().locator('p').first()).toBeInViewport()
   await expect(input).toHaveValue('Next draft spoken next detail')
   await expect(page.getByRole('button', { name: 'Stop dictation' })).toHaveAttribute('aria-pressed', 'true')
   await expect(log.getByText(text, { exact: true })).toHaveCount(1)
