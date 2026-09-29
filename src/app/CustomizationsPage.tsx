@@ -11,7 +11,69 @@ import { loginHref } from '@/auth/navigation'
 
 type InstructorApi = ReturnType<typeof createInstructorApi>
 type BannerSettings = Awaited<ReturnType<InstructorApi['courseBannerSettings']>>
+type StudentPdfSettings = Awaited<ReturnType<InstructorApi['studentPdfSettings']>>
 const defaultBannerText = "You're chatting with an AI assistant, not a person. It can make mistakes, so use your own judgment."
+
+function CourseStudentPdfSettings({ api, courseId, environmentName }: {
+  api: InstructorApi
+  courseId: string
+  environmentName: string
+}) {
+  const queryClient = useQueryClient()
+  const queryKey = ['student-pdf-settings', environmentName, courseId]
+  const settingsQuery = useQuery({
+    queryKey,
+    queryFn: ({ signal }) => api.studentPdfSettings(courseId, signal),
+    retry: false,
+  })
+  const save = useMutation({
+    mutationFn: (settings: StudentPdfSettings) => api.updateStudentPdfSettings(courseId, {
+      include_ai_conversation_in_student_pdf: !settings.include_ai_conversation_in_student_pdf,
+      expected_settings_version: settings.settings_version,
+    }),
+    onSuccess: async (settings) => {
+      queryClient.setQueryData(queryKey, settings)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['course-banner-settings', environmentName, courseId] }),
+        queryClient.invalidateQueries({ queryKey: ['course-debug-settings', environmentName, courseId] }),
+        queryClient.invalidateQueries({ queryKey: ['analysis-settings', environmentName, courseId] }),
+      ])
+    },
+  })
+  const denied = settingsQuery.error instanceof InstructorApiError && settingsQuery.error.status === 404
+  const conflict = save.error instanceof InstructorApiError && save.error.status === 409
+  const enabled = settingsQuery.data?.include_ai_conversation_in_student_pdf ?? false
+
+  return <Card>
+    <CardHeader>
+      <h2 className="text-xl font-semibold">Student response PDF</h2>
+      <CardDescription>Choose whether exported student PDFs include the AI conversation. Existing chat and analysis records are unchanged.</CardDescription>
+    </CardHeader>
+    <CardContent className="space-y-4">
+      {settingsQuery.isPending && <p role="status">Loading student PDF settings…</p>}
+      {denied && <p className="text-base text-muted-foreground" role="status">Only an instructor with course management access can view or change this setting.</p>}
+      {settingsQuery.isError && !denied && <p role="alert">Could not load student PDF settings.</p>}
+      {settingsQuery.data && <section className="rounded-xl border border-border bg-card p-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <h3 className="font-semibold">Include AI conversation in student PDF</h3>
+            <p className="mt-1 text-base text-muted-foreground">Off is the default and includes structured answers only. On also adds the student and AI conversation to the PDF.</p>
+            <p className="mt-2 text-sm font-medium">{enabled ? 'On' : 'Off'}</p>
+          </div>
+          <Switch aria-label="Include AI conversation in student PDF" checked={enabled} disabled={save.isPending}
+            onCheckedChange={() => save.mutate(settingsQuery.data)} />
+        </div>
+        {save.isPending && <p className="mt-3 text-sm text-muted-foreground" role="status">Saving setting…</p>}
+        {save.isSuccess && <p className="mt-3 text-sm text-success" role="status">Student PDF setting saved.</p>}
+        {conflict && <div className="mt-3 flex flex-wrap items-center gap-3">
+          <p className="text-sm text-destructive" role="alert">This setting changed elsewhere. Reload it before trying again.</p>
+          <Button onClick={() => { save.reset(); void settingsQuery.refetch() }} type="button" variant="outline">Reload setting</Button>
+        </div>}
+        {save.isError && !conflict && <p className="mt-3 text-sm text-destructive" role="alert">Could not save the setting. Please try again.</p>}
+      </section>}
+    </CardContent>
+  </Card>
+}
 
 function CourseBannerEditor({ api, courseId, environmentName }: {
   api: InstructorApi
@@ -45,6 +107,7 @@ function CourseBannerEditor({ api, courseId, environmentName }: {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['course-debug-settings', environmentName, courseId] }),
         queryClient.invalidateQueries({ queryKey: ['analysis-settings', environmentName, courseId] }),
+        queryClient.invalidateQueries({ queryKey: ['student-pdf-settings', environmentName, courseId] }),
       ])
     },
   })
@@ -168,6 +231,7 @@ export function CustomizationsPage({ api, environment, verified }: {
     onSuccess: (settings) => {
       queryClient.setQueryData(['course-debug-settings', environment.name, selectedCourseId], settings)
       void queryClient.invalidateQueries({ queryKey: ['course-banner-settings', environment.name, selectedCourseId] })
+      void queryClient.invalidateQueries({ queryKey: ['student-pdf-settings', environment.name, selectedCourseId] })
       void queryClient.invalidateQueries({ queryKey: ['analysis-settings', environment.name, selectedCourseId] })
     },
   })
@@ -183,6 +247,7 @@ export function CustomizationsPage({ api, environment, verified }: {
     onSuccess: (settings) => {
       queryClient.setQueryData(['analysis-settings', environment.name, selectedCourseId], settings)
       void queryClient.invalidateQueries({ queryKey: ['course-banner-settings', environment.name, selectedCourseId] })
+      void queryClient.invalidateQueries({ queryKey: ['student-pdf-settings', environment.name, selectedCourseId] })
       void queryClient.invalidateQueries({ queryKey: ['course-debug-settings', environment.name, selectedCourseId] })
     },
   })
@@ -203,7 +268,10 @@ export function CustomizationsPage({ api, environment, verified }: {
     {sessionExpired && <p role="alert">Your sign-in has expired. <a className="font-medium text-primary underline" href={loginHref(environment, window.location.pathname)}>Sign in again</a>.</p>}
     {coursesQuery.isSuccess && courses.length === 0 && <p className="text-base text-muted-foreground">No active courses are available for this account.</p>}
 
-    {courses.length > 0 && selectedCourseId && <CourseBannerEditor api={activeApi} courseId={selectedCourseId} environmentName={environment.name} key={selectedCourseId} />}
+    {courses.length > 0 && selectedCourseId && <>
+      <CourseBannerEditor api={activeApi} courseId={selectedCourseId} environmentName={environment.name} key={`banner-${selectedCourseId}`} />
+      <CourseStudentPdfSettings api={activeApi} courseId={selectedCourseId} environmentName={environment.name} key={`student-pdf-${selectedCourseId}`} />
+    </>}
 
     {courses.length > 0 && <Card>
       <CardHeader>

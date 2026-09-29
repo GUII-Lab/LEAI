@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { qualifyBrowserKey, toAppHref, type PublicEnvironment } from '@/config/environment'
 import { StudentConversation } from './StudentConversation'
-import { createStudentDraft, downloadStudentDraft, saveStudentDocumentBlob } from './student-document'
+import { saveStudentPdfBlob } from './student-document'
 
 type StudentApi = ReturnType<typeof createStudentApi>
 type StoredSession = { sessionId: string; token: string }
@@ -278,22 +278,19 @@ export function StudentSurveyPage({ api, environment, verified }: {
     if (!surveyQuery.data || !session || !stored) return
     setBusy(true)
     try {
-      if (session.prompt.phase !== 'complete') {
-        await downloadStudentDraft(surveyQuery.data, session)
-      } else {
-        const blob = await createStudentDraft(surveyQuery.data, session)
-        if (session.status === 'active') {
-          const finalized = await activeApi.finalize(surveyId, stored.sessionId, stored.token, session.turn_version)
-          setCurrent(finalized)
-        }
-        saveStudentDocumentBlob(blob, surveyQuery.data.label, true)
+      let finalized = session.prompt.phase === 'complete'
+      if (finalized && session.status === 'active') {
+        const current = await activeApi.finalize(surveyId, stored.sessionId, stored.token, session.turn_version)
+        setCurrent(current)
       }
+      const pdf = await activeApi.responsePdf(surveyId, stored.sessionId, stored.token)
+      saveStudentPdfBlob(pdf, surveyQuery.data.label, finalized)
       setError('')
     } catch (cause) {
       if (cause instanceof ApiFailure && cause.kind === 'conflict') {
         setConflict(true)
         setError('This reflection changed in another tab. Load the latest version before downloading.')
-      } else setError('Could not download the Word document. Please try again.')
+      } else setError('Could not download the PDF. Please try again.')
     } finally {
       setBusy(false)
     }

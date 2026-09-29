@@ -279,3 +279,24 @@ it('creates a revised Wizard draft through the managed survey action contract', 
   expect(new Headers(init?.headers).get('Idempotency-Key')).toBe('revise-survey-attempt-1')
   expect(new Headers(init?.headers).get('X-CSRFToken')).toBe('masked-csrf-token')
 })
+
+
+it('loads and updates the versioned course student-PDF transcript preference', async () => {
+  const settings = { include_ai_conversation_in_student_pdf: false, settings_version: 7 }
+  const saved = { include_ai_conversation_in_student_pdf: true, settings_version: 8 }
+  const fetcher = vi.fn<typeof fetch>()
+    .mockResolvedValueOnce(new Response(JSON.stringify(settings), { status: 200 }))
+    .mockResolvedValueOnce(csrf())
+    .mockResolvedValueOnce(new Response(JSON.stringify(saved), { status: 200 }))
+  const api = createInstructorApi(environment, () => true, fetcher)
+
+  await expect(api.studentPdfSettings(courseId)).resolves.toEqual(settings)
+  await expect(api.updateStudentPdfSettings(courseId, {
+    include_ai_conversation_in_student_pdf: true, expected_settings_version: 7,
+  })).resolves.toEqual(saved)
+  expect(String(fetcher.mock.calls[0]?.[0])).toContain(`instructor_courses/${courseId}/student-pdf-settings/`)
+  expect(fetcher.mock.calls[2]?.[1]?.method).toBe('PATCH')
+  expect(JSON.parse(fetcher.mock.calls[2]?.[1]?.body as string)).toEqual({
+    include_ai_conversation_in_student_pdf: true, expected_settings_version: 7,
+  })
+})

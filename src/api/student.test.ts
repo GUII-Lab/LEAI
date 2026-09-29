@@ -126,3 +126,17 @@ it('posts matching signals with the session capability and no instructor cookie'
   })
   expect(new Headers(fetcher.mock.calls[0]?.[1]?.headers).get('Authorization')).toBe(`Bearer ${token}`)
 })
+
+
+it('downloads a private response PDF with the student session capability', async () => {
+  const fetcher = vi.fn().mockResolvedValue(new Response('%PDF-test', {
+    status: 200, headers: { 'Content-Type': 'application/pdf' },
+  }))
+  const api = createStudentApi(getEnvironment({}), () => true, fetcher)
+
+  const blob = await api.responsePdf(surveyId, sessionId, token)
+  expect(blob.type).toBe('application/pdf')
+  expect(await blob.text()).toBe('%PDF-test')
+  expect(String(fetcher.mock.calls[0]?.[0])).toContain(`/surveys/${surveyId}/sessions/${sessionId}/response.pdf/`)
+  expect(new Headers(fetcher.mock.calls[0]?.[1]?.headers).get('Authorization')).toBe(`Bearer ${token}`)
+})

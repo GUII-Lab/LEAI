@@ -127,6 +127,16 @@ export const courseBannerSettingsPatchSchema = z.object({
   expected_settings_version: z.number().int().positive(),
 }).strict()
 
+export const studentPdfSettingsSchema = z.object({
+  include_ai_conversation_in_student_pdf: z.boolean(),
+  settings_version: z.number().int().positive(),
+}).strict()
+
+export const studentPdfSettingsPatchSchema = z.object({
+  include_ai_conversation_in_student_pdf: z.boolean(),
+  expected_settings_version: z.number().int().positive(),
+}).strict()
+
 export const canonicalInstructorMeSchema = z.object({
   id: z.string().uuid(),
   email: emailSchema,

@@ -3,6 +3,7 @@ import type { PublicEnvironment } from '@/config/environment'
 import { createHttpClient } from './http-client'
 import { createSessionClient } from './browser-session'
 import { parseJsonResponse } from './contracts/response'
+import { ApiFailure } from './contracts/errors'
 
 const uuid = z.string().uuid()
 const choiceSchema = z.object({ value: z.number().int().positive(), label: z.string().min(1) }).strict()
@@ -141,6 +142,17 @@ export function createStudentApi(
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ expected_version: expectedVersion }),
       }), studentSessionSchema)
+    },
+    async responsePdf(surveyId: string, sessionId: string, token: string) {
+      const response = await privateRequest(token)(`${sessionPath(surveyId, sessionId)}response.pdf/`)
+      if (!response.ok) {
+        await parseJsonResponse(response, z.never())
+        throw new Error('Unexpected successful error response')
+      }
+      if (!(response.headers.get('Content-Type') ?? '').toLowerCase().startsWith('application/pdf')) {
+        throw new ApiFailure({ kind: 'contract', status: response.status, retryable: false })
+      }
+      return response.blob()
     },
   }
 }

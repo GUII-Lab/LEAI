@@ -30,6 +30,10 @@ function makeApi(overrides: Partial<{ settings: () => Promise<{ debug_enabled: b
     updateCourseBannerSettings: vi.fn().mockImplementation(async (_id: string, input: Record<string, unknown>) => ({
       ...input, expected_settings_version: undefined, settings_version: 2,
     })),
+    studentPdfSettings: vi.fn().mockResolvedValue({ include_ai_conversation_in_student_pdf: false, settings_version: 1 }),
+    updateStudentPdfSettings: vi.fn().mockImplementation(async (_id: string, input: Record<string, unknown>) => ({
+      include_ai_conversation_in_student_pdf: input.include_ai_conversation_in_student_pdf, settings_version: 2,
+    })),
   } as unknown as TestInstructorApi
 }
 
@@ -105,4 +109,20 @@ it('edits and saves the current course banner with its settings version', async 
     banner_enabled: true, banner_text: 'Welcome to the course', expected_settings_version: 1,
   })))
   expect(await screen.findByRole('status')).toHaveTextContent('Course banner saved')
+})
+
+
+it('shows the default-off PDF privacy choice and persists opt-in with the current course version', async () => {
+  const api = makeApi()
+  const user = userEvent.setup()
+  renderPage(api)
+
+  const toggle = await screen.findByRole('switch', { name: 'Include AI conversation in student PDF' })
+  expect(toggle).toHaveAttribute('aria-checked', 'false')
+  expect(screen.getByText('Off')).toBeInTheDocument()
+  await user.click(toggle)
+  await waitFor(() => expect(api.updateStudentPdfSettings).toHaveBeenCalledWith(courseId, {
+    include_ai_conversation_in_student_pdf: true, expected_settings_version: 1,
+  }))
+  expect(await screen.findByRole('status')).toHaveTextContent('Student PDF setting saved')
 })

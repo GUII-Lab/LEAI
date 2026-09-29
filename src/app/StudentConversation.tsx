@@ -198,7 +198,7 @@ export function StudentConversation({ survey, session, text, onTextChange, ratin
           <div aria-hidden={hasStudentResponse && !downloadsExpanded} className="student-download-strip" id="reflection-downloads" inert={hasStudentResponse && !downloadsExpanded} role="group" aria-label="Reflection downloads">
             <span className="student-download-status"><strong>{prompt?.phase === 'complete' ? 'Reflection complete' : 'Reflection in progress'}</strong>{prompt?.phase !== 'complete' && <> · {session.progress_label}</>}</span>
             {survey.completed_response_download_enabled && <button onClick={onDownloadDocument} type="button">
-              {prompt?.phase === 'complete' ? 'Download my reflection (Word / .docx)' : 'Save draft (.docx)'}
+              {prompt?.phase === 'complete' ? 'Download my reflection (.pdf)' : 'Save draft (.pdf)'}
             </button>}
             {survey.completion_certificate_enabled && <button disabled type="button">
               {session.messages.some((message) => message.role === 'student')

@@ -22,7 +22,7 @@ const ratingPrompt = { item_id: 'P1', phase: 'rating' as const, text: 'I think a
 const reflectionPrompt = { item_id: 'P1', phase: 'reflection' as const, text: 'Why?', wording: 'adaptive' as const, choices: null }
 const baseSession = { session_id: sessionId, survey_id: surveyId, turn_version: 1, status: 'active' as const, prompt: ratingPrompt,
   progress_label: 'Area 1 of 3 — Planning · Question 1 of 4', results: {}, answer_map: {}, messages: [] }
-const api = { survey: vi.fn(), start: vi.fn(), session: vi.fn(), turn: vi.fn(), matchingSignals: vi.fn(), debugAccess: vi.fn(), debug: vi.fn(), finalize: vi.fn() } as unknown as ReturnType<typeof createStudentApi>
+const api = { survey: vi.fn(), start: vi.fn(), session: vi.fn(), turn: vi.fn(), matchingSignals: vi.fn(), debugAccess: vi.fn(), debug: vi.fn(), finalize: vi.fn(), responsePdf: vi.fn() } as unknown as ReturnType<typeof createStudentApi>
 const browserStorage = new Map<string, string>()
 
 function renderPage(verified = true, selectedEnvironment = environment) {
@@ -52,6 +52,7 @@ beforeEach(() => {
   vi.mocked(api.session).mockReset().mockResolvedValue(baseSession)
   vi.mocked(api.turn).mockReset()
   vi.mocked(api.finalize).mockReset()
+  vi.mocked(api.responsePdf).mockReset().mockResolvedValue(new Blob(['%PDF-test'], { type: 'application/pdf' }))
   vi.mocked(api.matchingSignals).mockReset().mockResolvedValue({ accepted: true })
   Object.defineProperty(window, 'FingerprintJS', { configurable: true, value: undefined })
   vi.mocked(api.debugAccess).mockReset().mockResolvedValue({ enabled: false })
@@ -173,7 +174,7 @@ it('retains the original conversation footer and output controls when the survey
   expect(within(dialog).getByRole('button', { name: 'Continue' })).toBeDisabled()
   await acceptConsent(user)
   expect(await screen.findByText(/You can revise or add to any answer anytime/)).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Save draft (.docx)' })).toBeEnabled()
+  expect(screen.getByRole('button', { name: 'Save draft (.pdf)' })).toBeEnabled()
   expect(screen.getByRole('button', { name: 'Respond once to unlock your certificate' })).toBeDisabled()
 })
 
@@ -507,4 +508,36 @@ it('does not load or send matching signals when the course setting is off', asyn
   expect(api.matchingSignals).not.toHaveBeenCalled()
   expect(document.querySelector('script[src*="fingerprintjs"]')).not.toBeInTheDocument()
   expect(window.localStorage.getItem('leai_device_key')).toBeNull()
+})
+
+
+it('downloads the finalized student PDF through the session capability', async () => {
+  vi.mocked(api.survey).mockResolvedValue({ ...survey, completed_response_download_enabled: true })
+  const complete = { ...baseSession, prompt: { phase: 'complete' as const }, progress_label: 'Reflection complete' }
+  const finalized = { ...complete, status: 'completed' as const, turn_version: 2 }
+  sessionStorage.setItem(`leai:local:student:${surveyId}`, JSON.stringify({ sessionId, token }))
+  vi.mocked(api.session).mockResolvedValue(complete)
+  vi.mocked(api.finalize).mockResolvedValue(finalized)
+  const priorCreate = Object.getOwnPropertyDescriptor(URL, 'createObjectURL')
+  const priorRevoke = Object.getOwnPropertyDescriptor(URL, 'revokeObjectURL')
+  Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:student-pdf') })
+  Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
+  const downloads: string[] = []
+  const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+    downloads.push(this.download)
+  })
+  try {
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Download my reflection (.pdf)' }))
+    await waitFor(() => expect(api.responsePdf).toHaveBeenCalledWith(surveyId, sessionId, token))
+    expect(api.finalize).toHaveBeenCalledWith(surveyId, sessionId, token, complete.turn_version)
+    expect(downloads).toEqual(['Ulia-reflection-final.pdf'])
+  } finally {
+    click.mockRestore()
+    if (priorCreate) Object.defineProperty(URL, 'createObjectURL', priorCreate)
+    else Reflect.deleteProperty(URL, 'createObjectURL')
+    if (priorRevoke) Object.defineProperty(URL, 'revokeObjectURL', priorRevoke)
+    else Reflect.deleteProperty(URL, 'revokeObjectURL')
+  }
 })

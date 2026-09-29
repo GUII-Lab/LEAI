@@ -6,6 +6,8 @@ import {
   canonicalCourseCreateRequestSchema,
   courseBannerSettingsSchema,
   courseBannerSettingsPatchSchema,
+  studentPdfSettingsSchema,
+  studentPdfSettingsPatchSchema,
   canonicalCourseSchema,
   canonicalInstructorMeSchema,
   canonicalProfilePatchRequestSchema,
@@ -201,6 +203,26 @@ export function createInstructorApi(
           method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
         }),
         courseBannerSettingsSchema,
+      )
+    },
+    async studentPdfSettings(courseId: string, signal?: AbortSignal) {
+      const id = z.string().uuid().parse(courseId)
+      return parseResponse(
+        await protectedRequest(`instructor_courses/${id}/student-pdf-settings/`, { signal }),
+        studentPdfSettingsSchema,
+      )
+    },
+    async updateStudentPdfSettings(courseId: string, input: {
+      include_ai_conversation_in_student_pdf: boolean
+      expected_settings_version: number
+    }) {
+      const id = z.string().uuid().parse(courseId)
+      const body = studentPdfSettingsPatchSchema.parse(input)
+      return parseResponse(
+        await protectedRequest(`instructor_courses/${id}/student-pdf-settings/`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        }),
+        studentPdfSettingsSchema,
       )
     },
     async search(courseId: string, query: string, signal?: AbortSignal) {
