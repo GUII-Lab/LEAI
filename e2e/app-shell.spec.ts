@@ -201,6 +201,27 @@ test('missing course context redirects to the dedicated 404 without course navig
   await expect.poll(() => page.evaluate(() => sessionStorage.getItem('leai:local:selected-course'))).toBeNull()
 })
 
+test('course-id deep link opens an accessible course without tab-local selection', async ({ page }) => {
+  await page.goto('/InstructorHome.html')
+  await page.evaluate(() => {
+    sessionStorage.setItem('leai:test-course-context-initialized', 'true')
+    sessionStorage.removeItem('leai:local:selected-course')
+  })
+  await page.goto('/FeedbackAnalyzer.html?course_id=11111111-1111-4111-8111-111111111111')
+
+  await expect(page.getByRole('heading', { name: 'Feedback Analyzer' })).toBeVisible()
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem('leai:local:selected-course')))
+    .toBe('11111111-1111-4111-8111-111111111111')
+})
+
+test('course-id deep link rejects an inaccessible requested course despite a valid prior selection', async ({ page }) => {
+  await page.goto('/InstructorHome.html')
+  await page.goto('/FeedbackAnalyzer.html?course_id=22222222-2222-4222-8222-222222222222')
+
+  await expect(page).toHaveURL(/NotFound\.html$/)
+  await expect(page.getByRole('heading', { name: 'Page Not Found' })).toBeVisible()
+})
+
 test('keeps student consent and conversation body copy at the regular 16px size', async ({ page }, testInfo) => {
   const surveyId = '550e8400-e29b-41d4-a716-446655440010'
   const sessionId = '550e8400-e29b-41d4-a716-446655440011'

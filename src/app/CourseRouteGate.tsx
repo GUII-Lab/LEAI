@@ -17,7 +17,10 @@ export function CourseRouteGate({ environment, children }: {
   useEffect(() => {
     let active = true
     const selectionKey = qualifyBrowserKey(environment.name, 'selected-course')
-    const selectedCourseId = sessionStorage.getItem(selectionKey)
+    const requestedCourseIds = new URLSearchParams(window.location.search).getAll('course_id')
+    const selectedCourseId = requestedCourseIds.length === 0
+      ? sessionStorage.getItem(selectionKey)
+      : requestedCourseIds.length === 1 ? requestedCourseIds[0] : null
     const notFoundHref = toAppHref(environment, 'NotFound.html')
 
     const redirectToNotFound = () => {
@@ -38,6 +41,7 @@ export function CourseRouteGate({ environment, children }: {
         redirectToNotFound()
         return
       }
+      if (requestedCourseIds.length === 1) sessionStorage.setItem(selectionKey, selectedCourseId)
       setStatus('ready')
     }).catch((error: unknown) => {
       if (!active) return
