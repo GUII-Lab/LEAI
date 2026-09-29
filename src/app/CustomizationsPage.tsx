@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { qualifyBrowserKey, type PublicEnvironment } from '@/config/environment'
 import { loginHref } from '@/auth/navigation'
+import { CourseStudentSupportSettings } from './CourseStudentSupportSettings'
 
 type InstructorApi = ReturnType<typeof createInstructorApi>
 type BannerSettings = Awaited<ReturnType<InstructorApi['courseBannerSettings']>>
@@ -34,6 +35,7 @@ function CourseStudentPdfSettings({ api, courseId, environmentName }: {
     onSuccess: async (settings) => {
       queryClient.setQueryData(queryKey, settings)
       await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['course-referral-settings', environmentName, courseId] }),
         queryClient.invalidateQueries({ queryKey: ['course-banner-settings', environmentName, courseId] }),
         queryClient.invalidateQueries({ queryKey: ['course-debug-settings', environmentName, courseId] }),
         queryClient.invalidateQueries({ queryKey: ['analysis-settings', environmentName, courseId] }),
@@ -105,6 +107,7 @@ function CourseBannerEditor({ api, courseId, environmentName }: {
       queryClient.setQueryData(queryKey, settings)
       setDraftOverride(null)
       await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['course-referral-settings', environmentName, courseId] }),
         queryClient.invalidateQueries({ queryKey: ['course-debug-settings', environmentName, courseId] }),
         queryClient.invalidateQueries({ queryKey: ['analysis-settings', environmentName, courseId] }),
         queryClient.invalidateQueries({ queryKey: ['student-pdf-settings', environmentName, courseId] }),
@@ -230,6 +233,7 @@ export function CustomizationsPage({ api, environment, verified }: {
       activeApi.updateDebugSettings(selectedCourseId, enabled, version),
     onSuccess: (settings) => {
       queryClient.setQueryData(['course-debug-settings', environment.name, selectedCourseId], settings)
+      void queryClient.invalidateQueries({ queryKey: ['course-referral-settings', environment.name, selectedCourseId] })
       void queryClient.invalidateQueries({ queryKey: ['course-banner-settings', environment.name, selectedCourseId] })
       void queryClient.invalidateQueries({ queryKey: ['student-pdf-settings', environment.name, selectedCourseId] })
       void queryClient.invalidateQueries({ queryKey: ['analysis-settings', environment.name, selectedCourseId] })
@@ -246,6 +250,7 @@ export function CustomizationsPage({ api, environment, verified }: {
       activeApi.updateSettings(selectedCourseId, { anonymous_matching_enabled: enabled, expected_settings_version: version }),
     onSuccess: (settings) => {
       queryClient.setQueryData(['analysis-settings', environment.name, selectedCourseId], settings)
+      void queryClient.invalidateQueries({ queryKey: ['course-referral-settings', environment.name, selectedCourseId] })
       void queryClient.invalidateQueries({ queryKey: ['course-banner-settings', environment.name, selectedCourseId] })
       void queryClient.invalidateQueries({ queryKey: ['student-pdf-settings', environment.name, selectedCourseId] })
       void queryClient.invalidateQueries({ queryKey: ['course-debug-settings', environment.name, selectedCourseId] })
@@ -271,6 +276,9 @@ export function CustomizationsPage({ api, environment, verified }: {
     {courses.length > 0 && selectedCourseId && <>
       <CourseBannerEditor api={activeApi} courseId={selectedCourseId} environmentName={environment.name} key={`banner-${selectedCourseId}`} />
       <CourseStudentPdfSettings api={activeApi} courseId={selectedCourseId} environmentName={environment.name} key={`student-pdf-${selectedCourseId}`} />
+      <CourseStudentSupportSettings api={activeApi} courseId={selectedCourseId} environment={environment}
+        canManage={courses.find((course) => course.course_id === selectedCourseId)?.allowed_actions.includes('course.manage') ?? false}
+        key={`student-support-${environment.name}-${selectedCourseId}`} />
     </>}
 
     {courses.length > 0 && <Card>

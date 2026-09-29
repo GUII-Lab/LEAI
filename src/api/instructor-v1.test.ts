@@ -1,10 +1,85 @@
 import { expect, it, vi } from 'vitest'
 import { getEnvironment } from '@/config/environment'
-import { AuthenticationRequiredError, createInstructorApi } from './instructor-v1'
+import { AuthenticationRequiredError, createInstructorApi, InstructorApiError } from './instructor-v1'
 
 const environment = getEnvironment({})
 const courseId = '11111111-1111-4111-8111-111111111111'
 const csrf = () => new Response(JSON.stringify({ csrf_token: 'masked-csrf-token' }))
+
+it('reads and patches referral settings with an exact versioned CSRF-protected payload', async () => {
+  const fetcher = vi.fn<typeof fetch>()
+    .mockResolvedValueOnce(new Response(JSON.stringify({ referral_enabled: false, settings_version: 7 })))
+    .mockResolvedValueOnce(csrf())
+    .mockResolvedValueOnce(new Response(JSON.stringify({ referral_enabled: true, settings_version: 8 })))
+  const api = createInstructorApi(environment, () => true, fetcher)
+  const controller = new AbortController()
+  await expect(api.referralSettings(courseId, controller.signal)).resolves.toEqual({ referral_enabled: false, settings_version: 7 })
+  await expect(api.updateReferralSettings(courseId, { referral_enabled: true, expected_settings_version: 7 }))
+    .resolves.toEqual({ referral_enabled: true, settings_version: 8 })
+  expect(String(fetcher.mock.calls[0]?.[0])).toMatch(new RegExp(`/datapipeline/api/v1/instructor_courses/${courseId}/referral-settings/$`))
+  expect(fetcher.mock.calls[0]?.[1]?.signal).toBe(controller.signal)
+  const [url, init] = fetcher.mock.calls[2]
+  expect(String(url)).toBe(String(fetcher.mock.calls[0]?.[0]))
+  expect(init?.method).toBe('PATCH')
+  expect(JSON.parse(init?.body as string)).toEqual({ referral_enabled: true, expected_settings_version: 7 })
+  expect(init?.credentials).toBe('same-origin')
+  expect(new Headers(init?.headers).get('X-CSRFToken')).toBe('masked-csrf-token')
+})
+
+it.each([
+  {}, { referral_enabled: 'false', settings_version: 1 },
+  { referral_enabled: false, settings_version: 0 },
+  { referral_enabled: false, settings_version: -1 },
+  { referral_enabled: false, settings_version: 1.5 },
+  { referral_enabled: false, settings_version: '1' },
+  { referral_enabled: false, settings_version: 1, extra: true },
+])('rejects invalid referral responses on both reads and saves: %j', async (payload) => {
+  const fetcher = vi.fn<typeof fetch>()
+    .mockResolvedValueOnce(new Response(JSON.stringify(payload)))
+    .mockResolvedValueOnce(csrf())
+    .mockResolvedValueOnce(new Response(JSON.stringify(payload)))
+  const api = createInstructorApi(environment, () => true, fetcher)
+  await expect(api.referralSettings(courseId)).rejects.toThrow()
+  await expect(api.updateReferralSettings(courseId, { referral_enabled: true, expected_settings_version: 1 })).rejects.toThrow()
+})
+
+it.each([
+  {}, { referral_enabled: 'true', expected_settings_version: 1 },
+  { referral_enabled: true, expected_settings_version: 0 },
+  { referral_enabled: true, expected_settings_version: -1 },
+  { referral_enabled: true, expected_settings_version: 1.5 },
+  { referral_enabled: true, expected_settings_version: '1' },
+  { referral_enabled: true, expected_settings_version: 1, extra: true },
+])('rejects malformed referral patches before any network request: %j', async (payload) => {
+  const fetcher = vi.fn<typeof fetch>()
+  const api = createInstructorApi(environment, () => true, fetcher)
+  await expect(api.updateReferralSettings(courseId, payload as Parameters<typeof api.updateReferralSettings>[1])).rejects.toThrow()
+  expect(fetcher).not.toHaveBeenCalled()
+})
+
+it.each([401, 404, 409])('preserves referral status %s for both reads and saves', async (status) => {
+  const fetcher = vi.fn<typeof fetch>()
+    .mockResolvedValueOnce(new Response(JSON.stringify({ error: 'settings_error' }), { status }))
+    .mockResolvedValueOnce(csrf())
+    .mockResolvedValueOnce(new Response(JSON.stringify({ error: 'settings_error' }), { status }))
+  const api = createInstructorApi(environment, () => true, fetcher)
+  for (const request of [() => api.referralSettings(courseId), () => api.updateReferralSettings(courseId, {
+    referral_enabled: false, expected_settings_version: 1,
+  })]) {
+    if (status === 401) await expect(request()).rejects.toBeInstanceOf(AuthenticationRequiredError)
+    else {
+      await expect(request()).rejects.toMatchObject({ status, code: 'settings_error', constructor: InstructorApiError })
+    }
+  }
+})
+
+it('rejects invalid referral course IDs without sending a request', async () => {
+  const fetcher = vi.fn<typeof fetch>()
+  const api = createInstructorApi(environment, () => true, fetcher)
+  await expect(api.referralSettings('../other-course')).rejects.toThrow()
+  await expect(api.updateReferralSettings('../other-course', { referral_enabled: true, expected_settings_version: 1 })).rejects.toThrow()
+  expect(fetcher).not.toHaveBeenCalled()
+})
 
 it('sends course search with same-origin cookies and a fresh CSRF token', async () => {
   const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(csrf()).mockResolvedValueOnce(new Response(JSON.stringify({

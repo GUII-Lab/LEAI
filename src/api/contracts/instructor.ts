@@ -137,6 +137,16 @@ export const studentPdfSettingsPatchSchema = z.object({
   expected_settings_version: z.number().int().positive(),
 }).strict()
 
+export const referralSettingsSchema = z.object({
+  referral_enabled: z.boolean(),
+  settings_version: z.number().int().positive(),
+}).strict()
+
+export const referralSettingsPatchSchema = z.object({
+  referral_enabled: z.boolean(),
+  expected_settings_version: z.number().int().positive(),
+}).strict()
+
 export const canonicalInstructorMeSchema = z.object({
   id: z.string().uuid(),
   email: emailSchema,

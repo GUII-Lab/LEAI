@@ -8,6 +8,8 @@ import {
   courseBannerSettingsPatchSchema,
   studentPdfSettingsSchema,
   studentPdfSettingsPatchSchema,
+  referralSettingsSchema,
+  referralSettingsPatchSchema,
   canonicalCourseSchema,
   canonicalInstructorMeSchema,
   canonicalProfilePatchRequestSchema,
@@ -223,6 +225,26 @@ export function createInstructorApi(
           method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
         }),
         studentPdfSettingsSchema,
+      )
+    },
+    async referralSettings(courseId: string, signal?: AbortSignal) {
+      const id = z.string().uuid().parse(courseId)
+      return parseResponse(
+        await protectedRequest(`instructor_courses/${id}/referral-settings/`, { signal }),
+        referralSettingsSchema,
+      )
+    },
+    async updateReferralSettings(courseId: string, input: {
+      referral_enabled: boolean
+      expected_settings_version: number
+    }) {
+      const id = z.string().uuid().parse(courseId)
+      const body = referralSettingsPatchSchema.parse(input)
+      return parseResponse(
+        await protectedRequest(`instructor_courses/${id}/referral-settings/`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        }),
+        referralSettingsSchema,
       )
     },
     async search(courseId: string, query: string, signal?: AbortSignal) {
