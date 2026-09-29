@@ -106,9 +106,11 @@ jobs:
 
           backend_dir="$RUNNER_TEMP/leai-backend-release"
           git clone --no-checkout https://github.com/GUII-Lab/guiidatapipelines.git "$backend_dir"
-          git -C "$backend_dir" fetch --no-tags origin qa
+          # Read the exact QA backend source from GitHub's canonical main ref.
+          # This fetch is read-only; the package is pushed only to QA Heroku.
+          git -C "$backend_dir" fetch --no-tags origin main
           if ! git -C "$backend_dir" merge-base --is-ancestor "$LEAI_QA_BACKEND_SHA" FETCH_HEAD; then
-            echo "LEAI_QA_BACKEND_SHA is not in the current guiidatapipelines/qa history." >&2
+            echo "LEAI_QA_BACKEND_SHA is not in the current guiidatapipelines/main history." >&2
             exit 1
           fi
           heroku_build_id="$(curl --fail --silent --show-error \
