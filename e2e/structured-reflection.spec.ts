@@ -81,7 +81,9 @@ for (const width of [390, 820, 1022, 1440]) {
     await composer.getByRole('button', { name: 'Send' }).click()
     await expect(input).toHaveValue('')
     expect(turns).toHaveLength(2)
-    expect(turns[1]).toEqual({ expected_version: 2, item_id: 'P1', kind: 'text', text: 'Prefer not to answer' })
+    expect(turns[1]).toEqual({ expected_version: 2, item_id: 'P1', kind: 'text', text: 'Prefer not to answer',
+      request_id: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/) })
+    expect(turns[1].request_id).not.toBe(turns[0].request_id)
     await page.reload()
     await expect(page.getByRole('log', { name: 'Conversation' }).getByText(text, { exact: true })).toHaveCount(1)
     await expect(page.getByRole('textbox', { name: 'Message' })).toBeEnabled()
