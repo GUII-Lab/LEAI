@@ -74,7 +74,8 @@ for (const width of [390, 820, 1022, 1440]) {
     if (width >= 640) await input.press('Enter')
     else await composer.getByRole('button', { name: 'Send' }).click()
     await expect(input).toHaveValue('')
-    expect(turns).toEqual([{ expected_version: 1, item_id: 'P1', kind: 'text', text }])
+    expect(turns).toEqual([{ expected_version: 1, item_id: 'P1', kind: 'text', text,
+      request_id: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/) }])
     await expect(page.getByRole('log', { name: 'Conversation' })).toContainText(text)
     await input.fill('Prefer not to answer')
     await composer.getByRole('button', { name: 'Send' }).click()
