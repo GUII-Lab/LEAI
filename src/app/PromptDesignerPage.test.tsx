@@ -51,6 +51,7 @@ const api = {
   createWizardDraft: vi.fn(),
   saveWizardDraft: vi.fn(),
   freezeWizardDraft: vi.fn(),
+  deleteWizardDraft: vi.fn(),
   wizardPreview: vi.fn(),
   wizardRevision: vi.fn(),
   wizardPreviewAnswer: vi.fn(),
@@ -230,7 +231,7 @@ beforeEach(() => {
     ...draft, body: edited, title: edited.title, draft_version: expected + 1, changed: true,
   }))
   vi.mocked(api.freezeWizardDraft).mockResolvedValue({ revision })
-  vi.mocked(api.wizardPreview).mockResolvedValue({ preview_id: '550e8400-e29b-41d4-a716-446655440040', revision, messages: [] })
+  vi.mocked(api.wizardPreview).mockResolvedValue({ survey, survey_id: '550e8400-e29b-41d4-a716-446655440040', revision, direct_url: 'feedback.html?id=550e8400-e29b-41d4-a716-446655440040', is_draft: true, completion_certificate_enabled: true, completed_response_download_enabled: false })
   vi.mocked(api.wizardRevision).mockResolvedValue(revision)
   vi.mocked(api.decideWizardPreview).mockResolvedValue({ ...revision, preview_decision: 'skipped' })
   vi.mocked(api.publishWizard).mockResolvedValue(survey)
@@ -292,7 +293,7 @@ it('builds in five steps, uses the artifact and chat components, and publishes t
   expect(within(builder).getByRole('switch', { name: 'Completed response form' })).not.toBeChecked()
   const open = vi.spyOn(window, 'open').mockReturnValue({} as Window)
   await user.click(within(builder).getByRole('button', { name: /Open student preview/ }))
-  expect(open).toHaveBeenCalledWith(`/WizardPreview.html?revision=${revisionId}`, '_blank')
+  expect(open).toHaveBeenCalledWith('/feedback.html?id=550e8400-e29b-41d4-a716-446655440040', '_blank')
   open.mockRestore()
   await user.click(await within(builder).findByRole('button', { name: /^Skip$/ }))
   const skipDialog = await screen.findByRole('alertdialog', { name: 'Skip the student preview?' })
@@ -540,4 +541,17 @@ it('keeps response count, schedule dates, and the student link on the survey car
   expect(card).toHaveTextContent('Opens')
   expect(card).toHaveTextContent('Closes')
   expect(within(card as HTMLElement).getByRole('link', { name: 'Open survey' })).toHaveAttribute('href', expect.stringContaining('feedback.html?id='))
+})
+
+it('deletes a draft only after an explicit action and removes its resume card', async () => {
+  vi.mocked(api.deleteWizardDraft).mockResolvedValue({ deleted: true })
+  vi.mocked(api.wizardDrafts).mockResolvedValueOnce({ question_sets: [draft] }).mockResolvedValue({ question_sets: [] })
+  renderPage()
+  const user = userEvent.setup()
+  await user.click(await screen.findByRole('button', { name: 'Delete draft' }))
+  const dialog = screen.getByRole('alertdialog')
+  expect(api.deleteWizardDraft).not.toHaveBeenCalled()
+  await user.click(within(dialog).getByRole('button', { name: 'Delete draft' }))
+  await waitFor(() => expect(api.deleteWizardDraft).toHaveBeenCalledWith(courseId, draft.id, draft.draft_version))
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Continue previous session' })).not.toBeInTheDocument())
 })

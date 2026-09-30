@@ -4,7 +4,7 @@ import { ArrowLeft, ArrowRight, ClipboardCopy, FilePenLine, Plus } from 'lucide-
 import { AuthenticationRequiredError, InstructorApiError, type createInstructorApi } from '@/api/instructor-v1'
 import type {
   WizardConversationMessage, WizardDraft, WizardProtocol,
-  WizardRevision, WizardSurvey, WizardTemplate, WizardVersion,
+  WizardRevision, WizardPreview, WizardSurvey, WizardTemplate, WizardVersion,
 } from '@/api/contracts/wizard'
 import { protocolSchema } from '@/api/contracts/wizard'
 import { loginHref } from '@/auth/navigation'
@@ -61,6 +61,7 @@ export function PromptDesignerPage({ api, environment, verified }: {
   const queryClient = useQueryClient()
   const courseId = sessionStorage.getItem(qualifyBrowserKey(environment.name, 'selected-course')) ?? ''
   const [builderOpen, setBuilderOpen] = useState(false)
+  const [deleteDraftOpen, setDeleteDraftOpen] = useState(false)
   const [closeOpen, setCloseOpen] = useState(false)
   const [step, setStep] = useState<WizardStep>(0)
   const [source, setSource] = useState<'leai' | 'my' | 'community' | 'scratch'>('leai')
@@ -82,6 +83,7 @@ export function PromptDesignerPage({ api, environment, verified }: {
   const [aiJobId, setAiJobId] = useState('')
   const [aiSending, setAiSending] = useState(false)
   const [revision, setRevision] = useState<WizardRevision | null>(null)
+  const [previewSurvey, setPreviewSurvey] = useState<WizardPreview | null>(null)
   const [previewOpened, setPreviewOpened] = useState(false)
   const [previewBusy, setPreviewBusy] = useState(false)
   const [previewSkipOpen, setPreviewSkipOpen] = useState(false)
@@ -409,6 +411,19 @@ export function PromptDesignerPage({ api, environment, verified }: {
     } catch (cause) { handleError(cause) }
   }
 
+  async function deleteDraft() {
+    if (!latestDraft) return
+    setBusy(true)
+    try {
+      await api.deleteWizardDraft(courseId, latestDraft.id, latestDraft.draft_version)
+      await draftsQuery.refetch()
+      setDeleteDraftOpen(false)
+      if (draft?.id === latestDraft.id) { setDraft(null); setBody(null); setRevision(null); setPreviewSurvey(null) }
+      setNotice('Draft deleted. Its preview link and test responses have been removed.')
+    } catch (cause) { handleError(cause) }
+    finally { setBusy(false) }
+  }
+
   async function toPreview() {
     if (!draft) return
     setBusy(true)
@@ -417,7 +432,12 @@ export function PromptDesignerPage({ api, environment, verified }: {
       await saveNow()
       const frozen = await api.freezeWizardDraft(courseId, draft.id, versionRef.current)
       if (!revision || publishLabel === revision.body.title) setPublishLabel(frozen.revision.body.title)
-      setRevision(frozen.revision)
+      const preview = await api.wizardPreview(courseId, frozen.revision.id, {
+        completion_certificate_enabled: certificateEnabled,
+        completed_response_download_enabled: downloadEnabled,
+      })
+      setPreviewSurvey(preview)
+      setRevision(preview.revision)
       setPreviewOpened(false)
       setStep(3)
     } catch (cause) { handleError(cause) }
@@ -425,11 +445,27 @@ export function PromptDesignerPage({ api, environment, verified }: {
   }
 
   function launchPreview() {
-    if (!revision) return
-    const href = toAppHref(environment, `WizardPreview.html?revision=${encodeURIComponent(revision.id)}`)
+    if (!previewSurvey) return
+    const href = toAppHref(environment, previewSurvey.direct_url)
     const opened = window.open(href, '_blank')
     if (!opened) { setError('Your browser blocked the preview tab. Allow pop-ups for this site and try again.'); return }
     setPreviewOpened(true)
+  }
+
+  async function savePreviewOutputs(certificate: boolean, download: boolean) {
+    if (!revision || previewBusy) return
+    setPreviewBusy(true)
+    setError('')
+    try {
+      const saved = await api.wizardPreview(courseId, revision.id, {
+        completion_certificate_enabled: certificate,
+        completed_response_download_enabled: download,
+      })
+      setPreviewSurvey(saved)
+      setCertificateEnabled(saved.completion_certificate_enabled)
+      setDownloadEnabled(saved.completed_response_download_enabled)
+    } catch (cause) { handleError(cause) }
+    finally { setPreviewBusy(false) }
   }
 
   async function decidePreview(decision: 'completed' | 'skipped') {
@@ -553,7 +589,8 @@ export function PromptDesignerPage({ api, environment, verified }: {
     }
     setBusy(true)
     try {
-      await api.setupWizardTeams(courseId, teamSurvey.id, labels, crypto.randomUUID())
+      const ready = await api.setupWizardTeams(courseId, teamSurvey.id, labels, crypto.randomUUID())
+      if (previewSurvey?.survey_id === ready.id) setPreviewSurvey({ ...previewSurvey, survey: ready })
       await queryClient.invalidateQueries({ queryKey: ['wizard-surveys', courseId] })
       setTeamSurvey(null)
       setTeamLabels('')
@@ -590,7 +627,7 @@ export function PromptDesignerPage({ api, environment, verified }: {
           : step === 3
             ? <div className="flex items-center gap-3">
               {!revision?.preview_decision && <Button disabled={previewBusy} onClick={requestPreviewSkip} ref={previewSkipTriggerRef} type="button" variant="ghost">Skip</Button>}
-              <Button disabled={!revision?.preview_decision || previewBusy} onClick={() => setStep(4)} type="button">Next</Button>
+              <Button disabled={!revision?.preview_decision || previewBusy} onClick={() => setStep(4)} type="button">Continue to publish</Button>
             </div>
             : <Button disabled={busy || !canPublish || !revision?.preview_decision} onClick={() => { void publish() }} type="button">
               {busy ? 'Publishing…' : 'Publish & get link'}
@@ -622,6 +659,7 @@ export function PromptDesignerPage({ api, environment, verified }: {
             <Button className="mt-3" disabled={busy} onClick={() => { void continueDraft() }} type="button" variant="outline">
               <FilePenLine className="size-4" />Continue previous session
             </Button>
+            <Button className="mt-3 ml-2" disabled={busy} onClick={() => setDeleteDraftOpen(true)} type="button" variant="ghost">Delete draft</Button>
           </div>}
           {draftsQuery.isError && <p role="alert">Could not load saved drafts. Retry by reloading the page.</p>}
         </CardContent>
@@ -780,10 +818,11 @@ export function PromptDesignerPage({ api, environment, verified }: {
         <div className="min-w-0 bg-card p-4 xl:h-full xl:overflow-y-auto xl:p-5"><ArtifactEditor audience={draft?.audience ?? audience} body={body} collectionStyle={draft?.collection_style ?? 'guided'} disabled={false} onChange={editBody} onRestore={(version) => { void restoreVersion(version) }}
           saveStatus={saveStatus} versions={versions} /></div>
       </div>}
-      {step === 3 && revision && <PreviewStep busy={previewBusy}
+      {step === 3 && revision && <PreviewStep teamSetupRequired={previewSurvey?.survey.team_setup_required ?? false}
+        onSetupTeams={() => { if (previewSurvey) setTeamSurvey(previewSurvey.survey) }} busy={previewBusy}
         onLaunch={() => { void launchPreview() }}
         previewOpened={previewOpened} revision={revision} certificateEnabled={certificateEnabled} downloadEnabled={downloadEnabled}
-        onCertificateChange={setCertificateEnabled} onDownloadChange={setDownloadEnabled} />}
+        onCertificateChange={(value) => void savePreviewOutputs(value, downloadEnabled)} onDownloadChange={(value) => void savePreviewOutputs(certificateEnabled, value)} />}
       {step === 4 && publishedSurvey && <div aria-live="polite" className="mx-auto max-w-3xl rounded-xl border border-success/30 bg-success/5 p-8 text-center">
         <h3 className="text-2xl font-semibold">Feedback published</h3>
         <p className="mt-3 text-base text-muted-foreground"><span className="font-medium text-foreground">{publishedSurvey.label}</span> is published. Return to the survey list to review the new card and copy its link.</p>
@@ -846,6 +885,13 @@ export function PromptDesignerPage({ api, environment, verified }: {
       </div>}
     </BuilderFrame>}
 
+    <AlertDialog open={deleteDraftOpen} onOpenChange={setDeleteDraftOpen}>
+      <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete this draft?</AlertDialogTitle>
+        <AlertDialogDescription>Its preview link, test sessions and answers will be removed.</AlertDialogDescription>
+      </AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+        <AlertDialogAction disabled={busy} onClick={(event) => { event.preventDefault(); void deleteDraft() }}>Delete draft</AlertDialogAction>
+      </AlertDialogFooter></AlertDialogContent>
+    </AlertDialog>
     <AlertDialog onOpenChange={setPreviewSkipOpen} open={previewSkipOpen}>
       <AlertDialogContent className="legacy-builder-theme" onCloseAutoFocus={(event) => {
         event.preventDefault()

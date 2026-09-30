@@ -21,7 +21,9 @@ export type StudentOptimisticMessage = {
 
 export function StudentConversation({ survey, session, text, onTextChange, onSubmit,
   onStart, onCopyResume, onDownloadDocument, busy, verified, error, conflictAction, debugDisclosure, termsHref, privacyHref,
-  optimisticMessages = [], turnPending = false }: {
+  onFinish, previewReturnHref, optimisticMessages = [], turnPending = false }: {
+  onFinish?: () => void
+  previewReturnHref?: string
   survey?: StudentSurvey
   session: StudentSession | null
   text: string
@@ -115,6 +117,9 @@ export function StudentConversation({ survey, session, text, onTextChange, onSub
       className="student-chrome-toggle student-header-toggle" onClick={(event) => { setHeaderPinned((pinned) => !pinned); if (event.detail > 0) setHeaderFocused(false) }} size="icon" type="button" variant="ghost">
       {headerExpanded ? <ChevronUp aria-hidden="true" /> : <ChevronDown aria-hidden="true" />}
     </Button>}
+    {survey?.is_draft && <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-primary/10 px-4 py-2 text-sm font-semibold text-primary" aria-label="Preview header">
+      <span>Preview</span><a href={previewReturnHref} className="hover:underline">Return to Feedback Builder</a>
+    </div>}
     <header aria-hidden={hasStudentResponse && !headerExpanded} className="student-chat-header flex min-h-[77px] shrink-0 items-center justify-between gap-3 border-b border-border/50 px-4 py-3 sm:px-8" id="student-chat-header" inert={hasStudentResponse && !headerExpanded}>
       <div className="flex min-w-0 items-center gap-3">
         <span className="shrink-0 text-xs font-extrabold tracking-[0.12em] text-primary">LEAI</span>
@@ -166,7 +171,7 @@ export function StudentConversation({ survey, session, text, onTextChange, onSub
             <em>“I want to add to my answer about ...”</em>, or{' '}
             <em>“go back to your earlier question about ...”</em></span>
         </div>}
-        {session?.status === 'completed' ? <p className="py-3 text-sm font-medium text-success">Reflection downloaded. This version is final.</p> : session && prompt ?
+        {session?.status === 'completed' ? <p className="py-3 text-sm font-medium text-success">Reflection complete. This version is final.</p> : session && prompt ?
           <form onSubmit={(event) => onSubmit(event, voice.resetTranscript)}>
             <ChatComposer busy={busy} disabled={inputLocked} inputLabel="Message" onEnterSend={showKeyboardHint} onValueChange={onTextChange}
               placeholder="Share your thoughts about the class..." sendDisabled={!text.trim()}
@@ -175,6 +180,7 @@ export function StudentConversation({ survey, session, text, onTextChange, onSub
               voiceInput={voice.voiceInput} />
           </form> : <ChatComposer disabled sendDisabled value="" onValueChange={() => undefined} placeholder="Share your thoughts about the class..."
             voiceInput={{ active: false, available: false, disabled: true, onToggle: () => undefined }} />}
+        {session?.status === 'active' && prompt?.phase === 'complete' && <Button className="mt-3" disabled={busy} onClick={onFinish} type="button">Finish reflection</Button>}
         {session && (survey?.completed_response_download_enabled || survey?.completion_certificate_enabled) &&
           <div className={`student-chrome-region student-download-region${hasStudentResponse ? ` ${downloadsExpanded ? 'is-open' : 'is-collapsed'}` : ''}`}
             data-testid="student-download-region"

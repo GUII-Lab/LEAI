@@ -71,6 +71,8 @@ export const studentDebugSchema = z.object({
 const startedSessionSchema = studentSessionSchema.extend({ token: z.string().min(32) })
 const surveySchema = z.object({
   survey_id: uuid,
+  is_draft: z.boolean().optional(),
+  question_set_revision_id: uuid.nullable().optional(),
   label: z.string().min(1),
   intro: z.string().min(1),
   available: z.boolean(),

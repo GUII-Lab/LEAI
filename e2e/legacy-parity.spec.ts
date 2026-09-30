@@ -312,65 +312,26 @@ test('Wizard uses the shared student composer with the V12 Wizard theme', async 
   }
 })
 
-test('student preview runs and completes in its own page', async ({ page }, testInfo) => {
-  const revisionId = '550e8400-e29b-41d4-a716-446655440040'
-  const previewId = '550e8400-e29b-41d4-a716-446655440050'
-  const date = '2026-09-28T12:00:00Z'
-  const revision = {
-    id: revisionId, question_set_id: '550e8400-e29b-41d4-a716-446655440060', revision_number: 1,
-    source_draft_version: 1, content_hash: 'a'.repeat(64), preview_decision: null, created_at: date,
-    body: { version: 1, title: 'Weekly reflection', intro: 'Tell us about this week.', scales: {},
-      sections: [{ id: 'section-1', title: 'Learning', items: [{ id: 'question-1', prompt: 'What stood out this week?',
-        wording: 'adaptive', response: { kind: 'text' }, reflection_goal: 'Understand a concrete moment.', coverage_targets: [],
-        example_probes: [], max_additional_probes: 1 }] }] },
-  }
-  let answered = false
-  let completed = false
-  await page.route(`**/revisions/${revisionId}/preview/`, async (route) => {
-    if (route.request().method() === 'GET') return route.fulfill({ headers, json: { ...revision, preview_decision: completed ? 'completed' : null } })
-    const messages = [
-      { id: '1', role: 'assistant', content: revision.body.intro, item_id: null, created_at: date },
-      { id: '2', role: 'assistant', content: 'What stood out this week?', item_id: 'question-1', created_at: date },
-      ...(answered ? [
-        { id: '3', role: 'student', content: 'The workshop helped.', item_id: 'question-1', created_at: date },
-        { id: '4', role: 'assistant', content: 'Thank you for sharing your feedback.', item_id: null, created_at: date },
-      ] : []),
-    ]
-    return route.fulfill({ headers, json: { preview_id: previewId, revision: { ...revision, preview_decision: completed ? 'completed' : null }, messages } })
-  })
-  await page.route(`**/previews/${previewId}/messages/`, async (route) => {
-    answered = true
-    await route.fulfill({ status: 201, headers, json: { id: '3', answered_count: 1 } })
-  })
-  await page.route(`**/revisions/${revisionId}/preview-decision/`, async (route) => {
-    completed = true
-    await route.fulfill({ headers, json: { ...revision, preview_decision: 'completed' } })
-  })
-  await page.setViewportSize({ width: 390, height: 900 })
-  await page.goto(`/WizardPreview.html?revision=${revisionId}`)
-  await expect(page.getByRole('heading', { name: 'Weekly reflection' })).toBeVisible()
-  const composer = page.getByTestId('chat-composer')
-  await expect(composer.getByRole('button', { name: 'Dictate' })).toBeVisible()
-  await expect(composer.getByRole('textbox', { name: 'Preview answer' })).toHaveCSS('border-top-width', '0px')
-  await page.getByRole('textbox', { name: 'Preview answer' }).fill('The workshop helped.')
-  await page.getByRole('button', { name: 'Send', exact: true }).click()
-  await expect(page.getByText('The workshop helped.')).toBeVisible()
-  await page.getByRole('button', { name: 'Complete preview' }).click()
-  await expect(page.getByText(/Preview complete/)).toBeVisible()
-  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
-  if (testInfo.project.name === 'chromium') {
-    const path = join(process.cwd(), '.web-verify', 'screenshots', 'legacy-parity-wizard-preview-390-chromium.png')
-    await page.screenshot({ path, fullPage: true })
-    await testInfo.attach('wizard-preview', { path, contentType: 'image/png' })
-  }
-})
-
 test('V12 preview keeps switch thumbs inside the track and warns only on the first skip', async ({ page }, testInfo) => {
   const revision = { id: '550e8400-e29b-41d4-a716-446655440070', question_set_id: wizardDraftId,
     revision_number: 1, source_draft_version: 1, content_hash: 'a'.repeat(64), body: wizardDraft.body,
     preview_decision: null, created_at: '2026-09-29T12:00:00Z' }
   let decisions = 0
   await page.route('**/freeze/', route => route.fulfill({ headers, json: { revision } }))
+  await page.route('**/revisions/*/preview/', async route => {
+    const outputs = route.request().postDataJSON() ?? {}
+    await route.fulfill({ headers, json: {
+      survey_id: '550e8400-e29b-41d4-a716-446655440080', revision,
+      direct_url: 'feedback.html?id=550e8400-e29b-41d4-a716-446655440080', is_draft: true,
+      completion_certificate_enabled: outputs.completion_certificate_enabled ?? true,
+      completed_response_download_enabled: outputs.completed_response_download_enabled ?? false,
+      survey: { id: '550e8400-e29b-41d4-a716-446655440080', question_set_id: wizardDraftId, revision_id: revision.id,
+        label: revision.body.title, audience: 'individual', collection_style: 'guided', state: 'open',
+        direct_url: 'feedback.html?id=550e8400-e29b-41d4-a716-446655440080', opens_at: null, closes_at: null,
+        response_count: 0, team_setup_required: false, completion_certificate_enabled: true,
+        completed_response_download_enabled: false, allowed_actions: ['copy_link', 'create_revised_version'] },
+    } })
+  })
   await page.route('**/preview-decision/', route => {
     decisions += 1
     return route.fulfill({ headers, json: { ...revision, preview_decision: 'skipped' } })
@@ -404,7 +365,7 @@ test('V12 preview keeps switch thumbs inside the track and warns only on the fir
   await page.keyboard.press('Space')
   await expect(certificate).toBeChecked()
   await assertThumbFits()
-  await expect(page.getByRole('button', { name: 'Next', exact: true })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Continue to publish', exact: true })).toBeDisabled()
   await page.getByRole('button', { name: 'Skip', exact: true }).click()
   const warning = page.getByRole('alertdialog', { name: 'Skip the student preview?' })
   await expect(warning).toBeVisible()

@@ -6,7 +6,7 @@ import { PreviewStep } from './PreviewStep'
 it('opens student-output help without changing the output setting', async () => {
   const user = userEvent.setup()
   const onCertificateChange = vi.fn()
-  render(<PreviewStep
+  render(<PreviewStep teamSetupRequired={false} onSetupTeams={vi.fn()}
     revision={{
       id: 'revision', question_set_id: 'question-set', revision_number: 1, source_draft_version: 1,
       content_hash: 'a'.repeat(64), preview_decision: null, created_at: '2026-09-28T12:00:00Z',

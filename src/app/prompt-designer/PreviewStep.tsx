@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { InfoPopover } from '@/components/product/InfoPopover'
 
-function StudentOutputSetting({ label, help, checked, onChange }: {
+function StudentOutputSetting({ label, help, checked, onChange, disabled }: {
+  disabled: boolean
   label: string
   help: ReactNode
   checked: boolean
@@ -15,11 +16,13 @@ function StudentOutputSetting({ label, help, checked, onChange }: {
     <span className="flex min-w-0 items-center gap-2 text-[14px] font-bold">{label}
       <InfoPopover label={`About ${label}`} variant="builder">{help}</InfoPopover>
     </span>
-    <Switch className="legacy-builder-output-switch mt-0.5 shrink-0" aria-label={label} checked={checked} onCheckedChange={onChange} />
+    <Switch className="legacy-builder-output-switch mt-0.5 shrink-0" aria-disabled={disabled} aria-label={label} checked={checked} onCheckedChange={(value) => { if (!disabled) onChange(value) }} />
   </div>
 }
 
-export function PreviewStep({ revision, previewOpened, onLaunch, busy, certificateEnabled, downloadEnabled, onCertificateChange, onDownloadChange }: {
+export function PreviewStep({ teamSetupRequired, onSetupTeams, revision, previewOpened, onLaunch, busy, certificateEnabled, downloadEnabled, onCertificateChange, onDownloadChange }: {
+  teamSetupRequired: boolean
+  onSetupTeams: () => void
   revision: WizardRevision
   previewOpened: boolean
   onLaunch: () => void
@@ -35,29 +38,22 @@ export function PreviewStep({ revision, previewOpened, onLaunch, busy, certifica
         <InfoPopover label="About preview mode" variant="builder">This opens the real student flow. Practice responses stay separate from course feedback and analysis.</InfoPopover>
       </p>
     </WizardStepHeading>
-    <p className="flex w-fit max-w-full items-center gap-2 text-xs text-[#754713]">
-      <strong>Practice only. Do not enter real student information.</strong>
-      <InfoPopover label="How preview data is isolated" variant="builder">Practice responses stay separate from course feedback and analysis.</InfoPopover>
-    </p>
     <div className="grid gap-[18px] min-[1101px]:grid-cols-[minmax(0,1.3fr)_minmax(260px,0.7fr)]">
-      <section className="min-h-[360px] rounded-[14px] bg-[linear-gradient(135deg,var(--builder-preview-start),var(--builder-preview-end))] p-[18px] text-white md:p-[26px]">
-        <p className="text-[11px] font-extrabold tracking-[0.11em] text-[#bfeae6] uppercase">Practice preview</p>
-        <h4 className="mt-9 mb-3 text-[30px] leading-tight font-bold break-words">{revision.body.title}</h4>
-        <p className="text-base text-teal-50">Opens in a new tab.</p>
-        <Button className="mt-5 border-[#b9c8cc] bg-white text-foreground hover:bg-muted" disabled={busy} onClick={onLaunch} type="button" variant="outline">Open student preview ↗</Button>
-        {previewOpened && <p className="mt-2 text-sm text-teal-50">Your preview tab is open. Return here when finished.</p>}
-        <p className="mt-5 text-xs text-teal-50">{revision.preview_decision ? `Preview ${revision.preview_decision}.` : 'Not previewed'}</p>
+      <section className="min-h-[200px] rounded-[14px] bg-[linear-gradient(135deg,var(--builder-preview-start),var(--builder-preview-end))] p-[18px] text-white md:p-[26px]">
+        {teamSetupRequired && <Button className="mr-3 border-[#b9c8cc] bg-white text-foreground hover:bg-muted" disabled={busy} onClick={onSetupTeams} type="button" variant="outline">Set up teams</Button>}
+        <Button className="mt-5 border-[#b9c8cc] bg-white text-foreground hover:bg-muted" disabled={busy || teamSetupRequired} onClick={onLaunch} type="button" variant="outline">Open student preview ↗</Button>
+        {previewOpened && <p className="mt-2 text-sm text-teal-50">Opens in a new tab. Return here when finished.</p>}
+        <p className="mt-5 text-xs text-teal-50">{revision.preview_decision ? `Preview ${revision.preview_decision}.` : previewOpened ? 'In progress' : 'Not previewed'}</p>
       </section>
       <aside aria-label="Student outputs" className="min-w-0 rounded-xl border border-border bg-card p-[18px] md:p-[21px]">
-        <p className="text-[11px] font-extrabold tracking-[0.11em] text-secondary-foreground uppercase">Student outputs</p>
-        <h4 className="mt-1.5 text-[19px] font-semibold">What students receive</h4>
+        <h4 className="text-[19px] font-semibold">Student outputs</h4>
         <div className="mt-3">
-          <StudentOutputSetting label="Completion certificate" checked={certificateEnabled} onChange={onCertificateChange}
+          <StudentOutputSetting disabled={busy} label="Completion certificate" checked={certificateEnabled} onChange={onCertificateChange}
             help="Students can download proof that they completed the conversation. It contains no response text or teammate data." />
-          <StudentOutputSetting label="Completed response form" checked={downloadEnabled} onChange={onDownloadChange}
+          <StudentOutputSetting disabled={busy} label="Completed response form" checked={downloadEnabled} onChange={onDownloadChange}
             help="Students can download only their own completed answers. Files saved to a device are outside LEAI’s control." />
         </div>
-        <p className="rounded-lg bg-secondary p-[11px] text-xs text-secondary-foreground">These settings are saved when you publish.</p>
+        <p className="rounded-lg bg-secondary p-[11px] text-xs text-secondary-foreground">Saved to this draft. Reopen preview to apply changes.</p>
       </aside>
     </div>
   </div>

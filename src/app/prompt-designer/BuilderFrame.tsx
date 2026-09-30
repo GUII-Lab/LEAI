@@ -21,9 +21,8 @@ export function BuilderFrame({ step, title, onClose, footer, children }: {
       <header className="shrink-0 border-b border-border bg-card px-4 py-4 sm:px-8 sm:pt-6 sm:pb-0">
         <div className="mb-3 flex items-start justify-between gap-4">
           <div>
-            <span className="text-sm font-extrabold tracking-widest text-primary">Feedback builder</span>
             <DialogTitle className="mt-1 text-3xl font-semibold tracking-tight">{title}</DialogTitle>
-            <DialogDescription id="builder-description" className="text-sm">Create a feedback experience for this course.</DialogDescription>
+            <DialogDescription id="builder-description" className="sr-only">Create a feedback experience for this course.</DialogDescription>
           </div>
           <Button aria-label="Close builder" className="border border-border bg-muted" onClick={onClose} size="icon" type="button" variant="ghost"><X className="size-5" /></Button>
         </div>

@@ -51,7 +51,6 @@ import {
   wizardFreezeResponseSchema,
   wizardJobStartSchema,
   wizardPreviewSchema,
-  wizardPreviewTurnSchema,
   wizardRevisionSchema,
   wizardSaveResponseSchema,
   wizardSurveyListSchema,
@@ -511,25 +510,25 @@ export function createInstructorApi(
         body: JSON.stringify({ expected_version: expectedVersion }),
       }), wizardFreezeResponseSchema)
     },
-    async wizardPreview(courseId: string, revisionId: string) {
+    async deleteWizardDraft(courseId: string, questionSetId: string, expectedVersion: number) {
+      const course = z.string().uuid().parse(courseId)
+      const draft = z.string().uuid().parse(questionSetId)
+      return parseResponse(await protectedRequest(`instructor_courses/${course}/question-sets/${draft}/draft/`, {
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expected_version: expectedVersion }),
+      }), z.object({ deleted: z.literal(true) }).strict())
+    },
+    async wizardPreview(courseId: string, revisionId: string, outputs?: { completion_certificate_enabled: boolean; completed_response_download_enabled: boolean }) {
       const id = z.string().uuid().parse(courseId)
       const revision = z.string().uuid().parse(revisionId)
       return parseResponse(await protectedRequest(`instructor_courses/${id}/revisions/${revision}/preview/`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(outputs ?? {}),
       }), wizardPreviewSchema)
     },
     async wizardRevision(courseId: string, revisionId: string) {
       const id = z.string().uuid().parse(courseId)
       const revision = z.string().uuid().parse(revisionId)
       return parseResponse(await protectedRequest(`instructor_courses/${id}/revisions/${revision}/preview/`), wizardRevisionSchema)
-    },
-    async wizardPreviewAnswer(courseId: string, previewId: string, itemId: string, content: string) {
-      const id = z.string().uuid().parse(courseId)
-      const preview = z.string().uuid().parse(previewId)
-      return parseResponse(await protectedRequest(`instructor_courses/${id}/previews/${preview}/messages/`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ item_id: itemId, content }),
-      }), wizardPreviewTurnSchema)
     },
     async decideWizardPreview(courseId: string, revisionId: string, decision: 'completed' | 'skipped', key: string) {
       const id = z.string().uuid().parse(courseId)

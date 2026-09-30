@@ -298,6 +298,24 @@ export function StudentSurveyPage({ api, environment, verified }: {
     }
   }
 
+  function notifyPreviewComplete() {
+    const revisionId = surveyQuery.data?.question_set_revision_id
+    if (surveyQuery.data?.is_draft && revisionId) {
+      window.opener?.postMessage({ type: 'leai:wizard-preview-completed', revisionId }, window.location.origin)
+    }
+  }
+
+  async function finishReflection() {
+    if (!session || !stored || session.prompt.phase !== 'complete') return
+    setBusy(true)
+    try {
+      setCurrent(await activeApi.finalize(surveyId, stored.sessionId, stored.token, session.turn_version))
+      notifyPreviewComplete()
+      setError('')
+    } catch { setError('Could not finish this reflection. Please try again.') }
+    finally { setBusy(false) }
+  }
+
   async function saveDraft() {
     if (!surveyQuery.data || !session || !stored) return
     setBusy(true)
@@ -306,6 +324,7 @@ export function StudentSurveyPage({ api, environment, verified }: {
       if (finalized && session.status === 'active') {
         const current = await activeApi.finalize(surveyId, stored.sessionId, stored.token, session.turn_version)
         setCurrent(current)
+        notifyPreviewComplete()
       }
       const pdf = await activeApi.responsePdf(surveyId, stored.sessionId, stored.token)
       saveStudentPdfBlob(pdf, surveyQuery.data.label, finalized)
@@ -345,7 +364,8 @@ export function StudentSurveyPage({ api, environment, verified }: {
     termsHref={toAppHref(environment, 'legal/terms.html')} privacyHref={toAppHref(environment, 'legal/privacy.html')}
     onSubmit={(event, onAccepted) => void submit(event, onAccepted)}
     onStart={(researchConsent, teamId) => void start(researchConsent, teamId)} onCopyResume={() => void copyResumeLink()} busy={busy} verified={verified} error={error}
-    onDownloadDocument={() => void saveDraft()}
+    onDownloadDocument={() => void saveDraft()} onFinish={() => void finishReflection()}
+    previewReturnHref={toAppHref(environment, 'PromptDesigner.html')}
     conflictAction={conflict && <Button className="mt-2" onClick={() => void refreshSession()} type="button" variant="outline">Load latest question</Button>}
     debugDisclosure={debugAllowed && debugAccessQuery.data?.enabled === true && session && stored && <div className="mt-4 min-w-0" data-testid="inline-debug-disclosure">
       <Button aria-controls="student-debug-panel" aria-expanded={showDebug}

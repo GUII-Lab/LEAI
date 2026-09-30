@@ -76,23 +76,6 @@ export const wizardRevisionSchema = z.object({
 }).strict()
 export const wizardFreezeResponseSchema = z.object({ revision: wizardRevisionSchema }).strict()
 
-export const wizardPreviewMessageSchema = z.object({
-  id: z.string().regex(/^[1-9][0-9]*$/),
-  role: z.enum(['student', 'assistant', 'system']),
-  content: z.string(),
-  item_id: z.string().nullable(),
-  created_at: date,
-}).strict()
-export const wizardPreviewSchema = z.object({
-  preview_id: id,
-  revision: wizardRevisionSchema,
-  messages: z.array(wizardPreviewMessageSchema),
-}).strict()
-export const wizardPreviewTurnSchema = z.object({
-  id: z.string().regex(/^[1-9][0-9]*$/),
-  answered_count: z.number().int().nonnegative(),
-}).strict()
-
 export const wizardSurveySchema = z.object({
   id,
   question_set_id: id,
@@ -110,6 +93,16 @@ export const wizardSurveySchema = z.object({
   completed_response_download_enabled: z.boolean().default(false),
   allowed_actions: z.array(z.enum(['copy_link', 'create_revised_version'])),
 }).strict()
+export const wizardPreviewSchema = z.object({
+  survey: wizardSurveySchema,
+  survey_id: id,
+  revision: wizardRevisionSchema,
+  direct_url: z.string().startsWith('feedback.html?id='),
+  is_draft: z.literal(true),
+  completion_certificate_enabled: z.boolean(),
+  completed_response_download_enabled: z.boolean(),
+}).strict()
+
 export const wizardSurveyListSchema = z.object({ surveys: z.array(wizardSurveySchema) }).strict()
 
 export const wizardConversationMessageSchema = z.object({
