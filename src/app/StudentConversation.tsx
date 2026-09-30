@@ -107,6 +107,9 @@ export function StudentConversation({ survey, session, text, onTextChange, onSub
     arrivalTimeout.current = setTimeout(() => setHighlightedAssistantId(null), 1600)
   }, [latestAssistantId])
   return <main className="legacy-student flex h-dvh min-h-0 min-w-0 flex-col bg-card text-foreground" data-testid="student-chat-shell">
+    {survey?.is_draft && <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-primary/10 px-4 py-2 text-sm font-semibold text-primary" aria-label="Preview header">
+      <span>Preview</span><a href={previewReturnHref} className="hover:underline">Return to Feedback Builder</a>
+    </div>}
     <div className={`student-chrome-region student-header-region${hasStudentResponse ? ` ${headerExpanded ? 'is-open' : 'is-collapsed'}` : ''}`}
       data-testid="student-header-region"
       onPointerEnter={(event) => { if (event.pointerType === 'mouse') setHeaderPointerInside(true) }}
@@ -117,9 +120,6 @@ export function StudentConversation({ survey, session, text, onTextChange, onSub
       className="student-chrome-toggle student-header-toggle" onClick={(event) => { setHeaderPinned((pinned) => !pinned); if (event.detail > 0) setHeaderFocused(false) }} size="icon" type="button" variant="ghost">
       {headerExpanded ? <ChevronUp aria-hidden="true" /> : <ChevronDown aria-hidden="true" />}
     </Button>}
-    {survey?.is_draft && <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-primary/10 px-4 py-2 text-sm font-semibold text-primary" aria-label="Preview header">
-      <span>Preview</span><a href={previewReturnHref} className="hover:underline">Return to Feedback Builder</a>
-    </div>}
     <header aria-hidden={hasStudentResponse && !headerExpanded} className="student-chat-header flex min-h-[77px] shrink-0 items-center justify-between gap-3 border-b border-border/50 px-4 py-3 sm:px-8" id="student-chat-header" inert={hasStudentResponse && !headerExpanded}>
       <div className="flex min-w-0 items-center gap-3">
         <span className="shrink-0 text-xs font-extrabold tracking-[0.12em] text-primary">LEAI</span>
