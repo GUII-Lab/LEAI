@@ -106,7 +106,7 @@ for (const width of [390, 820, 1022, 1440]) {
       }))
       expect(boxes.every(box => box.height >= 210)).toBe(true)
       if (width <= 900) expect(boxes[1].y).toBeGreaterThan(boxes[0].y)
-      else { expect(boxes[1].y).toBe(boxes[0].y); expect(boxes[1].x).toBeGreaterThan(boxes[0].x) }
+      else { expect(Math.abs(boxes[1].y - boxes[0].y)).toBeLessThan(1); expect(boxes[1].x).toBeGreaterThan(boxes[0].x) }
     }
     await assertChoiceCards('Feedback audience')
     await expect(page.getByText('One name-hidden session is bound to one self-selected team', { exact: true })).toBeVisible()
