@@ -494,12 +494,13 @@ export function createInstructorApi(
       const questionSet = z.string().uuid().parse(questionSetId)
       return parseResponse(await protectedRequest(`instructor_courses/${id}/question-sets/${questionSet}/conversation/`), wizardConversationSchema)
     },
-    async startWizardAi(courseId: string, questionSetId: string, content: string, expectedVersion: number, key: string) {
+    async startWizardAi(courseId: string, questionSetId: string, content: string, expectedVersion: number, key: string, retryMessageId?: string) {
       const id = z.string().uuid().parse(courseId)
       const questionSet = z.string().uuid().parse(questionSetId)
       return parseResponse(await protectedRequest(`instructor_courses/${id}/question-sets/${questionSet}/ai-runs/`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key },
-        body: JSON.stringify({ content, expected_version: expectedVersion }),
+        body: JSON.stringify({ content, expected_version: expectedVersion,
+          ...(retryMessageId ? { retry_message_id: z.string().regex(/^[1-9][0-9]{0,18}$/).parse(retryMessageId) } : {}) }),
       }), wizardJobStartSchema)
     },
     async freezeWizardDraft(courseId: string, questionSetId: string, expectedVersion: number) {

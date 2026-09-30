@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { ChevronDown, ChevronUp, Link2, LockKeyhole } from 'lucide-react'
-import type { StudentSession, StudentSurvey } from '@/api/student'
+import type { StudentSession, StudentSurvey, StudentTurn } from '@/api/student'
 import { Button } from '@/components/ui/button'
 import { ChatComposer } from '@/components/chat/ChatComposer'
 import { ChatMessage } from '@/components/chat/ChatMessage'
 import { ChatTranscript } from '@/components/chat/ChatTranscript'
 import { ChatThinkingMessage } from '@/components/chat/ChatThinkingMessage'
+import { ChatRetryStatus } from '@/components/chat/ChatRetryStatus'
 import { useChatVoiceInput } from '@/components/chat/useChatVoiceInput'
 import { StudentConsentDialog } from './StudentConsentDialog'
 import './student-legacy.css'
@@ -17,11 +18,14 @@ export type StudentOptimisticMessage = {
   createdAt: string
   baselineMessageIds: number[]
   baselineSequence: number
+  turn: StudentTurn
+  failureKind?: 'connection' | 'changed' | 'not-sent'
 }
 
 export function StudentConversation({ survey, session, text, onTextChange, onSubmit,
   onStart, onCopyResume, onDownloadDocument, busy, verified, error, conflictAction, debugDisclosure, termsHref, privacyHref,
-  onFinish, previewReturnHref, optimisticMessages = [], turnPending = false }: {
+  onFinish, previewReturnHref, onRetry, optimisticMessages = [], turnPending = false }: {
+  onRetry?: (id: number) => void
   onFinish?: () => void
   previewReturnHref?: string
   survey?: StudentSurvey
@@ -156,8 +160,8 @@ export function StudentConversation({ survey, session, text, onTextChange, onSub
         {optimisticMessages.map((message) => <ChatMessage author="You" className="student-user-message"
           key={`optimistic-${message.id}`} metaClassName="student-message-meta" role="user" timestamp={message.createdAt}>
           <p className="w-full max-w-[83%] whitespace-pre-wrap break-words rounded bg-muted px-5 py-4 text-base leading-7">{message.content}</p>
-          <p className="text-sm text-muted-foreground">{message.status === 'pending'
-            ? 'Sending…' : 'Delivery not confirmed. Load the latest question before deciding whether to send this answer again.'}</p>
+          {message.status === 'pending' ? <p className="text-sm text-muted-foreground">Sending…</p>
+            : <ChatRetryStatus kind={message.failureKind ?? 'connection'} busy={busy} onRetry={() => onRetry?.(message.id)} />}
         </ChatMessage>)}
         {turnPending && <ChatThinkingMessage />}
       </ChatTranscript>}

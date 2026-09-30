@@ -63,6 +63,50 @@ beforeEach(() => {
   })
 })
 
+it('retries only the failed submission with its stable ID and leaves the next draft untouched', async () => {
+  const user = userEvent.setup()
+  vi.mocked(api.turn).mockRejectedValueOnce(new Error('Lost connection')).mockResolvedValueOnce({
+    ...baseSession, turn_version: 2, messages: [
+      { id: 1, sequence: 1, role: 'student', content: 'Original answer', attribution: {} },
+      { id: 2, sequence: 2, role: 'assistant', content: 'Next question', attribution: {} },
+    ],
+  })
+  renderPage()
+  await acceptConsent(user)
+  const input = screen.getByRole('textbox', { name: 'Message' })
+  await user.type(input, 'Original answer')
+  await user.click(screen.getByRole('button', { name: 'Send' }))
+  const retry = await screen.findByRole('button', { name: 'Retry' })
+  const log = screen.getByRole('log')
+  expect(log).toContainElement(retry)
+  expect(screen.getAllByRole('alert')).toHaveLength(1)
+  await user.type(input, 'Next draft')
+  await user.click(retry)
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument())
+  const first = vi.mocked(api.turn).mock.calls[0][3]
+  expect(first).toMatchObject({ text: 'Original answer', expected_version: 1, request_id: expect.any(String) })
+  expect(vi.mocked(api.turn).mock.calls[1][3]).toEqual(first)
+  expect(input).toHaveValue('Next draft')
+  expect(within(log).getAllByText('Original answer')).toHaveLength(1)
+})
+
+it('reconciles a lost response without resending an already committed answer', async () => {
+  const user = userEvent.setup()
+  vi.mocked(api.turn).mockRejectedValueOnce(new Error('Lost response'))
+  vi.mocked(api.session).mockResolvedValue({ ...baseSession, turn_version: 2, messages: [
+    { id: 1, sequence: 1, role: 'student', content: 'Saved answer', attribution: {} },
+    { id: 2, sequence: 2, role: 'assistant', content: 'Next question', attribution: {} },
+  ] })
+  renderPage()
+  await acceptConsent(user)
+  await user.type(screen.getByRole('textbox'), 'Saved answer')
+  await user.click(screen.getByRole('button', { name: 'Send' }))
+  await user.click(await screen.findByRole('button', { name: 'Retry' }))
+  await screen.findByText('Next question')
+  expect(api.turn).toHaveBeenCalledTimes(1)
+  expect(within(screen.getByRole('log')).getAllByText('Saved answer')).toHaveLength(1)
+})
+
 function enableResearcherDebug() {
   sessionStorage.setItem('leai:local:instructor-token', researcherToken)
   vi.mocked(api.debugAccess).mockResolvedValue({ enabled: true })
@@ -120,14 +164,14 @@ it.each(['delivery', 'conflict'])('retains the failed answer in the transcript a
     ? new ApiFailure({ kind: 'conflict', status: 409, retryable: false }) : new Error('Offline')))
   const log = screen.getByRole('log', { name: 'Conversation' })
   const bubble = within(log).getByText('Unconfirmed answer.').closest('[data-chat-role="user"]') as HTMLElement
-  expect(bubble).toHaveTextContent(/not confirmed|not sent/i)
+  expect(bubble).toHaveTextContent(kind === 'conflict' ? 'Conversation changed' : 'Connection lost')
   expect(input).toHaveValue('Keep this next draft.')
   expect(screen.getByRole('alert')).not.toHaveTextContent('was not sent')
-  expect(screen.getByRole('button', { name: 'Load latest question' })).toBeEnabled()
+  expect(within(bubble).getByRole('button', { name: kind === 'conflict' ? 'Refresh' : 'Retry' })).toBeEnabled()
   expect(within(log).queryByRole('status')).not.toBeInTheDocument()
   if (kind === 'conflict') {
-    await user.click(screen.getByRole('button', { name: 'Load latest question' }))
-    await waitFor(() => expect(screen.queryByRole('button', { name: 'Load latest question' })).not.toBeInTheDocument())
+    await user.click(screen.getByRole('button', { name: 'Refresh' }))
+    await waitFor(() => expect(api.session).toHaveBeenCalled())
     expect(input).toHaveValue('Keep this next draft.')
   }
 })
@@ -152,16 +196,17 @@ it.each([true, false])('reconciles unknown delivery only against matching persis
   const input = await screen.findByRole('textbox', { name: 'Message' })
   await user.type(input, 'Repeated answer.')
   await user.click(screen.getByRole('button', { name: 'Send' }))
-  expect(await screen.findByRole('alert')).toHaveTextContent(/delivery.*not confirmed/i)
+  expect(await screen.findByRole('alert')).toHaveTextContent('Connection lost')
   await user.type(input, 'New draft must survive.')
-  await user.click(screen.getByRole('button', { name: 'Load latest question' }))
-  await waitFor(() => expect(screen.queryByRole('button', { name: 'Load latest question' })).not.toBeInTheDocument())
+  if (!persisted) vi.mocked(api.turn).mockRejectedValueOnce(new Error('Still offline'))
+  await user.click(screen.getByRole('button', { name: 'Retry' }))
+  await waitFor(() => expect(api.session).toHaveBeenCalledTimes(2))
   const log = screen.getByRole('log', { name: 'Conversation' })
   expect(within(log).getAllByText('Repeated answer.')).toHaveLength(2)
-  if (persisted) expect(within(log).queryByText(/Delivery not confirmed/)).not.toBeInTheDocument()
-  else expect(within(log).getByText(/Delivery not confirmed/)).toBeVisible()
+  if (persisted) expect(within(log).queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
+  else expect(await within(log).findByRole('button', { name: 'Retry' })).toBeVisible()
   expect(input).toHaveValue('New draft must survive.')
-  expect(api.turn).toHaveBeenCalledTimes(1)
+  expect(api.turn).toHaveBeenCalledTimes(persisted ? 1 : 2)
 })
 
 it('consumes submitted dictation synchronously and keeps continuous dictation usable during the turn', async () => {
@@ -279,7 +324,7 @@ it('uses Enter to send on desktop, shows the shared tooltip twice, and highlight
   await user.keyboard('{Enter}')
   await waitFor(() => expect(api.turn).toHaveBeenCalledTimes(1))
   expect(api.turn).toHaveBeenLastCalledWith(surveyId, sessionId, token, {
-    expected_version: 1, item_id: 'P1', kind: 'text', text: 'First answer.',
+    request_id: expect.any(String), expected_version: 1, item_id: 'P1', kind: 'text', text: 'First answer.',
   })
   expect(await screen.findByRole('tooltip')).toHaveTextContent('Ctrl+Enter')
   const assistantMessages = screen.getByRole('log', { name: 'Conversation' }).querySelectorAll('[data-chat-role="assistant"]')
@@ -333,7 +378,7 @@ it('keeps the original composer open after all questions so a student can revise
   await user.type(message, 'Actually, change my P1 answer to this.')
   await user.click(screen.getByRole('button', { name: 'Send' }))
   expect(api.turn).toHaveBeenCalledWith(surveyId, sessionId, token, {
-    expected_version: 12, kind: 'text', text: 'Actually, change my P1 answer to this.',
+    request_id: expect.any(String), expected_version: 12, kind: 'text', text: 'Actually, change my P1 answer to this.',
   })
   expect(await screen.findByRole('textbox', { name: 'Message' })).toBeEnabled()
 })
@@ -390,7 +435,7 @@ it('uses the shared chat message and icon-send components without changing stude
   await user.type(within(composer).getByRole('textbox', { name: 'Message' }), 'A considered answer.')
   await user.click(sendButton)
   expect(api.turn).toHaveBeenCalledWith(surveyId, sessionId, token, {
-    expected_version: 1, item_id: 'P1', kind: 'text', text: 'A considered answer.',
+    request_id: expect.any(String), expected_version: 1, item_id: 'P1', kind: 'text', text: 'A considered answer.',
   })
 })
 
@@ -560,7 +605,7 @@ it.each([null, ratingPrompt.choices])('keeps Likert in the shared text composer 
   await user.type(message, 'I would say four, because I think through the task.')
   await user.click(screen.getByRole('button', { name: 'Send' }))
   expect(api.turn).toHaveBeenCalledWith(surveyId, sessionId, token, {
-    expected_version: 1, item_id: 'P1', kind: 'text', text: 'I would say four, because I think through the task.',
+    request_id: expect.any(String), expected_version: 1, item_id: 'P1', kind: 'text', text: 'I would say four, because I think through the task.',
   })
   expect(await screen.findByText('Why?')).toBeInTheDocument()
   expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('')
@@ -575,7 +620,7 @@ it.each(['Prefer not to answer', 'Somewhere between three and four', 'What does 
     await user.type(screen.getByRole('textbox', { name: 'Message' }), text)
     await user.keyboard('{Enter}')
     await waitFor(() => expect(api.turn).toHaveBeenCalledWith(surveyId, sessionId, token, {
-      expected_version: 1, item_id: 'P1', kind: 'text', text,
+      request_id: expect.any(String), expected_version: 1, item_id: 'P1', kind: 'text', text,
     }))
   },
 )
@@ -603,7 +648,7 @@ it('uses shared dictation during rating and submits its transcript as text', asy
     expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('Four because I planned ahead.')
     await user.click(screen.getByRole('button', { name: 'Send' }))
     expect(api.turn).toHaveBeenCalledWith(surveyId, sessionId, token, {
-      expected_version: 1, item_id: 'P1', kind: 'text', text: 'Four because I planned ahead.',
+      request_id: expect.any(String), expected_version: 1, item_id: 'P1', kind: 'text', text: 'Four because I planned ahead.',
     })
   } finally {
     if (previous) Object.defineProperty(window, 'SpeechRecognition', previous)
@@ -681,12 +726,11 @@ it.each([reflectionPrompt, ratingPrompt])('keeps the $phase response for retry a
   await acceptConsent(user)
   await user.type(await screen.findByRole('textbox', { name: 'Message' }), 'I planned before asking.')
   await user.click(screen.getByRole('button', { name: 'Send' }))
-  expect(await screen.findByRole('alert')).toHaveTextContent(/delivery.*not confirmed/i)
+  expect(await screen.findByRole('alert')).toHaveTextContent('Connection lost')
   expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('')
   const failedBubble = within(screen.getByRole('log', { name: 'Conversation' })).getByText('I planned before asking.').closest('[data-chat-role="user"]') as HTMLElement
-  expect(failedBubble).toHaveTextContent('Delivery not confirmed')
-  await user.type(screen.getByRole('textbox', { name: 'Message' }), 'I planned before asking.')
-  await user.click(screen.getByRole('button', { name: 'Send' }))
+  expect(failedBubble).toHaveTextContent('Connection lost')
+  await user.click(within(failedBubble).getByRole('button', { name: 'Retry' }))
   await waitFor(() => expect(screen.getAllByText('Reflection complete').length).toBeGreaterThan(0))
   expect(api.turn).toHaveBeenCalledTimes(2)
 })
@@ -712,8 +756,8 @@ it('offers to reload the latest question after a concurrent-turn conflict', asyn
   await acceptConsent(user)
   await user.type(await screen.findByRole('textbox', { name: 'Message' }), 'A response')
   await user.click(screen.getByRole('button', { name: 'Send' }))
-  expect(await screen.findByRole('alert')).toHaveTextContent('changed in another tab')
-  await user.click(screen.getByRole('button', { name: 'Load latest question' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('Conversation changed')
+  await user.click(screen.getByRole('button', { name: 'Refresh' }))
   expect(await screen.findByText('Next question')).toBeInTheDocument()
 })
 

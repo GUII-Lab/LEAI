@@ -223,8 +223,10 @@ export function StudentSurveyPage({ api, environment, verified }: {
     if (!stored || busy || turnInFlight.current) return
     turnInFlight.current = true
     const id = ++nextOptimisticId.current
+    turn = { ...turn, request_id: turn.request_id ?? crypto.randomUUID() }
     setOptimisticMessages((messages) => [...messages, {
       id, content: turn.kind === 'text' ? turn.text : '', status: 'pending', createdAt: new Date().toISOString(),
+      turn,
       baselineMessageIds: session?.messages.map((message) => message.id) ?? [],
       baselineSequence: Math.max(0, ...(session?.messages.map((message) => message.sequence) ?? [])),
     }])
@@ -238,11 +240,46 @@ export function StudentSurveyPage({ api, environment, verified }: {
       setOptimisticMessages((messages) => messages.filter((message) => message.id !== id))
     } catch (cause) {
       setOptimisticMessages((messages) => messages.map((message) => message.id === id
-        ? { ...message, status: 'failed' } : message))
+        ? { ...message, status: 'failed', failureKind: cause instanceof ApiFailure && cause.kind === 'conflict' ? 'changed' : 'connection' } : message))
       setConflict(true)
-      if (cause instanceof ApiFailure && cause.kind === 'conflict') {
-        setError('This reflection changed in another tab. Load the latest question before continuing.')
-      } else setError('Delivery of your answer is not confirmed. Load the latest question before deciding whether to send it again.')
+      setError('')
+    } finally {
+      turnInFlight.current = false
+      setBusy(false)
+    }
+  }
+
+  async function retryTurn(id: number) {
+    const message = optimisticMessages.find((row) => row.id === id)
+    if (!message || !stored || busy || turnInFlight.current) return
+    turnInFlight.current = true
+    setBusy(true)
+    setError('')
+    try {
+      // A lost response is not proof of non-delivery. Reconcile before replaying.
+      const restored = await activeApi.session(surveyId, stored.sessionId, stored.token)
+      setCurrent(restored)
+      const persisted = restored.messages.some((row) => row.role === 'student'
+        && row.content === message.content && row.sequence > message.baselineSequence
+        && !message.baselineMessageIds.includes(row.id))
+      if (persisted) {
+        setOptimisticMessages((rows) => rows.filter((row) => row.id !== id))
+        setConflict(false)
+        return
+      }
+      if (restored.turn_version !== message.turn.expected_version || restored.status !== 'active') {
+        setOptimisticMessages((rows) => rows.map((row) => row.id === id ? { ...row, failureKind: 'changed' } : row))
+        setConflict(false)
+        return
+      }
+      setOptimisticMessages((rows) => rows.map((row) => row.id === id ? { ...row, status: 'pending' } : row))
+      const updated = await activeApi.turn(surveyId, stored.sessionId, stored.token, message.turn)
+      setCurrent(updated)
+      setOptimisticMessages((rows) => rows.filter((row) => row.id !== id))
+      setConflict(false)
+    } catch (cause) {
+      setOptimisticMessages((rows) => rows.map((row) => row.id === id ? { ...row, status: 'failed',
+        failureKind: cause instanceof ApiFailure && cause.kind === 'conflict' ? 'changed' : 'connection' } : row))
     } finally {
       turnInFlight.current = false
       setBusy(false)
@@ -366,7 +403,8 @@ export function StudentSurveyPage({ api, environment, verified }: {
     onStart={(researchConsent, teamId) => void start(researchConsent, teamId)} onCopyResume={() => void copyResumeLink()} busy={busy} verified={verified} error={error}
     onDownloadDocument={() => void saveDraft()} onFinish={() => void finishReflection()}
     previewReturnHref={toAppHref(environment, 'PromptDesigner.html')}
-    conflictAction={conflict && <Button className="mt-2" onClick={() => void refreshSession()} type="button" variant="outline">Load latest question</Button>}
+    conflictAction={conflict && !optimisticMessages.some((row) => row.status === 'failed') && <Button className="mt-2" onClick={() => void refreshSession()} type="button" variant="outline">Load latest question</Button>}
+    onRetry={(id) => { const message = optimisticMessages.find((row) => row.id === id); void (message?.failureKind === 'changed' ? refreshSession() : retryTurn(id)) }}
     debugDisclosure={debugAllowed && debugAccessQuery.data?.enabled === true && session && stored && <div className="mt-4 min-w-0" data-testid="inline-debug-disclosure">
       <Button aria-controls="student-debug-panel" aria-expanded={showDebug}
         className="h-8 gap-1.5 rounded-md px-2 text-xs text-muted-foreground" onClick={() => setShowDebug((open) => !open)} size="sm" type="button" variant="ghost">

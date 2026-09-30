@@ -85,9 +85,9 @@ const surveySchema = z.object({
 const debugAccessSchema = z.object({ enabled: z.boolean() }).strict()
 const matchingSignalsResponseSchema = z.object({ accepted: z.boolean() }).strict()
 const turnSchema = z.discriminatedUnion('kind', [
-  z.object({ expected_version: z.number().int().positive(), item_id: z.string().min(1), kind: z.literal('rating'), value: z.number().int().positive() }).strict(),
-  z.object({ expected_version: z.number().int().positive(), item_id: z.string().min(1).optional(), kind: z.literal('text'), text: z.string().trim().min(1).max(3000) }).strict(),
-  z.object({ expected_version: z.number().int().positive(), item_id: z.string().min(1), kind: z.literal('skip') }).strict(),
+  z.object({ request_id: z.string().uuid().optional(), expected_version: z.number().int().positive(), item_id: z.string().min(1), kind: z.literal('rating'), value: z.number().int().positive() }).strict(),
+  z.object({ request_id: z.string().uuid().optional(), expected_version: z.number().int().positive(), item_id: z.string().min(1).optional(), kind: z.literal('text'), text: z.string().trim().min(1).max(3000) }).strict(),
+  z.object({ request_id: z.string().uuid().optional(), expected_version: z.number().int().positive(), item_id: z.string().min(1), kind: z.literal('skip') }).strict(),
 ])
 
 export type StudentSurvey = z.infer<typeof surveySchema>

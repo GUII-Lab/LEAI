@@ -21,6 +21,7 @@ import { ChatComposer } from '@/components/chat/ChatComposer'
 import { ChatMessage } from '@/components/chat/ChatMessage'
 import { ChatTranscript } from '@/components/chat/ChatTranscript'
 import { ChatThinkingMessage } from '@/components/chat/ChatThinkingMessage'
+import { ChatRetryStatus } from '@/components/chat/ChatRetryStatus'
 import { useChatVoiceInput } from '@/components/chat/useChatVoiceInput'
 import { ChatCitation, type ChatCitationSource } from './feedback-chat/ChatCitation'
 import { ChatSessionList } from './feedback-chat/ChatSessionList'
@@ -143,6 +144,7 @@ export function FeedbackChatPage({ api, environment, verified }: {
   const transcriptEnd = useRef<HTMLLIElement>(null)
   const [optimisticTurns, setOptimisticTurns] = useState<TurnAttempt[]>([])
   const [deliveryFailed, setDeliveryFailed] = useState(false)
+  const [deliveryKind, setDeliveryKind] = useState<'connection' | 'not-sent'>('connection')
   const clearSession = useCallback((message = '') => {
     void queryClient.cancelQueries()
     queryClient.clear()
@@ -258,6 +260,7 @@ export function FeedbackChatPage({ api, environment, verified }: {
       sessionStorage.setItem(qualifyBrowserKey(environment.name, `feedback-chat-job:${attempt.chatId}`), result.job_id)
       if (activeContext.current.courseId === attempt.courseId && activeContext.current.chatId === attempt.chatId) {
         setTrackedJob({ courseId: attempt.courseId, chatId: attempt.chatId, id: result.job_id })
+        setDeliveryFailed(false)
         setError('')
         setNotice('')
       }
@@ -267,10 +270,12 @@ export function FeedbackChatPage({ api, environment, verified }: {
       ])
     },
     onError: (cause) => {
-      setDeliveryFailed(true)
-      handleMutationError(cause)
-      if (!(cause instanceof AuthenticationRequiredError) && !(cause instanceof InstructorApiError)) {
-        setError('Delivery was not confirmed. The request could not be completed. Retry delivery to check the same request; your next draft is safe.')
+      if (cause instanceof AuthenticationRequiredError || (cause instanceof InstructorApiError && [401, 403, 404, 409].includes(cause.status))) {
+        setDeliveryFailed(false)
+        handleMutationError(cause)
+      } else {
+        setDeliveryKind(cause instanceof InstructorApiError && [400, 422, 429].includes(cause.status) ? 'not-sent' : 'connection')
+        setDeliveryFailed(true)
       }
     },
     onSettled: () => { submitting.current = false },
@@ -317,10 +322,6 @@ export function FeedbackChatPage({ api, environment, verified }: {
       setTrackedJob(null)
       setNotice('Answer complete.')
     }
-    if (status === 'failed') setError(jobQuery.data?.error_code === 'provider_outcome_unknown'
-      ? 'The AI provider may have received this question. Review the Chat before retrying; retrying sends a new request.'
-      : 'This answer could not be completed. You can retry the same question.')
-    if (status === 'cancelled') setError('This answer was cancelled by an administrator. Review the Chat before retrying.')
   }, [activeChatId, activeCourseId, environment.name, jobQuery.data?.error_code, jobQuery.data?.status, queryClient, storedJobKey])
 
   function send(text = composerText, retryMessageId?: string, retryDelivery = false) {
@@ -344,7 +345,7 @@ export function FeedbackChatPage({ api, environment, verified }: {
     }
     const attempt = turnAttempt.current!
     submitting.current = true
-    setDeliveryFailed(false)
+    if (!retryDelivery) setDeliveryFailed(false)
     setError('')
     setNotice('')
     if (!retryMessageId) setOptimisticTurns((turns) => turns.some((turn) => turn.key === attempt.key) ? turns : [...turns, attempt])
@@ -404,9 +405,15 @@ export function FeedbackChatPage({ api, environment, verified }: {
   const latestUserMessage = [...(chat?.messages ?? [])].reverse().find((message) => message.role === 'user')
   const currentAttempt = turnMutation.variables?.courseId === activeCourseId && turnMutation.variables.chatId === activeChatId
     ? turnMutation.variables : undefined
+  const failedDelivery = deliveryFailed && turnAttempt.current?.courseId === activeCourseId && turnAttempt.current.chatId === activeChatId
+    ? turnAttempt.current : null
+  const retryDelivery = () => { if (failedDelivery) send(failedDelivery.text, failedDelivery.retryMessageId, true) }
   const hasPersistedAnswer = pendingTurns.length === 0 && chat?.messages.some((message) => message.role === 'assistant'
     && message.sequence > (currentAttempt?.afterSequence ?? latestUserMessage?.sequence ?? Infinity))
-  const thinking = !hasPersistedAnswer && (Boolean(currentAttempt && turnMutation.isPending)
+  const failedReply = !failedDelivery && !hasPersistedAnswer && latestUserMessage && (job?.status === 'failed' || job?.status === 'cancelled')
+    && (!currentAttempt || currentAttempt.retryMessageId === latestUserMessage.id || latestUserMessage.sequence > currentAttempt.afterSequence)
+  const replyRecovery = failedReply || Boolean(failedDelivery?.retryMessageId)
+  const thinking = !hasPersistedAnswer && !failedDelivery && !replyRecovery && (Boolean(currentAttempt && turnMutation.isPending)
     || Boolean(activeJobId && !['completed', 'failed', 'cancelled'].includes(job?.status ?? '')))
   useEffect(() => {
     if (chat && (chat.messages.length || pendingTurns.length || thinking)) transcriptEnd.current?.scrollIntoView?.({ block: 'end' })
@@ -458,18 +465,22 @@ export function FeedbackChatPage({ api, environment, verified }: {
                             ? <div className="ml-1 border-l border-border/60 py-0.5 pl-7">{renderAssistantMarkdown(message.content, message.citations, openCitation)}</div>
                             : <p className="ml-auto w-full max-w-[83%] whitespace-pre-wrap break-words rounded bg-muted px-5 py-4 text-base leading-7">{message.content}</p>}
                           {message.citations.some((citation) => !message.content.includes(`[${citation.citation_number}]`)) && <div className="flex flex-wrap items-center gap-1 border-t border-border pt-2"><span className="text-sm text-muted-foreground">Evidence:</span>{message.citations.filter((citation) => !message.content.includes(`[${citation.citation_number}]`)).map((citation) => <ChatCitation citation={asCitationSource(citation)} key={citation.id} onOpenSource={openCitation} />)}</div>}
+                          {message.role === 'user' && failedDelivery && !failedDelivery.retryMessageId && message.sequence > failedDelivery.afterSequence && message.content === failedDelivery.text && <ChatRetryStatus busy={busy} kind={deliveryKind} onRetry={retryDelivery} />}
                         </div>
                       </ChatMessage>)}
                       {pendingTurns.map((turn) => <ChatMessage author="Instructor" className="student-user-message" key={turn.key} metaClassName="student-message-meta" role="user" timestamp={turn.createdAt}>
                         <p className="ml-auto w-full max-w-[83%] whitespace-pre-wrap break-words rounded bg-muted px-5 py-4 text-base leading-7">{turn.text}</p>
-                        <span className="text-sm text-muted-foreground">{deliveryFailed && turn.key === turnAttempt.current?.key ? 'Delivery not confirmed' : turnMutation.isPending ? 'Sending…' : 'Awaiting saved conversation'}</span>
+                        {failedDelivery?.key === turn.key
+                          ? <ChatRetryStatus busy={busy} kind={deliveryKind} onRetry={retryDelivery} />
+                          : <span className="text-sm text-muted-foreground">{turnMutation.isPending ? 'Sending…' : 'Awaiting saved conversation'}</span>}
                       </ChatMessage>)}
+                      {replyRecovery && latestUserMessage && <ChatMessage author="LEAI" className="student-assistant-message" metaClassName="student-message-meta" role="assistant">
+                        <ChatRetryStatus busy={busy} kind={failedDelivery?.retryMessageId ? deliveryKind : 'reply'} onRetry={failedDelivery?.retryMessageId ? retryDelivery : () => send(latestUserMessage.content, latestUserMessage.id)} />
+                      </ChatMessage>}
                       {thinking && <ChatThinkingMessage />}
                     </ChatTranscript>
                     <div className="mx-auto flex w-full max-w-[832px] flex-wrap items-center gap-2 px-5 pb-4 sm:px-8">
-                      {deliveryFailed && turnAttempt.current?.chatId === activeChatId && <Button disabled={busy} onClick={() => { const attempt = turnAttempt.current; if (attempt) send(attempt.text, attempt.retryMessageId, true) }} type="button" variant="outline">Retry delivery</Button>}
-                      {(job?.status === 'failed' || job?.status === 'cancelled') && latestUserMessage && <Button disabled={turnMutation.isPending} onClick={() => send(latestUserMessage.content, latestUserMessage.id)} type="button" variant="outline">Retry last question</Button>}
-                      {chat.messages.length > 0 && latestUserMessage && job?.status !== 'failed' && job?.status !== 'cancelled' && <Button className="text-base" disabled={busy} onClick={() => send(latestUserMessage.content, latestUserMessage.id)} type="button" variant="link">Replay last question</Button>}
+                      {chat.messages.length > 0 && latestUserMessage && !failedDelivery && job?.status !== 'failed' && job?.status !== 'cancelled' && <Button className="text-base" disabled={busy} onClick={() => send(latestUserMessage.content, latestUserMessage.id)} type="button" variant="link">Replay last question</Button>}
                     </div>
                   </div>
                   <div className="shrink-0 space-y-3 border-t border-border bg-card p-4 sm:px-7">

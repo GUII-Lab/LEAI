@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import type { createInstructorApi } from '@/api/instructor-v1'
+import { InstructorApiError, type createInstructorApi } from '@/api/instructor-v1'
 import type { WizardDraft, WizardProtocol, WizardRevision, WizardSurvey } from '@/api/contracts/wizard'
 import { getEnvironment } from '@/config/environment'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -65,7 +65,9 @@ const api = {
 
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  render(<TooltipProvider><QueryClientProvider client={client}><PromptDesignerPage api={api} environment={environment} verified /></QueryClientProvider></TooltipProvider>)
+  const page = () => <TooltipProvider><QueryClientProvider client={client}><PromptDesignerPage api={api} environment={environment} verified /></QueryClientProvider></TooltipProvider>
+  const result = render(page())
+  return () => result.rerender(page())
 }
 
 const pendingRequests: { promise: Promise<unknown>; reject: (cause: unknown) => void }[] = []
@@ -89,10 +91,10 @@ function deferred<T>() {
 async function resumeChat() {
   vi.mocked(api.wizardDrafts).mockResolvedValue({ question_sets: [draft] })
   const user = userEvent.setup({ delay: null })
-  renderPage()
+  const refresh = renderPage()
   await user.click(await screen.findByRole('button', { name: 'Continue previous session' }))
   const input = await screen.findByRole('textbox', { name: 'Ask LEAI to edit this feedback draft' })
-  return { user, input, log: screen.getByRole('log', { name: 'Conversation' }), form: input.closest('form')! }
+  return { user, input, refresh, log: screen.getByRole('log', { name: 'Conversation' }), form: input.closest('form')! }
 }
 
 it('shows the submitted instruction before save/ACK, snapshots it once, and locks duplicate sends through reconciliation', async () => {
@@ -149,10 +151,180 @@ it.each(['save', 'ACK'] as const)('keeps a failed optimistic instruction and new
   expect(input).toHaveValue('')
   await user.type(input, 'New draft')
   await act(async () => request.reject(new Error('offline')))
-  expect(await within(log).findByText(/send not confirmed/i)).toBeInTheDocument()
+  expect(await within(log).findByRole('button', { name: 'Retry' })).toBeInTheDocument()
   expect(within(log).getByText('Submitted instruction')).toBeInTheDocument()
   expect(input).toHaveValue('New draft')
+  expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
+})
+
+it('retries a lost ACK with the original key/version without saving edits or consuming the next instruction', async () => {
+  const ack = deferred<{ job_id: string }>()
+  const persisted = { id: '101', role: 'user' as const, content: 'Shorten it', created_at: timestamp }
+  vi.mocked(api.startWizardAi).mockRejectedValueOnce(new Error('lost ACK')).mockReturnValueOnce(ack.promise)
+  const { user, input, log } = await resumeChat()
+  await user.type(input, 'Shorten it')
+  await user.click(screen.getByRole('button', { name: 'Send' }))
+  const retry = await within(log).findByRole('button', { name: 'Retry' })
+  expect(within(log).getByText('Connection lost')).toBeInTheDocument()
+  expect(screen.getAllByRole('alert').every((alert) => log.contains(alert))).toBe(true)
+  const first = vi.mocked(api.startWizardAi).mock.calls[0]!
+  await user.type(input, 'Future instruction')
+  await user.type(screen.getByRole('textbox', { name: 'Feedback title' }), ' revised')
+  vi.mocked(api.wizardConversation).mockResolvedValue({ messages: [persisted] })
+  await user.click(retry)
+  await waitFor(() => expect(api.startWizardAi).toHaveBeenCalledTimes(2))
+  expect(vi.mocked(api.startWizardAi).mock.calls[1]).toEqual([courseId, questionSetId, 'Shorten it', 1, first[4]])
+  expect(api.saveWizardDraft).not.toHaveBeenCalled()
+  expect(input).toHaveValue('Future instruction')
+  expect(within(log).getAllByText('Shorten it')).toHaveLength(1)
+  await act(async () => ack.resolve({ job_id: '550e8400-e29b-41d4-a716-446655440060' }))
+  await waitFor(() => expect(within(log).queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument())
+  expect(within(log).getAllByText('Shorten it')).toHaveLength(1)
+  expect(input).toHaveValue('Future instruction')
+  expect(screen.getByRole('button', { name: 'Sending message' })).toBeDisabled()
+  fireEvent.submit(input.closest('form')!)
+  expect(api.startWizardAi).toHaveBeenCalledTimes(2)
+})
+
+it('retries an initial failed save before capturing the first delivery request', async () => {
+  vi.mocked(api.saveWizardDraft).mockRejectedValueOnce(new Error('save offline'))
+  vi.mocked(api.startWizardAi).mockRejectedValue(new Error('ACK offline'))
+  const { user, input, log } = await resumeChat()
+  await user.type(screen.getByRole('textbox', { name: 'Feedback title' }), ' revised')
+  await user.type(input, 'Shorten it')
+  await user.click(screen.getByRole('button', { name: 'Send' }))
+  const retry = await within(log).findByRole('button', { name: 'Retry' })
+  expect(api.startWizardAi).not.toHaveBeenCalled()
+  expect(screen.getAllByRole('alert').every((alert) => log.contains(alert))).toBe(true)
+  await user.type(input, 'Future instruction')
+  await user.click(retry)
+  await waitFor(() => expect(api.startWizardAi).toHaveBeenCalledOnce())
+  expect(api.startWizardAi).toHaveBeenCalledWith(courseId, questionSetId, 'Shorten it', 2, expect.any(String))
+  expect(within(log).getAllByText('Shorten it')).toHaveLength(1)
+  expect(input).toHaveValue('Future instruction')
+  expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
+  fireEvent.submit(input.closest('form')!)
+  expect(api.startWizardAi).toHaveBeenCalledOnce()
+})
+
+it('does not replay a delivery into a different selected course', async () => {
+  vi.mocked(api.startWizardAi).mockRejectedValue(new Error('lost ACK'))
+  const { user, input, log, refresh } = await resumeChat()
+  await user.type(input, 'Original instruction')
+  await user.click(screen.getByRole('button', { name: 'Send' }))
+  const retry = await within(log).findByRole('button', { name: 'Retry' })
+  sessionStorage.setItem('leai:local:selected-course', '550e8400-e29b-41d4-a716-446655440099')
+  refresh()
+  await user.click(retry)
+  expect(api.startWizardAi).toHaveBeenCalledOnce()
+})
+
+it('refreshes a stale delivery without resending it on a newer draft version', async () => {
+  vi.mocked(api.startWizardAi).mockRejectedValue(new InstructorApiError(409, 'stale_draft'))
+  const { user, input, log } = await resumeChat()
+  await user.type(input, 'Original instruction')
+  await user.click(screen.getByRole('button', { name: 'Send' }))
+  const refresh = await within(log).findByRole('button', { name: 'Refresh' })
+  await user.type(input, 'Future instruction')
+  vi.mocked(api.wizardDraft).mockResolvedValue({ ...draft, draft_version: 4 })
+  await user.click(refresh)
+  expect(api.startWizardAi).toHaveBeenCalledOnce()
+  expect(within(log).getByText('Original instruction')).toBeInTheDocument()
+  expect(input).toHaveValue('Future instruction')
   expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled()
+  expect(await within(log).findByRole('button', { name: 'Retry' })).toBeEnabled()
+  const firstKey = vi.mocked(api.startWizardAi).mock.calls[0]![4]
+  const ack = deferred<{ job_id: string }>()
+  vi.mocked(api.startWizardAi).mockReturnValueOnce(ack.promise)
+  await user.click(within(log).getByRole('button', { name: 'Retry' }))
+  await waitFor(() => expect(api.startWizardAi).toHaveBeenCalledTimes(2))
+  expect(api.startWizardAi).toHaveBeenLastCalledWith(courseId, questionSetId, 'Original instruction', 4, expect.any(String))
+  expect(vi.mocked(api.startWizardAi).mock.calls[1]![4]).not.toBe(firstKey)
+  expect(input).toHaveValue('Future instruction')
+  expect(within(log).getAllByText('Original instruction')).toHaveLength(1)
+})
+
+it('keeps reply failure compact while its conversation read fails and does not resend', async () => {
+  const jobId = '550e8400-e29b-41d4-a716-446655440060'
+  vi.mocked(api.startWizardAi).mockResolvedValue({ job_id: jobId })
+  vi.mocked(api.job).mockResolvedValue({ id: jobId, status: 'failed', error_code: 'provider_outcome_unknown', result: null })
+  const { user, input, log } = await resumeChat()
+  await user.type(input, 'Shorten it')
+  await user.click(screen.getByRole('button', { name: 'Send' }))
+  await waitFor(() => expect(api.wizardConversation).toHaveBeenCalledTimes(2))
+  vi.mocked(api.wizardConversation).mockRejectedValue(new Error('offline'))
+  expect(await within(log).findByText('Couldn’t generate a reply', {}, { timeout: 3000 })).toBeInTheDocument()
+  await waitFor(() => expect(api.wizardConversation).toHaveBeenCalledTimes(3), { timeout: 3000 })
+  expect(within(log).getByText('Couldn’t generate a reply')).toBeInTheDocument()
+  expect(screen.queryByText(/AI request finished|saved draft before sending/)).not.toBeInTheDocument()
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  expect(api.startWizardAi).toHaveBeenCalledOnce()
+})
+
+it('ignores a completed job transcript read after opening the next draft', async () => {
+  const read = deferred<Awaited<ReturnType<Api['wizardConversation']>>>()
+  const ack = deferred<{ job_id: string }>()
+  const jobId = '550e8400-e29b-41d4-a716-446655440060'
+  vi.mocked(api.startWizardAi).mockResolvedValueOnce({ job_id: jobId }).mockReturnValueOnce(ack.promise)
+  vi.mocked(api.job).mockResolvedValue({ id: jobId, status: 'completed', error_code: null, result: null })
+  const { user, input } = await resumeChat()
+  await user.type(input, 'Old instruction')
+  await user.click(screen.getByRole('button', { name: 'Send' }))
+  await waitFor(() => expect(api.wizardConversation).toHaveBeenCalledTimes(2))
+  vi.mocked(api.wizardConversation).mockReturnValueOnce(read.promise).mockResolvedValue({ messages: [] })
+  await waitFor(() => expect(api.wizardConversation).toHaveBeenCalledTimes(3), { timeout: 3000 })
+  await user.click(screen.getByRole('button', { name: 'Close builder' }))
+  await user.click(await screen.findByRole('button', { name: 'Save and close' }))
+  const nextDraft = { ...draft, id: '550e8400-e29b-41d4-a716-446655440011' }
+  vi.mocked(api.wizardDraft).mockResolvedValue(nextDraft)
+  await user.click(await screen.findByRole('button', { name: 'Continue previous session' }))
+  const nextInput = await screen.findByRole('textbox', { name: 'Ask LEAI to edit this feedback draft' })
+  await user.type(nextInput, 'Current instruction')
+  await user.click(screen.getByRole('button', { name: 'Send' }))
+  await user.type(nextInput, 'Future instruction')
+  await act(async () => read.resolve({ messages: [{ id: '900', role: 'assistant', content: 'Old draft reply', created_at: timestamp }] }))
+  expect(screen.queryByText('Old draft reply')).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Sending message' })).toBeDisabled()
+  expect(nextInput).toHaveValue('Future instruction')
+})
+
+it('retries a failed reply with its persisted user id and replays a lost retry ACK without duplicating the instruction', async () => {
+  const jobId = '550e8400-e29b-41d4-a716-446655440060'
+  const nextJobId = '550e8400-e29b-41d4-a716-446655440061'
+  vi.mocked(api.startWizardAi).mockResolvedValueOnce({ job_id: jobId })
+    .mockRejectedValueOnce(new Error('retry ACK lost')).mockResolvedValueOnce({ job_id: nextJobId })
+  vi.mocked(api.job).mockResolvedValue({ id: jobId, status: 'failed', error_code: 'provider_error', result: null })
+  const { user, input, log } = await resumeChat()
+  vi.mocked(api.wizardConversation).mockResolvedValue({ messages: [{ id: '101', role: 'user', content: 'Shorten it', created_at: timestamp }] })
+  await user.type(input, 'Shorten it')
+  await user.click(screen.getByRole('button', { name: 'Send' }))
+  await user.type(input, 'Future instruction')
+  const retry = await within(log).findByRole('button', { name: 'Try again' }, { timeout: 3000 })
+  expect(retry.closest('li')).toHaveTextContent('LEAI')
+  expect(screen.getAllByRole('alert').every((alert) => log.contains(alert))).toBe(true)
+  expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
+  fireEvent.submit(input.closest('form')!)
+  expect(api.startWizardAi).toHaveBeenCalledOnce()
+  const firstKey = vi.mocked(api.startWizardAi).mock.calls[0]![4]
+  await user.type(screen.getByRole('textbox', { name: 'Feedback title' }), ' revised')
+  await user.click(retry)
+  const deliveryRetry = await within(log).findByRole('button', { name: 'Retry' })
+  expect(api.startWizardAi).toHaveBeenCalledTimes(2)
+  const retryRequest = vi.mocked(api.startWizardAi).mock.calls[1]!
+  expect(retryRequest).toEqual([courseId, questionSetId, 'Shorten it', 2, expect.any(String), '101'])
+  expect(retryRequest[4]).not.toBe(firstKey)
+  expect(within(log).getAllByText('Shorten it')).toHaveLength(1)
+  expect(input).toHaveValue('Future instruction')
+  await user.type(screen.getByRole('textbox', { name: 'Feedback title' }), ' future edit')
+  const saves = vi.mocked(api.saveWizardDraft).mock.calls.length
+  vi.mocked(api.job).mockResolvedValue({ id: nextJobId, status: 'completed', error_code: null, result: null })
+  await user.click(deliveryRetry)
+  await waitFor(() => expect(api.startWizardAi).toHaveBeenCalledTimes(3))
+  expect(vi.mocked(api.startWizardAi).mock.calls[2]).toEqual(retryRequest)
+  expect(api.saveWizardDraft).toHaveBeenCalledTimes(saves)
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled(), { timeout: 3000 })
+  expect(within(log).getAllByText('Shorten it')).toHaveLength(1)
+  expect(input).toHaveValue('Future instruction')
 })
 
 it.each(['ACK', 'failure'] as const)('ignores an old %s after closing and reopening the builder with a new send', async (outcome) => {
@@ -335,7 +507,7 @@ it('warns when the Wizard AI provider outcome is unknown without resending', asy
   const input = await within(builder).findByRole('textbox', { name: 'Ask LEAI to edit this feedback draft' })
   await user.type(input, 'Shorten the introduction')
   await user.click(within(builder).getByRole('button', { name: 'Send' }))
-  expect(await within(builder).findByText(/LEAI could not confirm whether its AI request finished/, {}, { timeout: 3000 })).toBeInTheDocument()
+  expect(await within(builder).findByText('Couldn’t generate a reply', {}, { timeout: 3000 })).toBeInTheDocument()
   expect(api.startWizardAi).toHaveBeenCalledTimes(1)
 })
 
@@ -353,7 +525,7 @@ it('shows an administrator-cancelled Wizard edit without resending', async () =>
   await user.click(within(builder).getByRole('button', { name: /^Continue$/ }))
   await user.type(await within(builder).findByRole('textbox', { name: 'Ask LEAI to edit this feedback draft' }), 'Shorten the introduction')
   await user.click(within(builder).getByRole('button', { name: 'Send' }))
-  expect(await within(builder).findByText(/LEAI stopped this draft edit/, {}, { timeout: 3000 })).toBeInTheDocument()
+  expect(await within(builder).findByText('Couldn’t generate a reply', {}, { timeout: 3000 })).toBeInTheDocument()
   expect(api.startWizardAi).toHaveBeenCalledTimes(1)
 })
 

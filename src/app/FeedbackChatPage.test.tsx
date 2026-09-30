@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { CanonicalCourse } from '@/api/contracts/instructor'
-import { AuthenticationRequiredError } from '@/api/instructor-v1'
+import { AuthenticationRequiredError, InstructorApiError } from '@/api/instructor-v1'
 import { getEnvironment } from '@/config/environment'
 import type { FeedbackChatApi } from './FeedbackChatPage'
 import { FeedbackChatPage } from './FeedbackChatPage'
@@ -149,11 +149,16 @@ it('shows the just-saved user turn and retries that turn after a worker failure'
   await user.type(screen.getByRole('textbox', { name: 'Message' }), 'A new question just saved.')
   await user.click(screen.getByRole('button', { name: 'Send' }))
   expect(await screen.findByText('A new question just saved.')).toBeInTheDocument()
-  await user.click(await screen.findByRole('button', { name: 'Retry last question' }))
+  const retry = await screen.findByRole('button', { name: 'Try again' })
+  expect(retry.closest('[data-chat-role="assistant"]')).toHaveTextContent('LEAI')
+  expect(screen.getAllByRole('alert')).toHaveLength(1)
+  expect(screen.getByRole('log')).toContainElement(screen.getByRole('alert'))
+  expect(screen.getAllByRole('button', { name: 'Try again' })).toHaveLength(1)
+  await user.click(retry)
   await waitFor(() => expect(api.createTurn).toHaveBeenLastCalledWith(courseId, chatId, { content: 'A new question just saved.', retry_message_id: '12' }, expect.any(String)))
 })
 
-it('warns before manually retrying a turn with an unknown provider outcome', async () => {
+it('offers one deliberate reply attempt for an unknown provider outcome without duplicating the user', async () => {
   const updatedChat = {
     ...chat,
     messages: [...chat.messages, { id: '12', sequence: 3, role: 'user' as const, content: 'What changed?', created_at: '2026-09-27T12:32:45Z', citations: [] }],
@@ -166,10 +171,22 @@ it('warns before manually retrying a turn with an unknown provider outcome', asy
   await user.click(await screen.findByRole('button', { name: 'New chat' }))
   await user.type(screen.getByRole('textbox', { name: 'Message' }), 'What changed?')
   await user.click(screen.getByRole('button', { name: 'Send' }))
-  expect(await screen.findByRole('alert')).toHaveTextContent('The AI provider may have received this question.')
+  const retry = await screen.findByRole('button', { name: 'Try again' })
+  expect(screen.getAllByRole('alert')).toHaveLength(1)
+  expect(screen.getByRole('log')).toContainElement(screen.getByRole('alert'))
+  expect(within(screen.getByRole('log')).queryByText(/provider|new request/i)).not.toBeInTheDocument()
   expect(api.createTurn).toHaveBeenCalledTimes(1)
-  await user.click(await screen.findByRole('button', { name: 'Retry last question' }))
+  const originalKey = vi.mocked(api.createTurn).mock.calls[0][3]
+  const ack = deferred<{ job_id: string }>()
+  vi.mocked(api.createTurn).mockReturnValueOnce(ack.promise)
+  const composer = screen.getByRole('textbox', { name: 'Message' })
+  await user.type(composer, 'Next draft')
+  await user.dblClick(retry)
   await waitFor(() => expect(api.createTurn).toHaveBeenLastCalledWith(courseId, chatId, { content: 'What changed?', retry_message_id: '12' }, expect.any(String)))
+  expect(api.createTurn).toHaveBeenCalledTimes(2)
+  expect(vi.mocked(api.createTurn).mock.calls[1][3]).not.toBe(originalKey)
+  expect(within(screen.getByRole('log')).getAllByText('What changed?')).toHaveLength(1)
+  expect(composer).toHaveValue('Next draft')
 })
 
 it('shows administrator cancellation and permits only a deliberate retry', async () => {
@@ -185,9 +202,11 @@ it('shows administrator cancellation and permits only a deliberate retry', async
   await user.click(await screen.findByRole('button', { name: 'New chat' }))
   await user.type(screen.getByRole('textbox', { name: 'Message' }), 'What changed?')
   await user.click(screen.getByRole('button', { name: 'Send' }))
-  expect(await screen.findByRole('alert')).toHaveTextContent('This answer was cancelled by an administrator.')
+  expect(await screen.findByRole('button', { name: 'Try again' })).toBeInTheDocument()
+  expect(screen.getAllByRole('alert')).toHaveLength(1)
+  expect(screen.getByRole('log')).toContainElement(screen.getByRole('alert'))
   expect(api.createTurn).toHaveBeenCalledTimes(1)
-  expect(await screen.findByRole('button', { name: 'Retry last question' })).toBeInTheDocument()
+  expect(screen.getAllByRole('button', { name: 'Try again' })).toHaveLength(1)
 })
 
 it('loads each Chat instructions draft from the selected Chat', async () => {
@@ -217,8 +236,11 @@ it('reuses the same idempotency key when retrying a turn whose response was lost
   await user.type(screen.getByRole('textbox', { name: 'Message' }), 'Did anything change?')
 
   await user.click(screen.getByRole('button', { name: 'Send' }))
-  expect(await screen.findByRole('alert')).toHaveTextContent('request could not be completed')
-  await user.click(screen.getByRole('button', { name: 'Retry delivery' }))
+  const retry = await screen.findByRole('button', { name: 'Retry' })
+  expect(retry.closest('[data-chat-role="user"]')).toHaveTextContent('Did anything change?')
+  expect(screen.getAllByRole('alert')).toHaveLength(1)
+  expect(screen.getByRole('log')).toContainElement(screen.getByRole('alert'))
+  await user.click(retry)
 
   await waitFor(() => expect(api.createTurn).toHaveBeenCalledTimes(2))
   const createTurn = vi.mocked(api.createTurn)
@@ -231,6 +253,91 @@ function deferred<T>() {
   const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no })
   return { promise, resolve, reject }
 }
+
+it('retries a lost reply acknowledgement with the same reply payload and key in one assistant slot', async () => {
+  sessionStorage.setItem(`leai:local:feedback-chat-job:${chatId}`, jobId)
+  const unanswered = { ...chat, messages: [...chat.messages,
+    { id: '12', sequence: 3, role: 'user' as const, content: 'Saved question', created_at: '2026-09-29T12:30:45Z', citations: [] },
+  ] }
+  vi.mocked(api.chat).mockResolvedValue(unanswered)
+  vi.mocked(api.job).mockResolvedValue({ id: jobId, status: 'failed', error_code: 'turn_failed', result: null })
+  vi.mocked(api.createTurn).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+  const user = userEvent.setup()
+  renderPage()
+  await user.click(await screen.findByRole('button', { name: 'Try again' }))
+  const retry = await screen.findByRole('button', { name: 'Retry' })
+  expect(retry.closest('[data-chat-role="assistant"]')).toHaveTextContent('LEAI')
+  expect(screen.getAllByRole('alert')).toHaveLength(1)
+  expect(within(screen.getByRole('log')).getAllByText('Saved question')).toHaveLength(1)
+  await user.click(retry)
+  await waitFor(() => expect(api.createTurn).toHaveBeenCalledTimes(2))
+  const attempts = vi.mocked(api.createTurn).mock.calls
+  expect(attempts[0][2]).toEqual({ content: 'Saved question', retry_message_id: '12' })
+  expect(attempts[1]).toEqual(attempts[0])
+})
+
+it.each([403, 404, 409])('retains normal access/conflict handling for HTTP %s rather than offering a delivery retry', async (status) => {
+  vi.mocked(api.createTurn).mockRejectedValueOnce(new InstructorApiError(status, 'denied'))
+  const user = userEvent.setup()
+  renderPage()
+  const composer = await screen.findByRole('textbox', { name: 'Message' })
+  await user.type(composer, 'Restricted request')
+  await user.click(screen.getByRole('button', { name: 'Send' }))
+  const alert = await screen.findByRole('alert')
+  expect(screen.getByRole('log')).not.toContainElement(alert)
+  expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
+  expect(api.createTurn).toHaveBeenCalledTimes(1)
+})
+
+it.each([
+  { status: null, caption: 'Connection lost' },
+  { status: 500, caption: 'Connection lost' },
+  { status: 400, caption: 'Not sent' },
+  { status: 422, caption: 'Not sent' },
+  { status: 429, caption: 'Not sent' },
+])('keeps one correctly classified recovery beneath a saved user after delivery error $status', async ({ status, caption }) => {
+  const ack = deferred<{ job_id: string }>()
+  vi.mocked(api.createTurn).mockReturnValueOnce(ack.promise)
+  const user = userEvent.setup()
+  const client = renderPage()
+  const composer = await screen.findByRole('textbox', { name: 'Message' })
+  await user.type(composer, 'Persisted without ACK')
+  await user.click(screen.getByRole('button', { name: 'Send' }))
+  act(() => client.setQueryData(['feedback-chat', environment.name, courseId, chatId], { ...chat, messages: [...chat.messages,
+    { id: '12', sequence: 3, role: 'user', content: 'Persisted without ACK', created_at: '2026-09-29T12:30:45Z', citations: [] },
+  ] }))
+  await act(async () => ack.reject(status === null ? new TypeError('Failed to fetch') : new InstructorApiError(status, 'turn_error')))
+  const retry = await screen.findByRole('button', { name: 'Retry' })
+  expect(retry.closest('[data-chat-role="user"]')).toHaveTextContent('Persisted without ACK')
+  expect(screen.getAllByRole('alert')).toHaveLength(1)
+  expect(screen.getByRole('alert')).toHaveTextContent(caption)
+  expect(screen.getByRole('log')).toContainElement(screen.getByRole('alert'))
+  expect(within(screen.getByRole('log')).getAllByText('Persisted without ACK')).toHaveLength(1)
+  await user.click(retry)
+  await waitFor(() => expect(api.createTurn).toHaveBeenCalledTimes(2))
+  expect(vi.mocked(api.createTurn).mock.calls[1]).toEqual(vi.mocked(api.createTurn).mock.calls[0])
+})
+
+it('does not attach an older failed job recovery to a new turn with unknown delivery', async () => {
+  sessionStorage.setItem(`leai:local:feedback-chat-job:${chatId}`, jobId)
+  vi.mocked(api.chat).mockResolvedValue({ ...chat, messages: [chat.messages[0]] })
+  vi.mocked(api.job).mockResolvedValue({ id: jobId, status: 'failed', error_code: 'turn_failed', result: null })
+  const ack = deferred<{ job_id: string }>()
+  vi.mocked(api.createTurn).mockReturnValueOnce(ack.promise)
+  const user = userEvent.setup()
+  const client = renderPage()
+  await screen.findByRole('button', { name: 'Try again' })
+  const composer = screen.getByRole('textbox', { name: 'Message' })
+  await user.type(composer, 'Different question')
+  await user.click(screen.getByRole('button', { name: 'Send' }))
+  act(() => client.setQueryData(['feedback-chat', environment.name, courseId, chatId], { ...chat, messages: [chat.messages[0],
+    { id: '12', sequence: 2, role: 'user', content: 'Different question', created_at: '2026-09-29T12:30:45Z', citations: [] },
+  ] }))
+  await act(async () => ack.reject(new TypeError('Failed to fetch')))
+  await screen.findByRole('button', { name: 'Retry' })
+  expect(screen.getAllByRole('alert')).toHaveLength(1)
+  expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument()
+})
 
 it('shows the user bubble and clears the draft before ACK, keeping input editable and guarding immediate duplicate sends', async () => {
   const ack = deferred<{ job_id: string }>()
@@ -294,10 +401,17 @@ it('keeps a new draft on delivery failure and retries the original request witho
   await user.click(screen.getByRole('button', { name: 'Send' }))
   await user.type(composer, 'New draft stays')
   await act(async () => ack.reject(new TypeError('Failed to fetch')))
-  expect(await screen.findByRole('alert')).toHaveTextContent(/delivery.*not confirmed/i)
+  const retry = await screen.findByRole('button', { name: 'Retry' })
+  expect(retry.closest('[data-chat-role="user"]')).toHaveTextContent('Lost acknowledgement')
+  expect(screen.getAllByRole('button', { name: 'Retry' })).toHaveLength(1)
+  expect(screen.getAllByRole('alert')).toHaveLength(1)
+  expect(screen.getByRole('log')).toContainElement(screen.getByRole('alert'))
   expect(composer).toHaveValue('New draft stays')
   expect(within(screen.getByRole('log')).queryByRole('status')).not.toBeInTheDocument()
-  await user.click(screen.getByRole('button', { name: 'Retry delivery' }))
+  const retryAck = deferred<{ job_id: string }>()
+  vi.mocked(api.createTurn).mockReturnValueOnce(retryAck.promise)
+  await user.dblClick(retry)
+  expect(await screen.findByRole('button', { name: 'Retrying…' })).toBeDisabled()
   await waitFor(() => expect(api.createTurn).toHaveBeenCalledTimes(2))
   expect(vi.mocked(api.createTurn).mock.calls[1]).toEqual(vi.mocked(api.createTurn).mock.calls[0])
   expect(within(screen.getByRole('log')).getAllByText('Lost acknowledgement')).toHaveLength(1)
@@ -322,7 +436,7 @@ it('uses shared desktop Enter exactly once and preserves Cmd/Ctrl newline', asyn
   expect(api.createTurn).toHaveBeenCalledWith(courseId, chatId, { content: 'Line one\nLine two\nLine three' }, expect.any(String))
 })
 
-it('keeps dictation active through submit and blocked sends without replaying consumed recognition text', async () => {
+it('keeps dictation active through submit, blocked sends, and delivery retry without replaying consumed recognition text', async () => {
   let recognition!: FakeRecognition
   class FakeRecognition {
     continuous = true; interimResults = true; lang = ''
@@ -350,11 +464,18 @@ it('keeps dictation active through submit and blocked sends without replaying co
   fireEvent.submit(composer.closest('form')!)
   speak(['Spoken question', 'Next spoken draft', 'more detail'])
   expect(composer).toHaveValue('Next spoken draft more detail')
-  await act(async () => ack.resolve({ job_id: jobId }))
+  await act(async () => ack.reject(new TypeError('Failed to fetch')))
+  const retryAck = deferred<{ job_id: string }>()
+  vi.mocked(api.createTurn).mockReturnValueOnce(retryAck.promise)
+  await user.click(await screen.findByRole('button', { name: 'Retry' }))
+  speak(['Spoken question', 'Next spoken draft', 'more detail', 'while retrying'])
+  expect(composer).toHaveValue('Next spoken draft more detail while retrying')
+  await act(async () => retryAck.resolve({ job_id: jobId }))
   expect(screen.getByRole('button', { name: 'Stop dictation' })).toBeEnabled()
   expect(recognition.stop).not.toHaveBeenCalled()
-  expect(composer).toHaveValue('Next spoken draft more detail')
-  expect(api.createTurn).toHaveBeenCalledTimes(1)
+  expect(composer).toHaveValue('Next spoken draft more detail while retrying')
+  expect(api.createTurn).toHaveBeenCalledTimes(2)
+  expect(vi.mocked(api.createTurn).mock.calls[1]).toEqual(vi.mocked(api.createTurn).mock.calls[0])
 })
 
 it('blocks sending while a restored job awaits its first poll without consuming the draft', async () => {

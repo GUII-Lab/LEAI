@@ -27,6 +27,15 @@ import type { WizardStep } from './prompt-designer/WorkflowStepper'
 type Api = ReturnType<typeof createInstructorApi>
 type Audience = 'individual' | 'team'
 type Style = 'guided' | 'open'
+type InstructionDelivery = {
+  courseId: string
+  draftId: string
+  messageId: string
+  content: string
+  key: string
+  expectedVersion?: number
+  retryMessageId?: string
+}
 
 function errorText(error: unknown) {
   if (error instanceof InstructorApiError) {
@@ -77,8 +86,12 @@ export function PromptDesignerPage({ api, environment, verified }: {
   const [versions, setVersions] = useState<WizardVersion[]>([])
   const [conversation, setConversation] = useState<WizardConversationMessage[]>([])
   const [localInstructions, setLocalInstructions] = useState<{
-    message: WizardConversationMessage; previousIds: string[]; failed: boolean
+    message: WizardConversationMessage; previousIds: string[]; failed: boolean; changed?: boolean; connection?: boolean
   }[]>([])
+  const [replyFailure, setReplyFailure] = useState('')
+  const [replyRecovery, setReplyRecovery] = useState<{
+    kind: 'reply' | 'connection' | 'not-sent' | 'changed'; delivery: InstructionDelivery
+  } | null>(null)
   const [composer, setComposer] = useState('')
   const [aiJobId, setAiJobId] = useState('')
   const [aiSending, setAiSending] = useState(false)
@@ -114,6 +127,11 @@ export function PromptDesignerPage({ api, environment, verified }: {
   const draftIdRef = useRef('')
   const aiSendLockedRef = useRef(false)
   const aiInstructionIdRef = useRef('')
+  const unresolvedInstructionRef = useRef('')
+  const deliveriesRef = useRef(new Map<string, InstructionDelivery>())
+  const courseIdRef = useRef(courseId)
+  courseIdRef.current = courseId
+  const builderEpochRef = useRef(0)
   const templateSaveRequestRef = useRef('')
   const templateSaveKeyRef = useRef('')
   const publishRequestRef = useRef('')
@@ -197,6 +215,7 @@ export function PromptDesignerPage({ api, environment, verified }: {
   }, [environment])
 
   const resetBuilder = () => {
+    builderEpochRef.current += 1
     setBuilderOpen(false)
     setDraft(null)
     setBody(null)
@@ -209,8 +228,12 @@ export function PromptDesignerPage({ api, environment, verified }: {
     setAiJobId('')
     aiSendLockedRef.current = false
     aiInstructionIdRef.current = ''
+    unresolvedInstructionRef.current = ''
     setAiSending(false)
     setLocalInstructions([])
+    deliveriesRef.current.clear()
+    setReplyFailure('')
+    setReplyRecovery(null)
     setError('')
   }
 
@@ -221,10 +244,12 @@ export function PromptDesignerPage({ api, environment, verified }: {
     )))
   }, [])
 
-  const loadDraft = useCallback(async (id: string) => {
+  const loadDraft = useCallback(async (id: string, onConversation?: (messages: WizardConversationMessage[]) => void) => {
+    const epoch = builderEpochRef.current
     const [loaded, history, chat] = await Promise.all([
       api.wizardDraft(courseId, id), api.wizardVersions(courseId, id), api.wizardConversation(courseId, id),
     ])
+    if (epoch !== builderEpochRef.current || courseId !== courseIdRef.current) return loaded
     setDraft(loaded)
     setAudience(loaded.audience)
     setAudienceChoice(loaded.audience)
@@ -238,14 +263,15 @@ export function PromptDesignerPage({ api, environment, verified }: {
     setBody(loaded.body)
     setVersions(history.versions)
     reconcileConversation(chat.messages)
+    onConversation?.(chat.messages)
     setSaveStatus(elapsedSave(loaded.updated_at))
     return loaded
   }, [api, courseId, reconcileConversation])
 
-  const saveNow = useCallback(async function flushSave(): Promise<void> {
+  const saveNow = useCallback(async function flushSave(chatSend = false): Promise<void> {
     if (savingRef.current) {
       await savingRef.current
-      if (dirtyRef.current) return flushSave()
+      if (dirtyRef.current) return flushSave(chatSend)
       return
     }
     const current = bodyRef.current
@@ -257,9 +283,12 @@ export function PromptDesignerPage({ api, environment, verified }: {
       throw new Error('invalid_draft')
     }
     const expected = versionRef.current
+    const epoch = builderEpochRef.current
+    const ownsSave = () => epoch === builderEpochRef.current && courseId === courseIdRef.current && id === draftIdRef.current
     dirtyRef.current = false
     setSaveStatus('Saving…')
     const promise = api.saveWizardDraft(courseId, id, expected, payload, crypto.randomUUID()).then((saved) => {
+      if (!ownsSave()) return
       versionRef.current = saved.draft_version
       setDraft(saved)
       if (bodyRef.current === payload) {
@@ -270,16 +299,18 @@ export function PromptDesignerPage({ api, environment, verified }: {
       }
       setSaveStatus('Saved just now')
       void queryClient.invalidateQueries({ queryKey: ['wizard-drafts', courseId] })
-      void api.wizardVersions(courseId, id).then((result) => setVersions(result.versions))
+      void api.wizardVersions(courseId, id).then((result) => { if (ownsSave()) setVersions(result.versions) })
     }).catch((cause: unknown) => {
+      if (!ownsSave()) throw cause
       dirtyRef.current = true
       setSaveStatus('Not saved')
-      handleError(cause)
+      if (!chatSend || cause instanceof AuthenticationRequiredError) handleError(cause)
       throw cause
     }).finally(() => { savingRef.current = null })
     savingRef.current = promise
     await promise
-    if (dirtyRef.current && bodyRef.current !== payload) await flushSave()
+    if (!ownsSave()) return
+    if (dirtyRef.current && bodyRef.current !== payload) await flushSave(chatSend)
   }, [api, courseId, handleError, queryClient])
 
   useEffect(() => {
@@ -292,34 +323,57 @@ export function PromptDesignerPage({ api, environment, verified }: {
     if (!aiJobId || !draft || !builderOpen) return
     let active = true
     let polling = false
+    const epoch = builderEpochRef.current
+    const instructionId = aiInstructionIdRef.current
+    const ownsJob = () => epoch === builderEpochRef.current && courseId === courseIdRef.current
+      && draft.id === draftIdRef.current && instructionId === aiInstructionIdRef.current
     const timer = window.setInterval(() => {
       if (polling) return
       polling = true
+      let replyFailed = false
       void api.job(courseId, aiJobId).then(async (job) => {
-        if (!active || job.status === 'pending' || job.status === 'running') return
-        window.clearInterval(timer)
+        if (!active || !ownsJob() || job.status === 'pending' || job.status === 'running') return
+        let reconciled = false
         try {
           if (job.status === 'completed') {
             if (!dirtyRef.current) await loadDraft(draft.id)
-            else reconcileConversation((await api.wizardConversation(courseId, draft.id)).messages)
+            else {
+              const chat = await api.wizardConversation(courseId, draft.id)
+              if (!ownsJob()) return
+              reconcileConversation(chat.messages)
+            }
+            if (!ownsJob()) return
+            setReplyFailure('')
+            setReplyRecovery(null)
+            unresolvedInstructionRef.current = ''
+            deliveriesRef.current.delete(instructionId)
             setNotice('LEAI updated the saved draft.')
           } else {
-            const failureMessage = job.status === 'cancelled'
-              ? 'LEAI stopped this draft edit. Review the saved draft before trying again.'
-              : job.error_code === 'stale_draft'
-                ? 'The draft changed while LEAI was working. Your manual edits were preserved.'
-                : job.error_code === 'provider_outcome_unknown'
-                  ? 'LEAI could not confirm whether its AI request finished. Review the saved draft before sending the instruction again.'
-                  : 'LEAI could not update this draft. Please try again.'
-            setError(failureMessage)
-            reconcileConversation((await api.wizardConversation(courseId, draft.id)).messages)
+            replyFailed = true
+            setReplyFailure('Couldn’t generate a reply')
+            const chat = await api.wizardConversation(courseId, draft.id)
+            if (!ownsJob()) return
+            reconcileConversation(chat.messages)
+            const delivery = deliveriesRef.current.get(instructionId)
+            const persisted = chat.messages.filter((message) => message.role === 'user').at(-1)
+            if (delivery && persisted?.content === delivery.content) {
+              setReplyRecovery({ kind: 'reply', delivery: { ...delivery, retryMessageId: persisted.id } })
+            }
           }
+          reconciled = true
+          window.clearInterval(timer)
         } finally {
-          aiSendLockedRef.current = false
-          setAiSending(false)
-          setAiJobId('')
+          if (ownsJob() && reconciled) {
+            aiSendLockedRef.current = false
+            setAiSending(false)
+            setAiJobId('')
+          }
         }
-      }).catch(handleError).finally(() => { polling = false })
+      }).catch((cause: unknown) => {
+        if (!active || !ownsJob()) return
+        if (cause instanceof AuthenticationRequiredError) handleError(cause)
+        else setReplyFailure(replyFailed ? 'Couldn’t generate a reply' : 'Connection lost')
+      }).finally(() => { polling = false })
     }, 1200)
     return () => { active = false; window.clearInterval(timer) }
   }, [aiJobId, api, builderOpen, courseId, draft, handleError, loadDraft, reconcileConversation])
@@ -363,41 +417,116 @@ export function PromptDesignerPage({ api, environment, verified }: {
 
   async function sendAi(consumeTranscript: () => void) {
     const instruction = composer.trim()
-    if (!draft || !instruction || aiSendLockedRef.current) return
-    const submittedDraftId = draft.id
-    aiSendLockedRef.current = true
-    setAiSending(true)
+    if (!draft || !instruction || aiSendLockedRef.current || unresolvedInstructionRef.current) return
     const message: WizardConversationMessage = {
       id: `local-${crypto.randomUUID()}`, role: 'user', content: instruction, created_at: new Date().toISOString(),
     }
-    aiInstructionIdRef.current = message.id
-    const isCurrentInstruction = () => aiSendLockedRef.current
-      && aiInstructionIdRef.current === message.id && draftIdRef.current === submittedDraftId
+    const delivery: InstructionDelivery = {
+      courseId, draftId: draft.id, messageId: message.id, content: instruction, key: crypto.randomUUID(),
+    }
+    deliveriesRef.current.set(message.id, delivery)
+    unresolvedInstructionRef.current = message.id
     setLocalInstructions((current) => [...current, { message, previousIds: conversation.map((row) => row.id), failed: false }])
     consumeTranscript()
     setComposer('')
     setError('')
+    await deliverInstruction(delivery)
+  }
+
+  async function deliverInstruction(delivery: InstructionDelivery) {
+    const ownsDraft = () => draftIdRef.current === delivery.draftId && courseIdRef.current === delivery.courseId
+      && deliveriesRef.current.get(delivery.messageId) === delivery
+    if (!ownsDraft() || aiSendLockedRef.current) return
+    aiSendLockedRef.current = true
+    aiInstructionIdRef.current = delivery.messageId
+    setAiSending(true)
+    setReplyFailure('')
+    const isCurrentInstruction = () => ownsDraft() && aiSendLockedRef.current && aiInstructionIdRef.current === delivery.messageId
     try {
-      await saveNow()
-      if (!isCurrentInstruction()) return
-      const result = await api.startWizardAi(courseId, submittedDraftId, instruction, versionRef.current, crypto.randomUUID())
+      // Only the first attempt may save. A lost ACK must replay the exact request.
+      if (delivery.expectedVersion === undefined) {
+        await saveNow(true)
+        if (!isCurrentInstruction()) return
+        delivery.expectedVersion = versionRef.current
+      }
+      const result = delivery.retryMessageId
+        ? await api.startWizardAi(delivery.courseId, delivery.draftId, delivery.content, delivery.expectedVersion, delivery.key, delivery.retryMessageId)
+        : await api.startWizardAi(delivery.courseId, delivery.draftId, delivery.content, delivery.expectedVersion, delivery.key)
       if (!isCurrentInstruction()) return
       setAiJobId(result.job_id)
     } catch (cause) {
       if (!isCurrentInstruction()) return
       aiSendLockedRef.current = false
       setAiSending(false)
-      setLocalInstructions((current) => current.map((local) => local.message.id === message.id ? { ...local, failed: true } : local))
-      handleError(cause)
+      setLocalInstructions((current) => current.map((local) => local.message.id === delivery.messageId
+        ? { ...local, failed: true, connection: delivery.expectedVersion !== undefined,
+          changed: cause instanceof InstructorApiError && cause.status === 409 } : local))
+      setError('')
+      if (delivery.retryMessageId) setReplyRecovery({ delivery,
+        kind: cause instanceof InstructorApiError && cause.status === 409 ? 'changed'
+          : delivery.expectedVersion === undefined ? 'not-sent' : 'connection' })
+      if (cause instanceof AuthenticationRequiredError) handleError(cause)
       return
     }
     // An ACK owns a running job even if this read fails; keep sending locked.
     try {
-      const chat = await api.wizardConversation(courseId, submittedDraftId)
+      const chat = await api.wizardConversation(delivery.courseId, delivery.draftId)
       if (isCurrentInstruction()) reconcileConversation(chat.messages)
     } catch (cause) {
-      if (isCurrentInstruction()) handleError(cause)
+      if (isCurrentInstruction() && cause instanceof AuthenticationRequiredError) handleError(cause)
     }
+  }
+
+  async function retryInstruction(messageId: string) {
+    const delivery = deliveriesRef.current.get(messageId)
+    if (!delivery || aiSendLockedRef.current || delivery.courseId !== courseIdRef.current || delivery.draftId !== draftIdRef.current) return
+    if (unresolvedInstructionRef.current && unresolvedInstructionRef.current !== messageId) return
+    if (localInstructions.find((local) => local.message.id === messageId)?.changed) {
+      // Refresh is explicit; never silently move an uncertain delivery onto a newer version.
+      const epoch = builderEpochRef.current
+      const ownsRefresh = () => epoch === builderEpochRef.current && delivery.courseId === courseIdRef.current
+        && delivery.draftId === draftIdRef.current && deliveriesRef.current.get(messageId) === delivery
+      aiSendLockedRef.current = true
+      setAiSending(true)
+      try {
+        await loadDraft(delivery.draftId, (messages) => {
+          if (!ownsRefresh()) return
+          const local = localInstructions.find((row) => row.message.id === messageId)
+          const persisted = messages.some((row) => row.role === 'user' && row.content === delivery.content && !local?.previousIds.includes(row.id))
+          if (persisted) return
+          // The 409 rejected this instruction and the fresh transcript confirms non-delivery.
+          delivery.key = crypto.randomUUID()
+          delivery.expectedVersion = undefined
+          unresolvedInstructionRef.current = ''
+          setLocalInstructions((current) => current.map((row) => row.message.id === messageId
+            ? { ...row, changed: false, connection: false, previousIds: messages.map((message) => message.id) } : row))
+        })
+      } catch (cause) { if (cause instanceof AuthenticationRequiredError) handleError(cause) }
+      finally {
+        if (ownsRefresh()) { aiSendLockedRef.current = false; setAiSending(false) }
+      }
+      return
+    }
+    unresolvedInstructionRef.current = messageId
+    await deliverInstruction(delivery)
+  }
+
+  async function retryReply() {
+    if (!replyRecovery || aiSendLockedRef.current) return
+    const original = replyRecovery.delivery
+    if (original.courseId !== courseIdRef.current || original.draftId !== draftIdRef.current) return
+    if (replyRecovery.kind === 'changed') {
+      try { await loadDraft(original.draftId) }
+      catch (cause) { if (cause instanceof AuthenticationRequiredError) handleError(cause) }
+      return
+    }
+    // A deliberate new AI attempt reuses the persisted user row. A lost ACK replays itself.
+    const delivery = replyRecovery.kind === 'reply'
+      ? { ...original, messageId: `reply-${crypto.randomUUID()}`, key: crypto.randomUUID(), expectedVersion: undefined }
+      : original
+    deliveriesRef.current.set(delivery.messageId, delivery)
+    unresolvedInstructionRef.current = delivery.messageId
+    await deliverInstruction(delivery)
   }
 
   async function restoreVersion(version: WizardVersion) {
@@ -814,6 +943,9 @@ export function PromptDesignerPage({ api, environment, verified }: {
       {step === 2 && body && <div className="grid min-w-0 gap-0 overflow-hidden rounded-xl border border-border bg-card xl:h-[min(38rem,calc(100dvh-18rem))] xl:min-h-[30rem] xl:grid-cols-[minmax(17rem,34%)_minmax(0,66%)]">
         <AuthoringConversation busy={aiSending} disabled={!draft} messages={[...conversation, ...localInstructions.map((local) => local.message)]}
           failedMessageIds={localInstructions.filter((local) => local.failed).map((local) => local.message.id)} onSend={(consumeTranscript) => { void sendAi(consumeTranscript) }}
+          changedMessageIds={localInstructions.filter((local) => local.changed).map((local) => local.message.id)} onRetry={(id) => { void retryInstruction(id) }} replyFailure={replyFailure}
+          connectionMessageIds={localInstructions.filter((local) => local.connection).map((local) => local.message.id)}
+          sendBlocked={!!unresolvedInstructionRef.current} replyRecovery={replyRecovery ? { kind: replyRecovery.kind, onRetry: () => { void retryReply() } } : undefined}
           onValueChange={setComposer} value={composer} />
         <div className="min-w-0 bg-card p-4 xl:h-full xl:overflow-y-auto xl:p-5"><ArtifactEditor audience={draft?.audience ?? audience} body={body} collectionStyle={draft?.collection_style ?? 'guided'} disabled={false} onChange={editBody} onRestore={(version) => { void restoreVersion(version) }}
           saveStatus={saveStatus} versions={versions} /></div>

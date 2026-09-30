@@ -13,6 +13,21 @@ function ConversationHarness({ onSend, busy = false }: { onSend: () => void; bus
 }
 
 const originalScrollIntoView = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView')
+it('retries under the failed user bubble without sending or consuming future dictation', async () => {
+  const user = userEvent.setup()
+  const onRetry = vi.fn()
+  const onSend = vi.fn()
+  render(<TooltipProvider><AuthoringConversation busy={false} disabled={false}
+    messages={[{ id: 'local-1', role: 'user', content: 'Original instruction', created_at: '2026-09-29T12:00:00Z' }]}
+    failedMessageIds={['local-1']} onRetry={onRetry} onSend={onSend} onValueChange={() => {}} value="Future dictated text" /></TooltipProvider>)
+  const bubble = screen.getByText('Original instruction').closest('li')!
+  await user.click(within(bubble).getByRole('button', { name: 'Retry' }))
+  expect(onRetry).toHaveBeenCalledExactlyOnceWith('local-1')
+  expect(onSend).not.toHaveBeenCalled()
+  expect(screen.getByRole('textbox')).toHaveValue('Future dictated text')
+  expect(screen.getByRole('log').querySelectorAll('[data-chat-role="user"]')).toHaveLength(1)
+})
+
 afterEach(() => {
   vi.unstubAllGlobals()
   if (originalScrollIntoView) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', originalScrollIntoView)

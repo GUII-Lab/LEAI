@@ -4,18 +4,25 @@ import { ChatComposer } from '@/components/chat/ChatComposer'
 import { ChatMessage } from '@/components/chat/ChatMessage'
 import { ChatTranscript } from '@/components/chat/ChatTranscript'
 import { ChatThinkingMessage } from '@/components/chat/ChatThinkingMessage'
+import { ChatRetryStatus } from '@/components/chat/ChatRetryStatus'
 import { useChatVoiceInput } from '@/components/chat/useChatVoiceInput'
 import { InfoPopover } from '@/components/product/InfoPopover'
 import '@/app/student-legacy.css'
 
-export function AuthoringConversation({ messages, value, onValueChange, onSend, busy, disabled, failedMessageIds = [] }: {
+export function AuthoringConversation({ messages, value, onValueChange, onSend, busy, disabled, sendBlocked = false, failedMessageIds = [], onRetry, changedMessageIds = [], connectionMessageIds = [], replyFailure = '', replyRecovery }: {
   messages: WizardConversationMessage[]
   value: string
   onValueChange: (value: string) => void
   onSend: (consumeTranscript: () => void) => void
   busy: boolean
   disabled: boolean
+  sendBlocked?: boolean
   failedMessageIds?: string[]
+  changedMessageIds?: string[]
+  connectionMessageIds?: string[]
+  onRetry?: (messageId: string) => void
+  replyFailure?: string
+  replyRecovery?: { kind: 'reply' | 'connection' | 'not-sent' | 'changed'; onRetry: () => void }
 }) {
   const [keyboardHintOpen, setKeyboardHintOpen] = useState(false)
   const keyboardHintTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -31,7 +38,7 @@ export function AuthoringConversation({ messages, value, onValueChange, onSend, 
 
   function submit(event: FormEvent) {
     event.preventDefault()
-    if (value.trim() && !disabled && !busy) onSend(voice.resetTranscript)
+    if (value.trim() && !disabled && !busy && !sendBlocked) onSend(voice.resetTranscript)
   }
 
   function showKeyboardHint() {
@@ -50,13 +57,18 @@ export function AuthoringConversation({ messages, value, onValueChange, onSend, 
         {messages.map((message) => message.role === 'user'
           ? <ChatMessage author="You" className="student-user-message" key={message.id} metaClassName="student-message-meta" role="user" timestamp={message.created_at}>
               <p className="w-full max-w-[83%] whitespace-pre-wrap break-words rounded bg-muted px-5 py-4 text-base leading-7">{message.content}</p>
-              {failedMessageIds.includes(message.id) && <p role="alert">Send not confirmed. Review the saved conversation before retrying.</p>}
+              {failedMessageIds.includes(message.id) && onRetry && <ChatRetryStatus busy={busy}
+                kind={changedMessageIds.includes(message.id) ? 'changed' : connectionMessageIds.includes(message.id) ? 'connection' : 'not-sent'} onRetry={() => onRetry(message.id)} />}
             </ChatMessage>
           : <ChatMessage author="LEAI" className="student-assistant-message" key={message.id} metaClassName="student-message-meta" role="assistant" timestamp={message.created_at}>
               <div className="ml-1 border-l border-border/60 py-0.5 pl-7">
                 {message.content.split('\n').map((line, index) => <p className="min-h-[1em] whitespace-pre-wrap break-words text-base leading-[1.7]" key={index}>{line}</p>)}
               </div>
             </ChatMessage>)}
+        {(replyFailure || replyRecovery) && <ChatMessage author="LEAI" role="assistant" className="student-assistant-message" metaClassName="student-message-meta">
+          {replyRecovery ? <ChatRetryStatus busy={busy} kind={replyRecovery.kind} onRetry={replyRecovery.onRetry} />
+            : <p className="text-sm text-muted-foreground">{replyFailure}</p>}
+        </ChatMessage>}
         {busy && <ChatThinkingMessage />}
       </ChatTranscript>
       {messages.length === 0 && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-base leading-relaxed">
@@ -69,7 +81,7 @@ export function AuthoringConversation({ messages, value, onValueChange, onSend, 
           maxLength={3000} onEnterSend={showKeyboardHint} onValueChange={onValueChange} placeholder="Ask for a change to the draft…"
           sendHint={{ content: <span>Enter sends. <kbd data-slot="kbd">⌘+Enter</kbd> or <kbd data-slot="kbd">Ctrl+Enter</kbd> adds a new line. Shift+Enter also works.</span>,
             open: keyboardHintOpen, onOpenChange: setKeyboardHintOpen }}
-          sendDisabled={!value.trim()} value={value} voiceInput={voice.voiceInput} />
+          sendDisabled={!value.trim() || sendBlocked} value={value} voiceInput={voice.voiceInput} />
         {voice.error && <p className="mt-2 text-sm text-destructive" role="alert">{voice.error}</p>}
         <div className="mt-2 flex items-center justify-end gap-2 text-sm text-muted-foreground">AI collaborator <InfoPopover label="What AI can use" variant="builder">LEAI can use this draft, authorized templates, and course context. It cannot access student rosters, grades, or other courses.</InfoPopover></div>
       </div>
